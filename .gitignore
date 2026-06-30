@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+build/
+*.log
+npm-debug.log*
+
+# env / secrets
+.env
+.env*.local
+
+# local sqlite db
+*.db
+*.db-journal
+prisma/dev.db*
+
+# misc
+.DS_Store
+next-env.d.ts

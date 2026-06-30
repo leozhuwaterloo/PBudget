@@ -1,0 +1,26 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { hashPassword, createSession, createVerificationToken } from "@/lib/auth";
+import { normalizeEmail, validatePassword } from "@/lib/validate";
+import { sendVerificationEmail } from "@/lib/email";
+
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const email = normalizeEmail(body.email);
+  const password = validatePassword(body.password);
+  if (!email) return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+  if (!password) {
+    return NextResponse.json({ error: "Password must be 8–200 characters" }, { status: 400 });
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return NextResponse.json({ error: "That email is already registered" }, { status: 409 });
+
+  const user = await prisma.user.create({
+    data: { email, passwordHash: await hashPassword(password) },
+  });
+  const token = await createVerificationToken(user.id);
+  await sendVerificationEmail(email, token);
+  await createSession(user.id);
+  return NextResponse.json({ ok: true });
+}

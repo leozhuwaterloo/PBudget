@@ -1,0 +1,14 @@
+# Build clean: deps come from `npm ci` in the image, secrets/db from Vault at
+# runtime. Never bake the local dev .env / sqlite db / node_modules into layers.
+node_modules
+.next
+.git
+.gitignore
+*.db
+*.db-journal
+prisma/dev.db*
+.env
+.env*.local
+*.log
+.DS_Store
+README.md

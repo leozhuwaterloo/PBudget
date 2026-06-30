@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ponytail: provider is sqlite for local dev. For prod (postgres-ai) the deploy
+// step swaps this to "postgresql" — only the provider + DATABASE_URL change, no
+// query rewrites (CLAUDE.md). Json is stored as String for provider-agnosticism.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Accounts / auth / billing -------------------------------------------
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  passwordHash         String
+  emailVerified        DateTime?
+  createdAt            DateTime  @default(now())
+
+  // billing ($1 / managed Plaid account / month)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  subscriptionStatus   String? // active | trialing | past_due | canceled | ...
+
+  sessions           Session[]
+  verificationTokens EmailVerificationToken[]
+  items              PlaidItem[]
+  categories         TransactionCategory[]
+}
+
+model Session {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+// ---- Plaid domain (ported from Portfolio's App/plaid/models.py) -----------
+
+model PlaidInstitution {
+  institutionId String      @id
+  name          String
+  primaryColor  String?
+  url           String?
+  logo          String?
+  lastUpdated   DateTime    @updatedAt
+  items         PlaidItem[]
+}
+
+model PlaidItem {
+  itemId             String           @id
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId      String
+  institution        PlaidInstitution @relation(fields: [institutionId], references: [institutionId], onDelete: Cascade)
+  accessToken        String // AES-256-GCM encrypted Plaid access token
+  lastUpdated        DateTime         @updatedAt
+  lastForceRefreshed DateTime
+  accounts           PlaidAccount[]
+
+  @@index([userId])
+  @@index([institutionId])
+}
+
+model PlaidAccount {
+  accountId       String             @id
+  itemId          String
+  item            PlaidItem          @relation(fields: [itemId], references: [itemId], onDelete: Cascade)
+  name            String
+  officialName    String?
+  accountType     String
+  accountSubtype  String?
+  available       Decimal?
+  current         Decimal?
+  limit           Decimal?
+  isoCurrencyCode String?
+  lastUpdated     DateTime           @updatedAt
+  transactions    PlaidTransaction[]
+
+  @@index([itemId])
+}
+
+model PlaidTransaction {
+  transactionId        String       @id
+  accountId            String
+  account              PlaidAccount @relation(fields: [accountId], references: [accountId], onDelete: Cascade)
+  amount               Decimal
+  isoCurrencyCode      String?
+  category             String? // JSON text: Plaid personal_finance_category + legacy categories
+  datetime             DateTime
+  name                 String
+  merchantName         String?
+  paymentChannel       String
+  pending              Boolean
+  pendingTransactionId String?
+  // ponytail: original used an ML model (PlaidTransactionMeta.predicted_category),
+  // not portable. We derive this from Plaid's personal_finance_category at sync.
+  predictedCategory    String?
+  lastUpdated          DateTime     @updatedAt
+
+  @@index([accountId])
+}
+
+model TransactionCategory {
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  budget Decimal @default(0)
+
+  @@unique([userId, name])
+}
