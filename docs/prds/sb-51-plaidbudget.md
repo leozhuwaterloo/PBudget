@@ -57,7 +57,8 @@ Rules (all four in v1):
    `TRANSFER_IN`/`TRANSFER_OUT` or e-transfer-style name) with no linked counterpart.
 3. **Unusual amount** — an approved vendor charging ≥ 3× its historical median
    (needs ≥ 3 prior transactions from that vendor).
-4. **Duplicate charge** — same vendor + same amount within a 3-day window. **Both**
+4. **Duplicate charge** — same vendor + same **signed** amount within a 3-day
+   window (a charge and its refund have opposite signs and do not pair). **Both**
    transactions in the window are flagged; each is dismissed individually (FR4).
 
 Two exemptions apply across all four rules: (a) transactions in a linked transfer
@@ -86,14 +87,16 @@ transfer-like sides get unmatched-transfer flags, sides from unapproved vendors 
 unknown-vendor flags, and a non-transfer-like side from an approved vendor ends up
 unflagged (accounted for as normal spend). An unlink is **remembered**: the
 analyzer never auto-pairs those same two transactions again on later syncs
-(mirroring dismissal permanence); manual re-pairing stays possible. Manual pairing
-of two flagged transfers is also possible, subject to the same checks
+(mirroring dismissal permanence); manual re-pairing stays possible. Manual pairing is
+also possible for **any two transactions of the user — flagged or unflagged**
+(user decision, current review cycle round 1), subject to the same checks
 (opposite-sign, equal amount, different accounts of the same user) but with **no
-time-window limit** — its purpose is catching real transfers that settle outside
-the 4-day auto-window.
+time-window limit**; pairing attributes both sides to vendor **Self** and clears
+any open flags on them. Its purpose is catching real transfers that settle
+outside the 4-day auto-window or that don't look transfer-like at all.
 
 **FR4 — Explicit resolution.** Every flag requires a user decision — approve vendor,
-confirm/unlink pair, or **dismiss** (per-transaction). Nothing auto-resolves except
+confirm/unlink pair, manually pair, or **dismiss** (per-transaction). Nothing auto-resolves except
 unknown-vendor flags cleared by a vendor approval and transfer flags cleared by a
 link — and an auto link is not itself a resolution: the pair stays pending until
 confirmed or unlinked (FR3), so every linked transfer still gets explicit review.
@@ -125,7 +128,10 @@ copies the old Django app's institutions, items, accounts, transactions, categor
 (with budgets), and predicted categories into the Prisma schema, attaching everything
 to the owner's account (yuner25699@gmail.com). Access tokens are decrypted (Fernet)
 and re-encrypted with the app's AES-256-GCM key so banks stay connected without
-re-linking. Reads source/destination connection info from env vars; never hardcodes
+re-linking. Migrated rows **keep their original Plaid identifiers** (transaction, account,
+and item IDs) so the next 180-day sync upserts into the migrated rows instead of
+re-inserting the overlap as new rows (which would mass-false-flag duplicates).
+Reads source/destination connection info from env vars; never hardcodes
 credentials. Ships with a fixture dump of the old Django schema (plus a fixture
 Fernet key) so the script is verifiable without production access (criterion 11).
 
@@ -198,6 +204,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
     (FR7).
 11. The migration script, run twice against a fixture copy of the old Django schema,
     produces identical row counts (idempotent), attaches all rows to the owner user,
+    migrated rows retain the fixture dump's original Plaid transaction/account/item
+    IDs (so later real syncs upsert instead of duplicating),
     and a migrated access token decrypts with the new AES key to the original
     plaintext; running the analyzer afterwards flags the migrated fixture
     transactions per FR1 — nothing grandfathered (FR1, FR8).
@@ -207,8 +215,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
     a page reload, and switching back restores English (FR10).
 14. Two fixture unmatched transfers — opposite-sign, equal amount, different
     accounts, 6 days apart (outside the auto-window) — can be manually paired from
-    `/review`; both unmatched-transfer flags clear and their vendor becomes **Self**
-    (FR3).
+    `/review`; both unmatched-transfer flags clear and their vendor becomes **Self**.
+    The manual-pairing UI also offers **unflagged** transactions as counterpart
+    candidates — eligibility is any transaction meeting the FR3 checks, not only
+    flagged ones (FR3).
 15. The fixture pending transaction carries no flags after analysis; after seed
     phase 2 delivers its posted replacement and re-runs analysis, the posted row is
     flagged per FR1 and the pending→posted pair is **not** flagged as a duplicate
@@ -283,3 +293,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   confirmation — consistent with the FR1 exemptions; (c) criteria 15–16 kept so the
   posted-only exemption and dismissal permanence are actually verified, with the
   needed pending-transaction fixture in FR9.
+- **Confirmed by the user in the current review cycle (round 1):** (a) duplicate
+  matching uses the **signed** amount — a charge and its refund do not pair
+  (FR1.4); (b) manual pairing is open to **any** two transactions, flagged or
+  unflagged, subject to the FR3 checks (FR3, criterion 14); (c) the migration
+  preserves original Plaid transaction/account/item IDs so post-migration syncs
+  upsert into migrated rows instead of duplicating the 180-day overlap (FR8,
+  criterion 11).
