@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { categoryFor } from "../categories";
 import { normalizeVendor, plaidPrimary } from "./vendor";
 import { primaryLeg, netAmount } from "./groups";
+import { analyzeUser } from "./analyze";
 
 // Create a merge group over legIds (auto-match `auto` or manual merge `confirmed`,
 // FR3). Derives title/vendor/category/date from the primary leg (largest outflow),
@@ -49,4 +50,32 @@ export async function createMergeGroup(
   });
 
   return group;
+}
+
+// Dissolve a group (FR3). Remember the sorted-leg key BEFORE re-analysis so
+// auto-match never recreates this exact set (a manual re-merge stays possible),
+// resolve the group's own OPEN flags (the group ceases to exist), delete it
+// (legs cascade), then re-run the analyzer so the freed legs get re-evaluated —
+// transfer-like legs get unmatched_transfer, unapproved-vendor legs get
+// unknown_vendor. Dismissed flags stay dismissed (permanence, FR4), since the
+// analyzer never reopens a dismissed flag.
+export async function dissolveGroup(userId: string, groupId: string): Promise<void> {
+  const legs = await prisma.mergeGroupLeg.findMany({ where: { groupId } });
+  const legKey = legs
+    .map((l) => l.transactionId)
+    .sort()
+    .join("|"); // must match autoMatch's key format so the memo blocks re-creation
+
+  await prisma.dissolvedGroupMemo.upsert({
+    where: { userId_legKey: { userId, legKey } },
+    create: { userId, legKey },
+    update: {},
+  });
+  await prisma.transactionFlag.updateMany({
+    where: { mergeGroupId: groupId, status: "open" },
+    data: { status: "resolved", resolvedAt: new Date() },
+  });
+  await prisma.mergeGroup.delete({ where: { id: groupId } });
+
+  await analyzeUser(userId);
 }
