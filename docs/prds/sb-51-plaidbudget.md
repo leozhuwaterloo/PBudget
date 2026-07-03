@@ -84,7 +84,9 @@ control is that **every auto-linked pair is itself an open review item** on
 from vendor **Self** to their raw vendor and re-runs all four rules on them —
 transfer-like sides get unmatched-transfer flags, sides from unapproved vendors get
 unknown-vendor flags, and a non-transfer-like side from an approved vendor ends up
-unflagged (accounted for as normal spend). Manual pairing
+unflagged (accounted for as normal spend). An unlink is **remembered**: the
+analyzer never auto-pairs those same two transactions again on later syncs
+(mirroring dismissal permanence); manual re-pairing stays possible. Manual pairing
 of two flagged transfers is also possible, subject to the same checks
 (opposite-sign, equal amount, different accounts of the same user) but with **no
 time-window limit** — its purpose is catching real transfers that settle outside
@@ -106,14 +108,17 @@ explicit, visible "all clear" state.
 
 **FR6 — Monthly report.** New report view, linked from the main nav: for a chosen
 month, spend per user
-category with **linked transfer pairs excluded**, resolved vs open flag counts, and
+category with **linked transfer pairs excluded** (a pair counts as linked from the
+moment it is auto-matched, not only once confirmed — same as the FR1 exemptions),
+resolved vs open flag counts, and
 total in/out (linked pairs also excluded, so both totals reflect external cash
 flow only). Categories come from the Plaid-category→user-category mapping: defaults
 seeded from Plaid's `personal_finance_category` (current behavior), with a settings
 UI where the user remaps any Plaid category to a category of their own naming.
 
 **FR7 — Transfers excluded from budget.** The existing `/budget` monthly totals also
-exclude linked-pair transactions (they net to zero and are not spend).
+exclude linked-pair transactions, auto-linked or confirmed (they net to zero and are
+not spend).
 
 **FR8 — Portfolio data migration.** A one-off, idempotent, re-runnable script that
 copies the old Django app's institutions, items, accounts, transactions, categories
@@ -127,10 +132,12 @@ Fernet key) so the script is verifiable without production access (criterion 11)
 **FR9 — Demo seed for verification.** `npm run seed:demo` creates a verified demo
 user seeded with an active subscription status (so it passes the billing gate with
 no Stripe calls) with fixture accounts/transactions that exercise all four rules and a transfer
-pair, so the full review/report flow is drivable locally without Plaid credentials.
+pair, plus one pending transaction, so the full review/report flow is drivable
+locally without Plaid credentials.
 The seed also provides a follow-up step (e.g. a second seed phase) that injects
-additional fixture transactions and re-runs analysis, so post-decision behavior
-(criteria 2–3) is drivable without Plaid.
+additional fixture transactions — including the pending transaction's posted
+replacement under a new Plaid ID — and re-runs analysis, so post-decision behavior
+(criteria 2–3, 15–16) is drivable without Plaid.
 
 **FR10 — Bilingual UI (English + Simplified Chinese).** All app pages — existing
 (dashboard, `/budget`, item detail, auth, billing) and new (`/review`, monthly
@@ -200,6 +207,15 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
     accounts, 6 days apart (outside the auto-window) — can be manually paired from
     `/review`; both unmatched-transfer flags clear and their vendor becomes **Self**
     (FR3).
+15. The fixture pending transaction carries no flags after analysis; after seed
+    phase 2 delivers its posted replacement and re-runs analysis, the posted row is
+    flagged per FR1 and the pending→posted pair is **not** flagged as a duplicate
+    (FR1 exemption b, FR9).
+16. A flag dismissed in the UI stays resolved after seed phase 2 re-runs analysis —
+    the same transaction is not re-flagged by the same rule (FR4).
+17. Unlinking the auto-linked fixture pair and re-running analysis (seed phase 2)
+    does not re-create the pair — both sides keep their re-run flags per criterion 4
+    until resolved by hand (FR3).
 
 ## Deployment
 
@@ -258,3 +274,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   all four rules on both sides rather than unconditionally flagging them as unmatched
   transfers; the duplicate rule flags **both** transactions in the window, each
   dismissed individually.
+- **This cycle round 2 defaults, PENDING user confirmation** (user was away when
+  asked): (a) an unlink is permanent — the analyzer never auto-pairs the same two
+  transactions again; manual re-pairing stays possible (FR3, criterion 17);
+  (b) linked-pair exclusions in FR6/FR7 apply from auto-match, while the pair is
+  still pending confirmation — consistent with the FR1 exemptions; (c) criteria
+  15–16 added so the posted-only exemption and dismissal permanence are actually
+  verified, with the needed pending-transaction fixture added to FR9.
