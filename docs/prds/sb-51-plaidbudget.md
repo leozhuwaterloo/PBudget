@@ -97,8 +97,9 @@ outside the 4-day auto-window or that don't look transfer-like at all.
 
 **FR4 — Explicit resolution.** Every flag requires a user decision — approve vendor,
 confirm/unlink pair, manually pair, or **dismiss** (per-transaction). Nothing auto-resolves except
-unknown-vendor flags cleared by a vendor approval and transfer flags cleared by a
-link — and an auto link is not itself a resolution: the pair stays pending until
+unknown-vendor flags cleared by a vendor approval and flags cleared by linking —
+pairing (auto or manual) clears **all** open flags on both sides, per FR1
+exemption (a) and FR3 — and an auto link is not itself a resolution: the pair stays pending until
 confirmed or unlinked (FR3), so every linked transfer still gets explicit review.
 
 **FR5 — `/review` page.** New authenticated page listing open flags grouped by rule
@@ -113,7 +114,7 @@ explicit, visible "all clear" state.
 month, spend per user
 category with **linked transfer pairs excluded** (a pair counts as linked from the
 moment it is auto-matched, not only once confirmed — same as the FR1 exemptions),
-resolved vs open flag counts, and
+resolved vs open flag counts (counted by transaction date, as in FR5), and
 total in/out (linked pairs also excluded, so both totals reflect external cash
 flow only). Categories come from the Plaid-category→user-category mapping: defaults
 seeded from Plaid's `personal_finance_category` (current behavior), with a settings
@@ -139,11 +140,14 @@ Fernet key) so the script is verifiable without production access (criterion 11)
 user seeded with an active subscription status (so it passes the billing gate with
 no Stripe calls) with fixture accounts/transactions that exercise all four rules and a transfer
 pair, plus one pending transaction, so the full review/report flow is drivable
-locally without Plaid credentials.
+locally without Plaid credentials. One fixture vendor is seeded **pre-approved**
+(as if the user had approved it), with ≥ 3 prior charges, one charge ≥ 3× their
+median, and one below-threshold charge, so the unusual-amount rule (FR1.3) is
+verifiable on first analysis (criterion 6); all other vendors start pending per FR2.
 The seed also provides a follow-up step (e.g. a second seed phase) that injects
 additional fixture transactions — including the pending transaction's posted
 replacement under a new Plaid ID — and re-runs analysis, so post-decision behavior
-(criteria 2–3, 15–16) is drivable without Plaid.
+(criteria 2–3, 15–17) is drivable without Plaid.
 
 **FR10 — Bilingual UI (English + Simplified Chinese).** All app pages — existing
 (dashboard, `/budget`, item detail, auth, billing) and new (`/review`, monthly
@@ -190,8 +194,9 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
    e-transfer-named, so both get unmatched-transfer flags) (FR3).
 5. A fixture transfer-out with no counterpart within 4 days has an open
    unmatched-transfer flag (FR1.2).
-6. A fixture charge ≥ 3× an approved vendor's median (with ≥ 3 priors) is flagged
-   unusual-amount; one below the threshold is not (FR1.3).
+6. After the first analysis, the seeded pre-approved vendor's fixture charge ≥ 3×
+   its median (with ≥ 3 priors) has an open unusual-amount flag; its
+   below-threshold fixture charge does not (FR1.3, FR9).
 7. Two same-vendor, same-amount fixture charges 1 day apart **each** carry an open
    duplicate flag (FR1.4).
 8. Every flag and every pair pending confirmation can be driven to resolved through
@@ -300,3 +305,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   preserves original Plaid transaction/account/item IDs so post-migration syncs
   upsert into migrated rows instead of duplicating the 180-day overlap (FR8,
   criterion 11).
+- **Confirmed by the user in the current review cycle (round 2):** the demo seed
+  pre-approves one fixture vendor (≥ 3 priors, one ≥ 3× median charge, one below
+  threshold) so the unusual-amount rule is verifiable on first analysis — without
+  this, no vendor is approved at seed-time analysis and criterion 6 could never
+  pass (FR9, criterion 6).
