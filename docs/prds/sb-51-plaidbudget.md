@@ -59,6 +59,14 @@ Rules (all four in v1):
    (needs ≥ 3 prior transactions from that vendor).
 4. **Duplicate charge** — same vendor + same amount within a 3-day window.
 
+Two exemptions apply across all four rules: (a) transactions in a linked transfer
+pair (FR3) are exempt from **every** rule — a linked pair is accounted for by
+definition, and its equal-amount legs would otherwise false-flag as duplicates;
+(b) the analyzer runs on **posted transactions only** — pending transactions are
+skipped and analyzed once they post (sync stores a pending row and its posted
+replacement under different Plaid IDs, so analyzing both would false-flag every
+pending→posted pair as a duplicate).
+
 **FR2 — Vendor review queue.** Every distinct vendor starts *pending*. From the
 review page the user can **approve** (clears all open unknown-vendor flags for that
 vendor, past and future) or **reject** (vendor stays untrusted; each of its future
@@ -70,7 +78,10 @@ user within a 4-day window into a *linked pair* (status `auto`). The user can
 **confirm** or **unlink** a pair from the review page; unlinking re-flags both sides
 as unmatched transfers and reverts them from vendor **Self** to their raw vendor (so
 the unknown-vendor rule applies again if that vendor is unapproved). Manual pairing
-of two flagged transfers is also possible.
+of two flagged transfers is also possible, subject to the same checks
+(opposite-sign, equal amount, different accounts of the same user) but with **no
+time-window limit** — its purpose is catching real transfers that settle outside
+the 4-day auto-window.
 
 **FR4 — Explicit resolution.** Every flag requires a user decision — approve vendor,
 confirm/unlink pair, or **dismiss** (per-transaction). Nothing auto-resolves except
@@ -79,13 +90,15 @@ link.
 
 **FR5 — `/review` page.** New authenticated page listing open flags grouped by rule,
 newest first, with the actions above, plus counters: suspicious today, suspicious
-this month, total open. Filterable by day or month. Zero open flags is an explicit,
+this month (both counted by transaction date), total open. Filterable by day or
+month (also by transaction date). Zero open flags is an explicit,
 visible "all clear" state.
 
 **FR6 — Monthly report.** New report view, linked from the main nav: for a chosen
 month, spend per user
 category with **linked transfer pairs excluded**, resolved vs open flag counts, and
-total in/out. Categories come from the Plaid-category→user-category mapping: defaults
+total in/out (linked pairs also excluded, so both totals reflect external cash
+flow only). Categories come from the Plaid-category→user-category mapping: defaults
 seeded from Plaid's `personal_finance_category` (current behavior), with a settings
 UI where the user remaps any Plaid category to a category of their own naming.
 
@@ -166,6 +179,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 13. Switching the language to 简体中文 renders `/review` and the monthly report with
     Chinese UI strings (no untranslated chrome on those pages), the choice survives
     a page reload, and switching back restores English (FR10).
+14. Two fixture unmatched transfers — opposite-sign, equal amount, different
+    accounts, 6 days apart (outside the auto-window) — can be manually paired from
+    `/review`; both unmatched-transfer flags clear and their vendor becomes **Self**
+    (FR3).
 
 ## Deployment
 
@@ -173,7 +190,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   ```bash
   nvm use 22
   npm install
-  cp .env.example .env   # DATABASE_URL=file:./dev.db + generated APP_ENCRYPTION_KEY suffice; Plaid/Stripe not needed for seeded verification
+  cp .env.example .env   # DATABASE_URL=file:./dev.db + APP_ENCRYPTION_KEY suffice; Plaid/Stripe not needed for seeded verification
+  # generate the key: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
   npm run db:push
   npm run seed:demo      # prints demo login credentials
   npm run dev            # http://localhost:5300
@@ -208,3 +226,9 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 - Locale is a per-user setting (cookie fallback pre-login), English default,
   Simplified Chinese as the only other locale; emails and user data untranslated
   (user decision, review round 1).
+- **Review round 2 defaults — set by the reviewer while the user was away;
+  override any of these if wrong:** (a) linked-pair transactions are exempt from
+  all four rules, not just unknown-vendor; (b) the analyzer runs on posted
+  transactions only, skipping pending ones until they post; (c) manual pairing
+  requires opposite-sign + equal amount + different accounts but has no time
+  window; (d) the monthly report's total in/out excludes linked pairs.
