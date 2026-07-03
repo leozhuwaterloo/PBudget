@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 import { refreshAndSync } from "@/lib/plaid";
 import { reconcileQuantity } from "@/lib/stripe";
+import { analyzeUser } from "@/lib/analysis/analyze";
 
 export async function POST(req: Request) {
   const g = await gate({ verified: true, subscribed: true });
@@ -23,6 +24,9 @@ export async function POST(req: Request) {
       item.lastForceRefreshed
     );
     await reconcileQuantity(g.user!.id);
+    // FR1: analyze the user's history after the upserts. First run analyzes all
+    // existing history — nothing is grandfathered.
+    await analyzeUser(g.user!.id);
     return NextResponse.json({ result });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Plaid error" }, { status: 500 });

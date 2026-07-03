@@ -9,7 +9,8 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "check:analysis": "tsx scripts/check-analysis.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
