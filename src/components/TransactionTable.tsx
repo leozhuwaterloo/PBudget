@@ -1,4 +1,5 @@
 import React from "react";
+import { t, type Locale } from "@/lib/i18n";
 
 export type Txn = {
   transaction_id: string;
@@ -16,15 +17,16 @@ export type Txn = {
   leg_count?: number;
 };
 
-type Field = [label: string, key: keyof Txn | "amount" | "datetime" | "last_updated"];
+// label is an i18n key (see src/lib/i18n/en.ts "field.*"), translated at render.
+type Field = [labelKey: string, key: keyof Txn | "amount" | "datetime" | "last_updated"];
 
 const DEFAULT_FIELDS: Field[] = [
-  ["Transaction Name", "name"],
-  ["Merchant Name", "merchant_name"],
-  ["Category", "predicted_category"],
-  ["Amount", "amount"],
-  ["Date", "datetime"],
-  ["Last Updated", "last_updated"],
+  ["field.name", "name"],
+  ["field.merchant", "merchant_name"],
+  ["field.category", "predicted_category"],
+  ["field.amount", "amount"],
+  ["field.date", "datetime"],
+  ["field.lastUpdated", "last_updated"],
 ];
 
 const groupBadge: React.CSSProperties = {
@@ -37,44 +39,48 @@ const groupBadge: React.CSSProperties = {
   color: "var(--muted)",
 };
 
-function cell(t: Txn, key: string): React.ReactNode {
-  if (key === "amount") return `${t.currency_code ?? ""} ${t.amount}`.trim();
-  if (key === "datetime") return new Date(t.datetime).toLocaleDateString("en-ZA", { timeZone: "UTC" });
-  if (key === "last_updated") return new Date(t.last_updated).toLocaleString("en-ZA");
-  if (key === "name" && t.is_group)
+function cell(row: Txn, key: string, locale: Locale): React.ReactNode {
+  if (key === "amount") return `${row.currency_code ?? ""} ${row.amount}`.trim();
+  if (key === "datetime") return new Date(row.datetime).toLocaleDateString("en-ZA", { timeZone: "UTC" });
+  if (key === "last_updated") return new Date(row.last_updated).toLocaleString("en-ZA");
+  if (key === "name" && row.is_group)
     return (
       <>
-        {t.name}
-        <span style={groupBadge} title={`Merged group of ${t.leg_count} transactions`}>
-          group · {t.leg_count}
+        {row.name}
+        <span style={groupBadge} title={t(locale, "txn.groupTooltip", { n: row.leg_count ?? 0 })}>
+          {t(locale, "txn.groupBadge", { n: row.leg_count ?? 0 })}
         </span>
       </>
     );
-  const v = (t as Record<string, unknown>)[key];
+  const v = (row as Record<string, unknown>)[key];
   return v == null ? "" : String(v);
 }
 
+// locale is passed in (not read from context) because this component renders in
+// both server (ItemDetail) and client (Budget) trees — a context hook can't do both.
 export default function TransactionTable({
   transactions,
   fields = DEFAULT_FIELDS,
+  locale,
 }: {
   transactions: Txn[];
   fields?: Field[];
+  locale: Locale;
 }) {
   return (
     <table className="nested">
       <thead>
         <tr>
-          {fields.map(([label]) => (
-            <th key={label}>{label}</th>
+          {fields.map(([labelKey]) => (
+            <th key={labelKey}>{t(locale, labelKey)}</th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {transactions.map((t) => (
-          <tr key={t.transaction_id} className={t.pending ? "pending" : undefined}>
-            {fields.map(([label, key]) => (
-              <td key={label}>{cell(t, key)}</td>
+        {transactions.map((row) => (
+          <tr key={row.transaction_id} className={row.pending ? "pending" : undefined}>
+            {fields.map(([labelKey, key]) => (
+              <td key={labelKey}>{cell(row, key, locale)}</td>
             ))}
           </tr>
         ))}

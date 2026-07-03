@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { getLocale } from "@/lib/i18n/server";
+import { t } from "@/lib/i18n";
 import ResendButton from "@/components/ResendButton";
 
 export default async function VerifyPage({
@@ -9,6 +11,7 @@ export default async function VerifyPage({
   searchParams: { token?: string };
 }) {
   const token = searchParams?.token;
+  const locale = await getLocale();
 
   if (token) {
     const row = await prisma.emailVerificationToken.findUnique({ where: { token } });
@@ -17,16 +20,16 @@ export default async function VerifyPage({
       await prisma.emailVerificationToken.deleteMany({ where: { userId: row.userId } });
       return (
         <div className="card" style={{ maxWidth: 480, margin: "40px auto" }}>
-          <h1>Email verified ✓</h1>
-          <p className="muted">Your account is now active.</p>
-          <Link className="btn btn-primary" href="/dashboard">Go to dashboard</Link>
+          <h1>{t(locale, "verify.verifiedTitle")}</h1>
+          <p className="muted">{t(locale, "verify.verifiedBody")}</p>
+          <Link className="btn btn-primary" href="/dashboard">{t(locale, "verify.goDashboard")}</Link>
         </div>
       );
     }
     return (
       <div className="card" style={{ maxWidth: 480, margin: "40px auto" }}>
-        <h1>Link invalid or expired</h1>
-        <p className="muted">Request a fresh verification link below.</p>
+        <h1>{t(locale, "verify.invalidTitle")}</h1>
+        <p className="muted">{t(locale, "verify.invalidBody")}</p>
         <ResendButton />
       </div>
     );
@@ -36,17 +39,16 @@ export default async function VerifyPage({
   if (user?.emailVerified) {
     return (
       <div className="card" style={{ maxWidth: 480, margin: "40px auto" }}>
-        <h1>You&apos;re verified ✓</h1>
-        <Link className="btn btn-primary" href="/dashboard">Go to dashboard</Link>
+        <h1>{t(locale, "verify.alreadyTitle")}</h1>
+        <Link className="btn btn-primary" href="/dashboard">{t(locale, "verify.goDashboard")}</Link>
       </div>
     );
   }
   return (
     <div className="card" style={{ maxWidth: 480, margin: "40px auto" }}>
-      <h1>Verify your email</h1>
+      <h1>{t(locale, "verify.title")}</h1>
       <p className="muted">
-        We sent a verification link to {user?.email ?? "your inbox"}. Click it to activate your
-        account. (In local dev, the link is printed to the server console.)
+        {t(locale, "verify.body", { email: user?.email ?? t(locale, "verify.yourInbox") })}
       </p>
       <ResendButton />
     </div>

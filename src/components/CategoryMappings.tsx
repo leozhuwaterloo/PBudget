@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/context";
 
 type Row = { plaidPrimary: string; default: string; category: string; overridden: boolean };
 
@@ -8,6 +9,7 @@ type Row = { plaidPrimary: string; default: string; category: string; overridden
 // Saving PUTs the override and updates in place; "Reset" clears it. Mapping is
 // applied at read time, so /report and /budget move retroactively — no rewrite.
 export default function CategoryMappings() {
+  const t = useT();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -17,7 +19,7 @@ export default function CategoryMappings() {
   useEffect(() => {
     (async () => {
       const res = await fetch("/api/categories/mapping");
-      if (!res.ok) return setError("Failed to load categories.");
+      if (!res.ok) return setError(t("catmap.loadFailed"));
       const data = await res.json();
       setRows(data.mappings);
       setCategories(data.categories);
@@ -34,7 +36,7 @@ export default function CategoryMappings() {
       body: JSON.stringify({ plaidPrimary: primary, categoryName }),
     });
     setSaving(null);
-    if (!res.ok) return setError("Save failed.");
+    if (!res.ok) return setError(t("catmap.saveFailed"));
     const updated: Row = await res.json();
     setRows((rs) => rs!.map((r) => (r.plaidPrimary === primary ? updated : r)));
     setDrafts((d) => ({ ...d, [primary]: updated.category }));
@@ -43,13 +45,13 @@ export default function CategoryMappings() {
     }
   }
 
-  if (!rows) return <p className="muted">{error ?? "Loading…"}</p>;
+  if (!rows) return <p className="muted">{error ?? t("common.loading")}</p>;
 
   return (
     <div>
-      <h1>Category Mapping</h1>
+      <h1>{t("catmap.title")}</h1>
       <p className="muted" style={{ marginBottom: 16 }}>
-        Rename any Plaid category to your own. Changes apply everywhere, including past months.
+        {t("catmap.help")}
       </p>
       {error && <div className="error">{error}</div>}
 
@@ -63,8 +65,8 @@ export default function CategoryMappings() {
         <table>
           <thead>
             <tr>
-              <th>Plaid category</th>
-              <th>Your category</th>
+              <th>{t("catmap.colPlaid")}</th>
+              <th>{t("catmap.colYours")}</th>
               <th></th>
             </tr>
           </thead>
@@ -77,7 +79,7 @@ export default function CategoryMappings() {
                 <tr key={r.plaidPrimary}>
                   <td>
                     {r.default}
-                    {r.overridden && <span className="muted"> · overridden</span>}
+                    {r.overridden && <span className="muted"> · {t("catmap.overridden")}</span>}
                   </td>
                   <td>
                     <input
@@ -97,7 +99,7 @@ export default function CategoryMappings() {
                         disabled={busy || !dirty}
                         onClick={() => save(r.plaidPrimary, draft)}
                       >
-                        {busy ? "Saving…" : "Save"}
+                        {busy ? t("common.saving") : t("common.save")}
                       </button>
                       {r.overridden && (
                         <button
@@ -105,7 +107,7 @@ export default function CategoryMappings() {
                           disabled={busy}
                           onClick={() => save(r.plaidPrimary, "")}
                         >
-                          Reset
+                          {t("common.reset")}
                         </button>
                       )}
                     </div>

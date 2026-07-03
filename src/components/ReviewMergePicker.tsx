@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/context";
 
 // N-way merge picker (FR3/FR4). Lists the user's posted, ungrouped transactions
 // from GET /api/merge/candidates (flagged AND unflagged — pending rows and
@@ -28,6 +29,7 @@ export default function ReviewMergePicker({
   onClose: () => void;
   onMerged: () => void;
 }) {
+  const t = useT();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set(seedId ? [seedId] : []));
   const [title, setTitle] = useState("");
@@ -40,7 +42,7 @@ export default function ReviewMergePicker({
       try {
         const res = await fetch("/api/merge/candidates");
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Failed to load candidates");
+        if (!res.ok) throw new Error(data.error || t("merge.loadFailed"));
         setCandidates(data.candidates);
       } catch (e: any) {
         setError(e.message);
@@ -67,13 +69,13 @@ export default function ReviewMergePicker({
         body: JSON.stringify({ transactionIds: [...selected] }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Merge failed");
-      const t = title.trim();
-      if (t) {
+      if (!res.ok) throw new Error(data.error || t("merge.failed"));
+      const trimmedTitle = title.trim();
+      if (trimmedTitle) {
         await fetch(`/api/merge/${data.group.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: t }),
+          body: JSON.stringify({ title: trimmedTitle }),
         });
       }
       onMerged();
@@ -99,12 +101,12 @@ export default function ReviewMergePicker({
       onClick={onClose}
     >
       <div className="card" style={{ maxWidth: 640, width: "100%", margin: 0 }} onClick={(ev) => ev.stopPropagation()}>
-        <div className="card-header">Merge transactions</div>
+        <div className="card-header">{t("merge.title")}</div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Pick two or more posted transactions to merge into one group.
+          {t("merge.help")}
         </p>
 
-        <input placeholder="Optional group title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input placeholder={t("merge.optionalTitle")} value={title} onChange={(e) => setTitle(e.target.value)} />
 
         <div
           style={{
@@ -117,11 +119,11 @@ export default function ReviewMergePicker({
         >
           {loading ? (
             <p className="muted" style={{ padding: 12 }}>
-              Loading candidates…
+              {t("merge.loading")}
             </p>
           ) : candidates.length === 0 ? (
             <p className="muted" style={{ padding: 12 }}>
-              No transactions available to merge.
+              {t("merge.none")}
             </p>
           ) : (
             candidates.map((c) => (
@@ -162,10 +164,10 @@ export default function ReviewMergePicker({
 
         <div className="row wrap">
           <button className="btn btn-primary" disabled={busy || selected.size < 2} onClick={submit}>
-            Merge {selected.size} selected
+            {t("merge.mergeSelected", { n: selected.size })}
           </button>
           <button className="btn btn-ghost" disabled={busy} onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>

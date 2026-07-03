@@ -2,9 +2,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useT } from "@/lib/i18n/context";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +24,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
-      setError(data.error || "Something went wrong");
+      setError(data.error || t("common.genericError"));
       return;
     }
     router.push(mode === "signup" ? "/verify" : "/dashboard");
@@ -31,8 +33,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   return (
     <form className="auth card" onSubmit={submit}>
-      <h1>{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
-      <label htmlFor="email">Email</label>
+      <h1>{mode === "signup" ? t("auth.signupTitle") : t("auth.loginTitle")}</h1>
+      <label htmlFor="email">{t("auth.email")}</label>
       <input
         id="email"
         type="email"
@@ -41,7 +43,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
         onChange={(e) => setEmail(e.target.value)}
         required
       />
-      <label htmlFor="password">Password</label>
+      <label htmlFor="password">{t("auth.password")}</label>
       <input
         id="password"
         type="password"
@@ -52,13 +54,13 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       />
       {error && <div className="error">{error}</div>}
       <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} disabled={busy}>
-        {busy ? "…" : mode === "signup" ? "Sign up" : "Log in"}
+        {busy ? "…" : mode === "signup" ? t("nav.signup") : t("nav.login")}
       </button>
       <p className="muted" style={{ marginTop: 16 }}>
         {mode === "signup" ? (
-          <>Already have an account? <Link href="/login">Log in</Link></>
+          <>{t("auth.haveAccount")} <Link href="/login">{t("nav.login")}</Link></>
         ) : (
-          <>New here? <Link href="/signup">Create an account</Link></>
+          <>{t("auth.newHere")} <Link href="/signup">{t("auth.createAccount")}</Link></>
         )}
       </p>
     </form>

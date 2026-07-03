@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PlaidOpener from "./PlaidOpener";
+import { useT } from "@/lib/i18n/context";
 
 type Item = { itemId: string; name: string; lastUpdated: string; accounts: number };
 
@@ -19,6 +20,7 @@ async function postJson(url: string, body?: unknown) {
 
 export default function Dashboard({ items, subscribed }: { items: Item[]; subscribed: boolean }) {
   const router = useRouter();
+  const t = useT();
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [reauth, setReauth] = useState<{ itemId: string; token: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,15 +64,14 @@ export default function Dashboard({ items, subscribed }: { items: Item[]; subscr
 
   return (
     <div>
-      <h1>Your banks</h1>
+      <h1>{t("dashboard.title")}</h1>
 
       {!subscribed && (
         <div className="banner">
-          <strong>Start your subscription</strong> — $1 per managed account / month. You need an
-          active subscription to connect and sync accounts.
+          <strong>{t("dashboard.bannerTitle")}</strong> {t("dashboard.bannerBody")}
           <div style={{ marginTop: 10 }}>
             <button className="btn btn-primary" onClick={subscribe} disabled={busy}>
-              Subscribe
+              {t("common.subscribe")}
             </button>
           </div>
         </div>
@@ -79,16 +80,16 @@ export default function Dashboard({ items, subscribed }: { items: Item[]; subscr
       {error && <div className="error">{error}</div>}
 
       {items.length === 0 ? (
-        <p className="muted">No banks connected yet.</p>
+        <p className="muted">{t("dashboard.noBanks")}</p>
       ) : (
         <div className="card" style={{ padding: 0 }}>
           <table>
             <thead>
               <tr>
-                <th>Bank</th>
-                <th>Accounts</th>
-                <th>Last updated</th>
-                <th>Actions</th>
+                <th>{t("dashboard.colBank")}</th>
+                <th>{t("dashboard.colAccounts")}</th>
+                <th>{t("dashboard.colLastUpdated")}</th>
+                <th>{t("dashboard.colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -106,14 +107,14 @@ export default function Dashboard({ items, subscribed }: { items: Item[]; subscr
                         disabled={busy || !subscribed}
                         onClick={() => sync(it.itemId)}
                       >
-                        Sync
+                        {t("dashboard.sync")}
                       </button>
                       <button
                         className="btn btn-sm"
                         disabled={busy || !subscribed}
                         onClick={() => startReauth(it.itemId)}
                       >
-                        Re-auth
+                        {t("dashboard.reauth")}
                       </button>
                     </div>
                   </td>
@@ -126,10 +127,10 @@ export default function Dashboard({ items, subscribed }: { items: Item[]; subscr
 
       <div className="row wrap" style={{ marginTop: 16 }}>
         <button className="btn btn-primary" onClick={startConnect} disabled={busy || !subscribed}>
-          Connect a bank account
+          {t("dashboard.connect")}
         </button>
         <Link className="btn btn-success" href="/budget">
-          View Budget Planning
+          {t("dashboard.viewBudget")}
         </Link>
       </div>
 

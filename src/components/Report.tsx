@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useT } from "@/lib/i18n/context";
 
 export type ReportEntry = {
   isGroup: boolean;
@@ -55,35 +56,36 @@ export default function Report({
   flags: ReportFlag[];
   defaultMonth: string;
 }) {
+  const t = useT();
   const [month, setMonth] = useState(defaultMonth);
   const r = useMemo(() => aggregateReport(entries, flags, month), [entries, flags, month]);
 
   return (
     <div>
-      <h1>Monthly Report</h1>
+      <h1>{t("report.title")}</h1>
       <label className="muted" style={{ display: "block", marginBottom: 16 }}>
-        Month{" "}
+        {t("report.month")}{" "}
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value || defaultMonth)} />
       </label>
 
       {!r.hasData ? (
-        <p className="muted">No activity in this month.</p>
+        <p className="muted">{t("report.noActivity")}</p>
       ) : (
         <>
           <div className="card">
-            <div className="card-header">Cash flow</div>
+            <div className="card-header">{t("report.cashFlow")}</div>
             <table>
               <tbody>
                 <tr>
-                  <td>Money in</td>
+                  <td>{t("report.moneyIn")}</td>
                   <td style={{ textAlign: "right" }}>{r.currency} {money(r.totalIn)}</td>
                 </tr>
                 <tr>
-                  <td>Money out</td>
+                  <td>{t("report.moneyOut")}</td>
                   <td style={{ textAlign: "right" }}>{r.currency} {money(-r.totalOut)}</td>
                 </tr>
                 <tr>
-                  <td><strong>Net</strong></td>
+                  <td><strong>{t("report.net")}</strong></td>
                   <td style={{ textAlign: "right" }}><strong>{r.currency} {money(r.totalIn - r.totalOut)}</strong></td>
                 </tr>
               </tbody>
@@ -91,11 +93,11 @@ export default function Report({
           </div>
 
           <div className="card">
-            <div className="card-header">Flags this month</div>
+            <div className="card-header">{t("report.flagsThisMonth")}</div>
             <table>
               <tbody>
-                <tr><td>Open</td><td style={{ textAlign: "right" }}>{r.open}</td></tr>
-                <tr><td>Resolved</td><td style={{ textAlign: "right" }}>{r.resolved}</td></tr>
+                <tr><td>{t("report.open")}</td><td style={{ textAlign: "right" }}>{r.open}</td></tr>
+                <tr><td>{t("report.resolved")}</td><td style={{ textAlign: "right" }}>{r.resolved}</td></tr>
               </tbody>
             </table>
           </div>
@@ -104,13 +106,13 @@ export default function Report({
             <table>
               <thead>
                 <tr>
-                  <th>Category</th>
-                  <th style={{ textAlign: "right" }}>Spend</th>
+                  <th>{t("report.category")}</th>
+                  <th style={{ textAlign: "right" }}>{t("report.spend")}</th>
                 </tr>
               </thead>
               <tbody>
                 {r.categories.length === 0 ? (
-                  <tr><td colSpan={2} className="muted">No categorized spend this month.</td></tr>
+                  <tr><td colSpan={2} className="muted">{t("report.noSpend")}</td></tr>
                 ) : (
                   r.categories.map((c) => (
                     <tr key={c.name}>

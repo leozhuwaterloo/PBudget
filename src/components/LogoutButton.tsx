@@ -1,8 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { useT } from "@/lib/i18n/context";
 
 export default function LogoutButton() {
   const router = useRouter();
+  const t = useT();
   return (
     <a
       className="btn btn-sm btn-ghost"
@@ -12,7 +14,7 @@ export default function LogoutButton() {
         router.refresh();
       }}
     >
-      Log out
+      {t("nav.logout")}
     </a>
   );
 }
