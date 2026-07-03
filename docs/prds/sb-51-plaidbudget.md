@@ -271,8 +271,11 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
    open counters (FR4, FR5).
 9. The monthly report for the fixture month shows per-category totals matching
    hand-computed fixture sums, with the net-0 transfer group contributing nothing
-   and the merged −500/+100 group counted as −400 in its category; remapping a
-   Plaid category to a renamed user category moves its spend accordingly (FR6).
+   and the merged −500/+100 group counted as −400 in its category; its total
+   in/out and resolved-vs-open flag counts match the hand-computed fixture state
+   (merge groups at net, net-0 groups dropping out, counts by transaction/group
+   date); remapping a Plaid category to a renamed user category moves its spend
+   accordingly (FR6).
 10. `/budget` monthly totals for the fixture month count the merge groups at net —
     zero for the transfer group, −400 for the Walmart-style group — with no leg
     counted individually (FR7).
@@ -380,7 +383,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   manual pairing, the built-in vendor **Self**, pair exemption from all rules) are
   **superseded** by the cycle-3 merge-group model below.
 - **Applied in review cycle 3, round 2 (2026-07-03) as reviewer defaults — the
-  user was asked but unavailable; confirm or override:** (a) the FR11 rename
+  user was asked in rounds 2 and 3 but was unavailable both times; confirm or
+  override:** (a) the FR11 rename
   **carries data over** rather than starting fresh: plaidbudget database
   contents are copied into `pbudget`, and `secret/plaidbudget/config` values
   are copied to `secret/pbudget/config` (`secret/db/postgres-ai/pbudget` gets
