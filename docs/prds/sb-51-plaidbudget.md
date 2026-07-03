@@ -69,7 +69,12 @@ Rules (all four in v1):
    Net-≠0 merge groups are evaluated at their net amount. The median treats merges
    like every other rule: merge-group legs are excluded from it, and a net-≠0
    group whose net is a charge enters the group vendor's median at its net amount
-   (reviewer default, round 2 — see Open assumptions).
+   (user-confirmed, cycle 4 — see Open assumptions). Approval must not swallow a
+   large charge (user decision, cycle 4): approving a vendor immediately re-runs
+   this rule over its existing posted charges — e.g. a $5,000 flight from a
+   just-approved airline still gets flagged even though approval cleared its
+   unknown-vendor flags — respecting dismissal permanence (FR4) and the merge
+   exemptions (a–b).
 4. **Duplicate charge** — same vendor + same **signed** amount within a 3-day
    window (a charge and its refund have opposite signs and do not pair). **Both**
    transactions in the window are flagged; each is dismissed individually (FR4).
@@ -87,14 +92,15 @@ false-flag every pending→posted pair as a duplicate).
 
 **FR2 — Vendor review queue.** Every distinct vendor starts *pending*. From the
 review page the user can **approve** (clears all open unknown-vendor flags for that
-vendor, past and future) or **reject** (vendor stays untrusted; its existing open
+vendor, past and future, and immediately evaluates the vendor's history under the
+unusual-amount rule, FR1.3) or **reject** (vendor stays untrusted; its existing open
 flags remain until dismissed per-transaction per FR4, and each of its future
 transactions keeps getting flagged). Vendor decisions persist per user.
 
 **FR3 — Merge groups: transfer auto-match + manual N-way merge.** The user can
 merge **any N ≥ 2 of their posted transactions — flagged or unflagged, any
 accounts, any signs or amounts, no time window** (user decision, cycle 3; the
-posted-only restriction is a round-2 reviewer default — a pending row's posted
+posted-only restriction was user-confirmed in cycle 4 — a pending row's posted
 replacement arrives under a different Plaid ID and would strand the group,
 consistent with FR1 exemption d) — into a *merge group*
 that displays everywhere (transaction lists, `/review`, reports) as **one
@@ -131,7 +137,8 @@ leg flags cleared by merging (FR1 exemption a, FR3). An auto group is not itself
 resolution: the group stays pending until confirmed or dissolved (FR3), so every
 auto-matched transfer still gets explicit review — and a net-≠0 group is analyzed
 as one transaction (FR1), so a merge can open a new group-level flag that itself
-needs resolution. Dismissal is permanent: the same transaction (or group) is not
+needs resolution — as can a vendor approval (unusual-amount flags on its history,
+FR1.3). Dismissal is permanent: the same transaction (or group) is not
 re-flagged by the same rule on later syncs or analyzer re-runs, including after a
 dissolve.
 
@@ -181,7 +188,10 @@ vendor is seeded **pre-approved** (as if the user had approved it), with ≥ 3 p
 charges, one charge ≥ 3× their median, one below-threshold charge, **and one
 refund** (which must not trigger or shift the charges-only median), so the
 unusual-amount rule (FR1.3) is verifiable on first analysis (criterion 6); all
-other vendors start pending per FR2. The fixtures also include an **unapproved
+other vendors start pending per FR2. A second unusual-amount vendor is seeded
+**pending** with ≥ 3 prior charges and one charge ≥ 3× their median, so
+approval-triggered re-evaluation (FR1.3) is verifiable (criterion 19). The
+fixtures also include an **unapproved
 vendor with a −500 charge and a +100 refund** for the net-≠0 manual-merge
 criterion 14. The seed also provides a follow-up step (e.g. a second seed phase)
 that injects additional fixture transactions — including the pending transaction's
@@ -211,7 +221,7 @@ nginx-internal vhost `pbudget.conf` with `server_name pbudget.{{ domain }}`
 replacing `plaid.{{ domain }}`; `APP_URL=https://pbudget.ppvnx.com`;
 `EMAIL_FROM=PBudget <no-reply@pbudget.ppvnx.com>`. The renamed deploy step
 removes the superseded plaidbudget k8s resources. **User data is carried over,
-not abandoned** (reviewer default, round 2): the deploy copies the existing
+not abandoned** (user-confirmed, cycle 4): the deploy copies the existing
 plaidbudget database contents into the new `pbudget` database (one-time,
 idempotent — skipped when `pbudget` already has data), so the owner account,
 linked Plaid items/access tokens, and synced history survive the rename with
@@ -311,6 +321,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 18. With the app running, UI chrome shows **PBudget** and no user-visible
     "PlaidBudget" remains (page titles, nav, email sender name); the package and
     deploy identifiers are `pbudget` per FR11.
+19. The pending fixture vendor with ≥ 3 priors and one ≥ 3× charge carries only
+    unknown-vendor flags after the first analysis (unusual-amount does not fire
+    on unapproved vendors); approving it clears those flags and opens an
+    unusual-amount flag on the ≥ 3× charge only (FR1.3, FR2).
 
 ## Deployment
 
@@ -382,9 +396,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   cycles' 2-leg "linked pair" semantics (opposite-sign/equal-amount constraints on
   manual pairing, the built-in vendor **Self**, pair exemption from all rules) are
   **superseded** by the cycle-3 merge-group model below.
-- **Applied in review cycle 3, round 2 (2026-07-03) as reviewer defaults — the
-  user was asked in rounds 2 and 3 but was unavailable both times; confirm or
-  override:** (a) the FR11 rename
+- **Reviewer defaults from cycle 3, round 2 — all three confirmed by the user in
+  review cycle 4, round 1 (2026-07-03):** (a) the FR11 rename
   **carries data over** rather than starting fresh: plaidbudget database
   contents are copied into `pbudget`, and `secret/plaidbudget/config` values
   are copied to `secret/pbudget/config` (`secret/db/postgres-ai/pbudget` gets
@@ -393,6 +406,11 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   posted replacement arrives under a different Plaid ID; (c) the unusual-amount
   median (FR1.3) **excludes merge-group legs** and includes a net-≠0 group's
   net charge under the group vendor.
+- **Confirmed by the user in review cycle 4, round 1 (2026-07-03):** approving a
+  vendor immediately re-runs the unusual-amount rule over its existing posted
+  charges — a large historical charge (the user's example: a $5,000 flight from a
+  just-approved airline) must still surface after approval clears the
+  unknown-vendor flags (FR1.3, FR2, criterion 19).
 - **Confirmed by the user in review cycle 3, round 1 (2026-07-03):** (a) full
   technical rename to **PBudget** with public URL **pbudget.ppvnx.com** (FR11);
   (b) linking generalized from 2-leg pairs to **N-way merge groups** displayed as
