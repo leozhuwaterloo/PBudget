@@ -24,10 +24,13 @@ model User {
   stripeSubscriptionId String?   @unique
   subscriptionStatus   String? // active | trialing | past_due | canceled | ...
 
+  locale String? // "en" | "zh-Hans"; null = en
+
   sessions           Session[]
   verificationTokens EmailVerificationToken[]
   items              PlaidItem[]
   categories         TransactionCategory[]
+  vendors            Vendor[]
 }
 
 model Session {
@@ -123,4 +126,69 @@ model TransactionCategory {
   budget Decimal @default(0)
 
   @@unique([userId, name])
+}
+
+// ---- Analysis domain (src/lib/analysis/*) ---------------------------------
+
+model Vendor {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String // normalized vendor string
+  status    String    @default("pending") // pending | approved | rejected
+  decidedAt DateTime?
+
+  @@unique([userId, name])
+}
+
+model TransactionFlag {
+  id            String    @id @default(cuid())
+  userId        String
+  rule          String // one of the four rule ids
+  transactionId String? // exactly one of transactionId | mergeGroupId is set
+  mergeGroupId  String?
+  status        String    @default("open") // open | dismissed | resolved
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  @@unique([rule, transactionId])
+  @@unique([rule, mergeGroupId])
+  @@index([userId, status])
+}
+
+model MergeGroup {
+  id           String   @id @default(cuid())
+  userId       String
+  status       String // auto | confirmed  (manual merges are born "confirmed")
+  title        String // user-editable; defaults from primary leg
+  vendorName   String? // normalized vendor of primary leg
+  categoryName String? // effective category of primary leg (via categoryFor)
+  date         DateTime // primary leg's date
+  netAmount    Decimal // signed sum of legs (Plaid convention)
+  currency     String?
+  createdAt    DateTime @default(now())
+  legs         MergeGroupLeg[]
+}
+
+model MergeGroupLeg {
+  transactionId String     @id // a transaction belongs to at most ONE group
+  groupId       String
+  group         MergeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model DissolvedGroupMemo {
+  id     String @id @default(cuid())
+  userId String
+  legKey String // sorted transactionIds joined with "|"
+
+  @@unique([userId, legKey])
+}
+
+model CategoryMapping {
+  id           String @id @default(cuid())
+  userId       String
+  plaidPrimary String // e.g. "FOOD_AND_DRINK"
+  categoryName String // target user category name (TransactionCategory row ensured)
+
+  @@unique([userId, plaidPrimary])
 }

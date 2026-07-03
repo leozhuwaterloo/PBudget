@@ -23,10 +23,10 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
     return;
   }
   await t.sendMail({
-    from: process.env.EMAIL_FROM || "PlaidBudget <no-reply@plaidbudget.local>",
+    from: process.env.EMAIL_FROM || "PBudget <no-reply@pbudget.local>",
     to,
-    subject: "Verify your PlaidBudget email",
+    subject: "Verify your PBudget email",
     text: `Confirm your email by opening: ${url}`,
-    html: `<p>Confirm your email to start using PlaidBudget.</p><p><a href="${url}">Verify my email</a></p>`,
+    html: `<p>Confirm your email to start using PBudget.</p><p><a href="${url}">Verify my email</a></p>`,
   });
 }

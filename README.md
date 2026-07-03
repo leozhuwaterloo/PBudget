@@ -1,4 +1,4 @@
-# PlaidBudget
+# PBudget
 
 Personal-finance budgeting backed by [Plaid](https://plaid.com), migrated out of the
 Portfolio monorepo (`/portfolio/plaid/`) into a standalone **Next.js (App Router) +

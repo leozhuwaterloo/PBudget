@@ -17,3 +17,4 @@ prisma/dev.db*
 # misc
 .DS_Store
 next-env.d.ts
+*.tsbuildinfo
