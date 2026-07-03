@@ -191,9 +191,10 @@ unusual-amount rule (FR1.3) is verifiable on first analysis (criterion 6); all
 other vendors start pending per FR2. A second unusual-amount vendor is seeded
 **pending** with ≥ 3 prior charges and one charge ≥ 3× their median, so
 approval-triggered re-evaluation (FR1.3) is verifiable (criterion 19). The
-fixtures also include an **unapproved
-vendor with a −500 charge and a +100 refund** for the net-≠0 manual-merge
-criterion 14. The seed also provides a follow-up step (e.g. a second seed phase)
+fixtures also include **two opposite-sign, equal-amount transfers in different
+accounts 6 days apart** (outside the 4-day auto-match window, so both carry
+unmatched-transfer flags) and an **unapproved vendor with a −500 charge and a
++100 refund**, covering both manual-merge cases of criterion 14. The seed also provides a follow-up step (e.g. a second seed phase)
 that injects additional fixture transactions — including the pending transaction's
 posted replacement under a new Plaid ID — and re-runs analysis, so post-decision
 behavior (criteria 2–3, 15–17) is drivable without Plaid.
