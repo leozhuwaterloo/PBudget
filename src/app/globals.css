@@ -1,13 +1,20 @@
+/* PlaidBudget — "Statement": a typeset private-ledger look.
+   Light paper, a single ledger-green money accent, a serif letterhead, and
+   tabular numerals so money columns align. Variable names are kept stable —
+   several components reference them inline (--bg-3, --border, --muted,
+   --success, --warning) — only their values changed. */
 :root {
-  --bg: #1a1d21;
-  --bg-2: #23272e;
-  --bg-3: #2c313a;
-  --fg: #e8eaed;
-  --muted: #9aa0a6;
-  --primary: #3b82f6;
-  --success: #16a34a;
-  --warning: #d97706;
-  --border: #3a3f47;
+  --bg: #e9ebe5;      /* page — cool paper */
+  --bg-2: #fcfcf9;    /* surface / card — warm paper white */
+  --bg-3: #eef0e9;    /* subtle tint — table head, hover, nested */
+  --fg: #1b201a;      /* ink */
+  --muted: #69706a;
+  --primary: #15684a; /* ledger green — money, links, primary actions */
+  --success: #157a4d; /* confirm / under budget — white text clears AA (5.4:1) */
+  --warning: #b45309; /* over budget / reject */
+  --border: #d7d9cf;  /* hairline rule */
+  --danger: #b3261e;
+  --serif: Georgia, "Times New Roman", "Songti SC", serif;
 }
 
 * { box-sizing: border-box; }
@@ -17,60 +24,115 @@ body {
   color: var(--fg);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;   /* signature: aligned money columns */
+  -webkit-font-smoothing: antialiased;
 }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Letterhead ----------------------------------------------------------- */
 .nav {
-  display: flex; align-items: center; gap: 16px;
-  padding: 12px 20px; background: var(--bg-2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 14px 28px;
+  background: var(--bg-2);
+  border-top: 3px solid var(--primary);   /* the ledger rule */
+  border-bottom: 1px solid var(--border);
 }
-.nav .brand { font-weight: 700; color: var(--fg); font-size: 16px; }
+.nav a { color: var(--muted); font-size: 13px; }
+.nav a:hover { color: var(--fg); text-decoration: none; }
+.nav .brand {
+  font-family: var(--serif); font-weight: 600; font-size: 20px;
+  color: var(--fg); letter-spacing: -0.01em;
+}
+.nav .brand:hover { color: var(--fg); }
 .nav .spacer { flex: 1; }
-.main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+.main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
 
+h1 {
+  font-family: var(--serif); font-size: 26px; font-weight: 600;
+  letter-spacing: -0.015em; margin: 0 0 20px;
+}
+h2 { font-family: var(--serif); font-weight: 600; }
+
+/* Cards ---------------------------------------------------------------- */
 .card {
   background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 20px; margin-bottom: 16px;
+  border-radius: 10px; padding: 22px; margin-bottom: 18px;
+  overflow: hidden;                        /* crisp corners around tables */
+  box-shadow: 0 1px 2px rgba(20,30,20,0.04), 0 1px 3px rgba(20,30,20,0.03);
 }
-.card-header { font-weight: 600; font-size: 16px; margin-bottom: 12px; }
+.card-header { font-family: var(--serif); font-weight: 600; font-size: 17px; margin-bottom: 14px; }
 .muted { color: var(--muted); }
 
+/* Buttons -------------------------------------------------------------- */
 .btn {
   display: inline-block; cursor: pointer; border: 1px solid var(--border);
-  background: var(--bg-3); color: var(--fg); padding: 8px 14px;
-  border-radius: 6px; font-size: 14px; line-height: 1.2; text-align: center;
+  background: var(--bg-2); color: var(--fg); padding: 8px 15px;
+  border-radius: 7px; font-size: 14px; line-height: 1.2; text-align: center;
+  transition: background 0.12s ease, border-color 0.12s ease, filter 0.12s ease;
 }
-.btn:hover { filter: brightness(1.15); text-decoration: none; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:hover { background: var(--bg-3); border-color: #c4c7bc; text-decoration: none; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .btn-success { background: var(--success); border-color: var(--success); color: #fff; }
-.btn-ghost { background: transparent; }
-.btn-sm { padding: 4px 8px; font-size: 12px; }
+.btn-primary:hover, .btn-success:hover { filter: brightness(1.08); background: var(--primary); }
+.btn-success:hover { background: var(--success); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn-ghost:hover { background: var(--bg-3); border-color: transparent; color: var(--fg); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
 .row { display: flex; align-items: center; gap: 8px; }
 .wrap { flex-wrap: wrap; }
 
+/* Ledger tables -------------------------------------------------------- */
 table { width: 100%; border-collapse: collapse; }
-th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
-thead th { background: var(--bg-3); font-weight: 600; }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+thead th {
+  background: var(--bg-3);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); border-bottom: 1.5px solid #c4c7bc;
+}
+tbody tr:last-child td { border-bottom: none; }
 tr.clickable { cursor: pointer; }
-tr.clickable:hover { background: var(--bg-3); }
+tr.clickable:hover > td { background: var(--bg-3); }
 .nested { background: var(--bg); }
+.nested thead th { background: transparent; }
 .pending { color: var(--muted); font-style: italic; }
-.bg-success td { background: rgba(22,163,74,0.15); }
-.bg-warning td { background: rgba(217,119,6,0.18); }
+.bg-success td { background: rgba(21,122,77,0.10); }
+.bg-warning td { background: rgba(180,83,9,0.12); }
 
+/* Notices -------------------------------------------------------------- */
 .banner {
-  background: var(--bg-3); border: 1px solid var(--primary);
-  border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 8px; padding: 16px 18px; margin-bottom: 18px;
 }
-.error { color: #f87171; margin: 8px 0; }
+.error { color: var(--danger); margin: 8px 0; }
 
-form.auth { max-width: 360px; margin: 40px auto; }
-label { display: block; margin: 12px 0 4px; color: var(--muted); }
-input {
-  width: 100%; padding: 9px 10px; border-radius: 6px;
-  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+/* Forms ---------------------------------------------------------------- */
+form.auth { max-width: 380px; margin: 56px auto; }
+label { display: block; margin: 14px 0 5px; color: var(--muted); font-size: 13px; }
+input, select {
+  width: 100%; padding: 10px 11px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--bg-2); color: var(--fg);
+  font: inherit;
 }
-input.budget { width: 90px; padding: 4px 6px; }
-h1 { font-size: 20px; }
+input:focus, select:focus {
+  outline: none; border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(21,104,74,0.15);
+}
+input.budget { width: 92px; padding: 5px 7px; }
+
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Mobile: let wide ledgers scroll instead of overflowing the page. */
+@media (max-width: 640px) {
+  .nav { padding: 12px 16px; gap: 12px; }
+  .main { padding: 20px 14px 48px; }
+  .card { overflow-x: auto; }
+  th, td { padding: 8px 10px; white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
