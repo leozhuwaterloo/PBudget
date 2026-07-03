@@ -2,6 +2,10 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
+import { getLocale } from "@/lib/i18n/server";
+import { t } from "@/lib/i18n";
+import { I18nProvider } from "@/lib/i18n/context";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import LogoutButton from "@/components/LogoutButton";
 
 export const metadata: Metadata = {
@@ -11,30 +15,34 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
+  const locale = await getLocale(user);
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body>
-        <nav className="nav">
-          <Link href="/" className="brand">PBudget</Link>
-          <div className="spacer" />
-          {user ? (
-            <>
-              <Link href="/dashboard">Dashboard</Link>
-              <Link href="/review">Review</Link>
-              <Link href="/report">Report</Link>
-              <Link href="/budget">Budget</Link>
-              <Link href="/settings/categories">Categories</Link>
-              <Link href="/billing">Billing</Link>
-              <LogoutButton />
-            </>
-          ) : (
-            <>
-              <Link href="/login">Log in</Link>
-              <Link href="/signup">Sign up</Link>
-            </>
-          )}
-        </nav>
-        <main className="main">{children}</main>
+        <I18nProvider locale={locale}>
+          <nav className="nav">
+            <Link href="/" className="brand">PBudget</Link>
+            <div className="spacer" />
+            {user ? (
+              <>
+                <Link href="/dashboard">{t(locale, "nav.dashboard")}</Link>
+                <Link href="/review">{t(locale, "nav.review")}</Link>
+                <Link href="/report">{t(locale, "nav.report")}</Link>
+                <Link href="/budget">{t(locale, "nav.budget")}</Link>
+                <Link href="/settings/categories">{t(locale, "nav.categories")}</Link>
+                <Link href="/billing">{t(locale, "nav.billing")}</Link>
+                <LogoutButton />
+              </>
+            ) : (
+              <>
+                <Link href="/login">{t(locale, "nav.login")}</Link>
+                <Link href="/signup">{t(locale, "nav.signup")}</Link>
+              </>
+            )}
+            <LanguageSwitcher />
+          </nav>
+          <main className="main">{children}</main>
+        </I18nProvider>
       </body>
     </html>
   );

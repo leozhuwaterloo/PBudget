@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useT } from "@/lib/i18n/context";
 
 async function postJson(url: string) {
   const res = await fetch(url, { method: "POST" });
@@ -17,6 +18,7 @@ export default function BillingClient({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const t = useT();
 
   const go = (url: string) => async () => {
     setBusy(true);
@@ -34,12 +36,12 @@ export default function BillingClient({
     <div className="row wrap" style={{ marginTop: 12 }}>
       {!active && (
         <button className="btn btn-primary" disabled={busy} onClick={go("/api/stripe/checkout")}>
-          Subscribe
+          {t("common.subscribe")}
         </button>
       )}
       {hasCustomer && (
         <button className="btn" disabled={busy} onClick={go("/api/stripe/portal")}>
-          Manage billing
+          {t("billing.manage")}
         </button>
       )}
       {error && <div className="error">{error}</div>}

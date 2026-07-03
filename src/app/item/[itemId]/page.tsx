@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { effectiveTransactions } from "@/lib/analysis/effective";
+import { getLocale } from "@/lib/i18n/server";
 import ItemDetail from "@/components/ItemDetail";
 import type { Txn } from "@/components/TransactionTable";
 
@@ -77,6 +78,7 @@ export default async function ItemPage({ params }: { params: { itemId: string } 
       lastUpdated={item.lastUpdated.toISOString()}
       accounts={accounts}
       transactions={transactions}
+      locale={await getLocale(user)}
     />
   );
 }

@@ -1,4 +1,5 @@
 import TransactionTable, { type Txn } from "./TransactionTable";
+import { t, type Locale } from "@/lib/i18n";
 
 type Account = {
   account_id: string;
@@ -17,24 +18,26 @@ export default function ItemDetail({
   lastUpdated,
   accounts,
   transactions,
+  locale,
 }: {
   name: string;
   lastUpdated: string;
   accounts: Account[];
   transactions: Txn[];
+  locale: Locale;
 }) {
   return (
     <div>
       <h1>{name}</h1>
-      <p className="muted">Updated {new Date(lastUpdated).toLocaleString("en-ZA")}</p>
+      <p className="muted">{t(locale, "item.updated")} {new Date(lastUpdated).toLocaleString("en-ZA")}</p>
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
             <tr>
-              <th>Account</th>
-              <th>Current</th>
-              <th>Transactions</th>
-              <th>Last updated</th>
+              <th>{t(locale, "item.colAccount")}</th>
+              <th>{t(locale, "item.colCurrent")}</th>
+              <th>{t(locale, "item.colTransactions")}</th>
+              <th>{t(locale, "item.colLastUpdated")}</th>
             </tr>
           </thead>
           <tbody>
@@ -51,7 +54,7 @@ export default function ItemDetail({
       </div>
       {transactions.length > 0 && (
         <div className="card" style={{ padding: 0 }}>
-          <TransactionTable transactions={transactions} />
+          <TransactionTable transactions={transactions} locale={locale} />
         </div>
       )}
     </div>

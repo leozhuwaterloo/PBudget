@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import TransactionTable, { type Txn } from "./TransactionTable";
+import { useT, useLocale } from "@/lib/i18n/context";
 
 // Categories excluded from the monthly spend total (income / internal transfers).
 // Ported from the old Portfolio budget view's TOTAL_IGNORE_CATEGORIES; names match the humanized
@@ -19,6 +20,8 @@ export default function Budget({
   transactions: Txn[];
   categories: Cat[];
 }) {
+  const t = useT();
+  const locale = useLocale();
   const [budgets, setBudgets] = useState<Record<string, number>>(
     Object.fromEntries(categories.map((c) => [c.name, c.budget]))
   );
@@ -86,16 +89,16 @@ export default function Budget({
 
   return (
     <div>
-      <h1>Budget Planning</h1>
+      <h1>{t("budget.title")}</h1>
       {transactions.length === 0 && (
-        <p className="muted">No transactions yet — connect and sync a bank on the dashboard.</p>
+        <p className="muted">{t("budget.empty")}</p>
       )}
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
             <tr>
-              <th>Month</th>
-              <th>Total (excl. income &amp; transfers)</th>
+              <th>{t("budget.colMonth")}</th>
+              <th>{t("budget.colTotal")}</th>
             </tr>
           </thead>
           <tbody>
@@ -119,11 +122,11 @@ export default function Budget({
                         <table className="nested">
                           <thead>
                             <tr>
-                              <th>Category</th>
-                              <th>Spent</th>
-                              <th>Budget</th>
-                              <th>Usage</th>
-                              <th>Transactions</th>
+                              <th>{t("budget.colCategory")}</th>
+                              <th>{t("budget.colSpent")}</th>
+                              <th>{t("budget.colBudget")}</th>
+                              <th>{t("budget.colUsage")}</th>
+                              <th>{t("budget.colTransactions")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -157,21 +160,22 @@ export default function Budget({
                                         }}
                                       />
                                     </td>
-                                    <td>{budget ? `${usage.toFixed(2)}%` : "N/A"}</td>
+                                    <td>{budget ? `${usage.toFixed(2)}%` : t("budget.na")}</td>
                                     <td>{info.ids.length}</td>
                                   </tr>
                                   {catOpen && (
                                     <tr>
                                       <td colSpan={5} style={{ padding: 0 }}>
                                         <TransactionTable
+                                          locale={locale}
                                           transactions={info.ids.map((id) => txById[id])}
                                           fields={[
-                                            ["Transaction Name", "name"],
-                                            ["Merchant Name", "merchant_name"],
-                                            ["Bank", "item_name"],
-                                            ["Account", "account_name"],
-                                            ["Amount", "amount"],
-                                            ["Date", "datetime"],
+                                            ["field.name", "name"],
+                                            ["field.merchant", "merchant_name"],
+                                            ["field.bank", "item_name"],
+                                            ["field.account", "account_name"],
+                                            ["field.amount", "amount"],
+                                            ["field.date", "datetime"],
                                           ]}
                                         />
                                       </td>

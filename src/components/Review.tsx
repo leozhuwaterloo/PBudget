@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import ReviewMergePicker from "./ReviewMergePicker";
+import { useT } from "@/lib/i18n/context";
 
 // The auditor loop (FR4/FR5). All state comes from the F2/F3 JSON APIs; every
 // flag is drivable to resolution here. Amounts are stored Plaid-convention
@@ -37,12 +38,8 @@ type FlagsData = {
 };
 type Vendor = { id: string; name: string; status: string; txnCount: number };
 
-const RULE_META = [
-  { id: "unknown_vendor", label: "Unknown vendor" },
-  { id: "unmatched_transfer", label: "Unmatched transfer" },
-  { id: "unusual_amount", label: "Unusual amount" },
-  { id: "duplicate_charge", label: "Duplicate charge" },
-];
+// Rule labels are translated at render via t(`rule.${id}`).
+const RULES = ["unknown_vendor", "unmatched_transfer", "unusual_amount", "duplicate_charge"];
 
 const money = (amount: number | null, currency: string | null) =>
   amount == null ? "—" : `${currency ? currency + " " : ""}${(-amount).toFixed(2)}`;
@@ -68,6 +65,7 @@ async function postJson(url: string) {
 }
 
 export default function Review() {
+  const t = useT();
   const [data, setData] = useState<FlagsData | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [busy, setBusy] = useState(true);
@@ -121,7 +119,7 @@ export default function Review() {
 
   const hasVisible =
     !!data &&
-    (data.pendingGroups.length > 0 || RULE_META.some((r) => (data.flagsByRule[r.id] ?? []).length > 0));
+    (data.pendingGroups.length > 0 || RULES.some((id) => (data.flagsByRule[id] ?? []).length > 0));
 
   const vendorActions = (name: string | null) => {
     if (!name) return null;
@@ -137,7 +135,7 @@ export default function Review() {
             textTransform: "uppercase",
           }}
         >
-          {v.status}
+          {t(`status.${v.status}`)}
         </span>
         {v.status !== "approved" && (
           <button
@@ -145,7 +143,7 @@ export default function Review() {
             disabled={busy}
             onClick={() => act(() => postJson(`/api/vendors/${v.id}/approve`))}
           >
-            Approve vendor
+            {t("review.approveVendor")}
           </button>
         )}
         {v.status !== "rejected" && (
@@ -154,7 +152,7 @@ export default function Review() {
             disabled={busy}
             onClick={() => act(() => postJson(`/api/vendors/${v.id}/reject`))}
           >
-            Reject
+            {t("review.reject")}
           </button>
         )}
       </>
@@ -163,26 +161,26 @@ export default function Review() {
 
   return (
     <div>
-      <h1>Review</h1>
+      <h1>{t("review.title")}</h1>
 
       {data && (
         <div className="row wrap" style={{ gap: 12, marginBottom: 16 }}>
-          <Counter label="Suspicious today" value={data.counters.today} />
-          <Counter label="This month" value={data.counters.thisMonth} />
-          <Counter label="Total open" value={data.counters.totalOpen} />
+          <Counter label={t("review.suspiciousToday")} value={data.counters.today} />
+          <Counter label={t("review.thisMonth")} value={data.counters.thisMonth} />
+          <Counter label={t("review.totalOpen")} value={data.counters.totalOpen} />
         </div>
       )}
 
       <div className="row wrap" style={{ marginBottom: 16 }}>
-        <span className="muted">Filter</span>
+        <span className="muted">{t("review.filter")}</span>
         <select
           value={mode}
           onChange={(e) => setMode(e.target.value as any)}
           style={{ width: "auto" }}
         >
-          <option value="all">All dates</option>
-          <option value="day">By day</option>
-          <option value="month">By month</option>
+          <option value="all">{t("review.allDates")}</option>
+          <option value="day">{t("review.byDay")}</option>
+          <option value="month">{t("review.byMonth")}</option>
         </select>
         {mode === "day" && (
           <input type="date" value={dayVal} onChange={(e) => setDayVal(e.target.value)} style={{ width: "auto" }} />
@@ -197,39 +195,39 @@ export default function Review() {
         )}
         <div className="spacer" style={{ flex: 1 }} />
         <button className="btn" disabled={busy} onClick={() => setPicker({})}>
-          Merge transactions…
+          {t("review.mergeTransactions")}
         </button>
       </div>
 
       {error && <div className="error">{error}</div>}
 
       {!data ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{t("common.loading")}</p>
       ) : data.counters.totalOpen === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: 32 }}>
           <div style={{ fontSize: 32, color: "var(--success)" }}>✓</div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginTop: 8 }}>All clear</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginTop: 8 }}>{t("review.allClear")}</div>
           <p className="muted" style={{ marginBottom: 0 }}>
-            No open flags and no groups awaiting confirmation.
+            {t("review.allClearBody")}
           </p>
         </div>
       ) : !hasVisible ? (
-        <p className="muted">No flags match this filter.</p>
+        <p className="muted">{t("review.noMatch")}</p>
       ) : (
         <>
           {data.pendingGroups.length > 0 && (
             <section>
               <h2 style={{ fontSize: 16, margin: "20px 0 8px" }}>
-                Auto-matched groups — pending confirmation ({data.pendingGroups.length})
+                {t("review.pendingGroups", { n: data.pendingGroups.length })}
               </h2>
               <div className="card" style={{ padding: 0 }}>
                 <table>
                   <thead>
                     <tr>
-                      <th>Group</th>
-                      <th>Net</th>
-                      <th>Date</th>
-                      <th>Actions</th>
+                      <th>{t("review.colGroup")}</th>
+                      <th>{t("review.colNet")}</th>
+                      <th>{t("review.colDate")}</th>
+                      <th>{t("review.colActions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -252,14 +250,14 @@ export default function Review() {
                               disabled={busy}
                               onClick={() => act(() => postJson(`/api/merge/${g.id}/confirm`))}
                             >
-                              Confirm
+                              {t("review.confirm")}
                             </button>
                             <button
                               className="btn btn-sm"
                               disabled={busy}
                               onClick={() => act(() => postJson(`/api/merge/${g.id}/dissolve`))}
                             >
-                              Dissolve
+                              {t("review.dissolve")}
                             </button>
                           </div>
                         </td>
@@ -271,22 +269,22 @@ export default function Review() {
             </section>
           )}
 
-          {RULE_META.map(({ id, label }) => {
+          {RULES.map((id) => {
             const entries = data.flagsByRule[id] ?? [];
             if (!entries.length) return null;
             return (
               <section key={id}>
                 <h2 style={{ fontSize: 16, margin: "20px 0 8px" }}>
-                  {label} ({entries.length})
+                  {t(`rule.${id}`)} ({entries.length})
                 </h2>
                 <div className="card" style={{ padding: 0 }}>
                   <table>
                     <thead>
                       <tr>
-                        <th>Item</th>
-                        <th>Amount</th>
-                        <th>Date</th>
-                        <th>Actions</th>
+                        <th>{t("review.colItem")}</th>
+                        <th>{t("review.colAmount")}</th>
+                        <th>{t("review.colDate")}</th>
+                        <th>{t("review.colActions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -295,7 +293,9 @@ export default function Review() {
                           <td>
                             <strong>{e.level === "group" ? e.title : e.vendor}</strong>
                             <div className="muted" style={{ fontSize: 12 }}>
-                              {e.level === "group" ? `Merged group · ${e.vendor ?? "—"}` : e.name}
+                              {e.level === "group"
+                                ? `${t("review.mergedGroup")} · ${e.vendor ?? "—"}`
+                                : e.name}
                             </div>
                           </td>
                           <td>{money(e.amount, e.currency)}</td>
@@ -309,7 +309,7 @@ export default function Review() {
                                   disabled={busy}
                                   onClick={() => setPicker({ seedId: e.transactionId })}
                                 >
-                                  Merge…
+                                  {t("review.merge")}
                                 </button>
                               )}
                               <button
@@ -317,7 +317,7 @@ export default function Review() {
                                 disabled={busy}
                                 onClick={() => act(() => postJson(`/api/flags/${e.id}/dismiss`))}
                               >
-                                Dismiss
+                                {t("review.dismiss")}
                               </button>
                             </div>
                           </td>
