@@ -50,7 +50,9 @@ existing history (180 days synced + migrated data) is analyzed — nothing is
 grandfathered in; the initial backlog is worked down vendor-by-vendor (user-confirmed).
 Rules (all four in v1):
 1. **Unknown vendor** — the transaction's vendor (normalized `merchantName`, falling
-   back to `name`) is not on the user's approved-vendor list.
+   back to `name`) is not on the user's approved-vendor list. Transactions that are
+   half of a linked transfer pair (FR3) are attributed to the built-in vendor
+   **Self** (implicitly approved), so this rule never fires on them.
 2. **Unmatched transfer** — a transfer-like transaction (Plaid category
    `TRANSFER_IN`/`TRANSFER_OUT` or e-transfer-style name) with no linked counterpart.
 3. **Unusual amount** — an approved vendor charging ≥ 3× its historical median
@@ -66,7 +68,9 @@ transactions keeps getting flagged). Vendor decisions persist per user.
 equal-amount (same currency) transactions across two different accounts of the same
 user within a 4-day window into a *linked pair* (status `auto`). The user can
 **confirm** or **unlink** a pair from the review page; unlinking re-flags both sides
-as unmatched transfers. Manual pairing of two flagged transfers is also possible.
+as unmatched transfers and reverts them from vendor **Self** to their raw vendor (so
+the unknown-vendor rule applies again if that vendor is unapproved). Manual pairing
+of two flagged transfers is also possible.
 
 **FR4 — Explicit resolution.** Every flag requires a user decision — approve vendor,
 confirm/unlink pair, or **dismiss** (per-transaction). Nothing auto-resolves except
@@ -78,7 +82,8 @@ newest first, with the actions above, plus counters: suspicious today, suspiciou
 this month, total open. Filterable by day or month. Zero open flags is an explicit,
 visible "all clear" state.
 
-**FR6 — Monthly report.** New report view: for a chosen month, spend per user
+**FR6 — Monthly report.** New report view, linked from the main nav: for a chosen
+month, spend per user
 category with **linked transfer pairs excluded**, resolved vs open flag counts, and
 total in/out. Categories come from the Plaid-category→user-category mapping: defaults
 seeded from Plaid's `personal_finance_category` (current behavior), with a settings
@@ -93,11 +98,20 @@ copies the old Django app's institutions, items, accounts, transactions, categor
 to the owner's account (yuner25699@gmail.com). Access tokens are decrypted (Fernet)
 and re-encrypted with the app's AES-256-GCM key so banks stay connected without
 re-linking. Reads source/destination connection info from env vars; never hardcodes
-credentials.
+credentials. Ships with a fixture dump of the old Django schema (plus a fixture
+Fernet key) so the script is verifiable without production access (criterion 11).
 
 **FR9 — Demo seed for verification.** `npm run seed:demo` creates a verified demo
-user with fixture accounts/transactions that exercise all four rules and a transfer
+user seeded with an active subscription status (so it passes the billing gate with
+no Stripe calls) with fixture accounts/transactions that exercise all four rules and a transfer
 pair, so the full review/report flow is drivable locally without Plaid credentials.
+
+**FR10 — Bilingual UI (English + Simplified Chinese).** All app pages — existing
+(dashboard, `/budget`, item detail, auth, billing) and new (`/review`, monthly
+report, category-mapping settings) — render in English or Simplified Chinese via a
+language switcher in the app shell. The choice persists per user (stored setting;
+cookie fallback pre-login); default is English. UI chrome only — user data (vendor
+names, category names, transaction descriptions) is never translated.
 
 ## Non-goals
 
@@ -112,21 +126,25 @@ pair, so the full review/report flow is drivable locally without Plaid credentia
 - **No changes to bank linking, auth, or email verification.**
 - **No per-transaction category override** — category mapping is at the
   Plaid-category level in v1.
+- **No languages beyond English and Simplified Chinese**, and **no translated
+  transactional emails** — verification/billing emails stay English-only in v1
+  (user decision).
 
 ## Success criteria
 
 Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 
 1. After seeding and running analysis, every transaction from a never-approved vendor
-   has an open unknown-vendor flag visible on `/review` (FR1.1, FR5).
+   — excluding linked-pair transactions, whose vendor is **Self** — has an open
+   unknown-vendor flag visible on `/review` (FR1.1, FR5).
 2. Approving a vendor removes all its open unknown-vendor flags, and a subsequent
    sync/analysis of a new fixture transaction from that vendor produces no new
    unknown-vendor flag (FR2).
 3. Rejecting a vendor leaves its transactions flagged, and new transactions from it
    are flagged again (FR2).
 4. Two fixture transactions of +$X and −$X in different accounts 2 days apart are
-   auto-linked; neither carries an unmatched-transfer flag; unlinking them re-flags
-   both (FR3).
+   auto-linked; neither carries an unmatched-transfer or unknown-vendor flag (their
+   vendor is **Self**); unlinking them re-flags both (FR3).
 5. A fixture transfer-out with no counterpart within 4 days has an open
    unmatched-transfer flag (FR1.2).
 6. A fixture charge ≥ 3× an approved vendor's median (with ≥ 3 priors) is flagged
@@ -145,6 +163,9 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
     and a migrated access token decrypts with the new AES key to the original
     plaintext (FR8).
 12. `GET /api/health` returns 200 with the app running.
+13. Switching the language to 简体中文 renders `/review` and the monthly report with
+    Chinese UI strings (no untranslated chrome on those pages), the choice survives
+    a page reload, and switching back restores English (FR10).
 
 ## Deployment
 
@@ -173,7 +194,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 ## Open assumptions
 
 - Vendor identity is the normalized (case/whitespace-folded) `merchantName ?? name`
-  string; no fuzzy matching in v1.
+  string; no fuzzy matching in v1. Linked-pair transactions are attributed to the
+  built-in, implicitly-approved vendor **Self** (user decision, review round 1).
 - Transfer-like detection = Plaid `personal_finance_category` primary
   `TRANSFER_IN`/`TRANSFER_OUT`, or name matching e-transfer patterns
   (`/e-?transfer|etfr|send money/i`).
@@ -183,3 +205,6 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   re-flagged by the same rule on later syncs.
 - The old Fernet key is taken from Vault/env for the migration, then rotated along
   with the other Portfolio secrets already flagged in the migration follow-ups.
+- Locale is a per-user setting (cookie fallback pre-login), English default,
+  Simplified Chinese as the only other locale; emails and user data untranslated
+  (user decision, review round 1).
