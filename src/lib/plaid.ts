@@ -8,6 +8,7 @@ import {
 } from "plaid";
 import { prisma } from "./db";
 import { encrypt } from "./crypto";
+import { humanize } from "./categories";
 
 // ---- Client --------------------------------------------------------------
 
@@ -35,20 +36,11 @@ function countryCodes(): CountryCode[] {
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
-// "FOOD_AND_DRINK" -> "Food And Drink"
-function humanize(pfcPrimary: string): string {
-  return pfcPrimary
-    .toLowerCase()
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 // ---- Link / token --------------------------------------------------------
 
 export async function createLinkToken(userId: string): Promise<string> {
   const resp = await client().linkTokenCreate({
-    client_name: "PlaidBudget",
+    client_name: "PBudget",
     user: { client_user_id: userId },
     products: [Products.Transactions],
     country_codes: countryCodes(),
@@ -60,7 +52,7 @@ export async function createLinkToken(userId: string): Promise<string> {
 // Update mode (re-auth / account selection) for an existing item.
 export async function createUpdateLinkToken(userId: string, accessToken: string): Promise<string> {
   const resp = await client().linkTokenCreate({
-    client_name: "PlaidBudget",
+    client_name: "PBudget",
     user: { client_user_id: userId },
     country_codes: countryCodes(),
     language: "en",

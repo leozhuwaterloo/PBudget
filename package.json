@@ -1,5 +1,5 @@
 {
-  "name": "plaidbudget",
+  "name": "pbudget",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,8 @@
     "start": "next start -p 5300",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
@@ -30,5 +31,8 @@
     "react-plaid-link": "^3.6.1",
     "stripe": "^22.3.0",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
   }
 }

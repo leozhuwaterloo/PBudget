@@ -5,7 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
 
 export const metadata: Metadata = {
-  title: "PlaidBudget",
+  title: "PBudget",
   description: "Personal budgeting backed by Plaid",
 };
 
@@ -15,12 +15,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body>
         <nav className="nav">
-          <Link href="/" className="brand">PlaidBudget</Link>
+          <Link href="/" className="brand">PBudget</Link>
           <div className="spacer" />
           {user ? (
             <>
               <Link href="/dashboard">Dashboard</Link>
+              <Link href="/review">Review</Link>
+              <Link href="/report">Report</Link>
               <Link href="/budget">Budget</Link>
+              <Link href="/settings/categories">Categories</Link>
               <Link href="/billing">Billing</Link>
               <LogoutButton />
             </>

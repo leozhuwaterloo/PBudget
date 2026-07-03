@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import TransactionTable, { type Txn } from "./TransactionTable";
 
 // Categories excluded from the monthly spend total (income / internal transfers).
-// Ported from PlaidBudget.js's TOTAL_IGNORE_CATEGORIES; names match the humanized
+// Ported from the old Portfolio budget view's TOTAL_IGNORE_CATEGORIES; names match the humanized
 // Plaid personal_finance_category primaries we store. Adjust to taste.
 const IGNORE = new Set(["Income", "Transfer In", "Transfer Out"]);
 
