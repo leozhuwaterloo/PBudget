@@ -1,0 +1,196 @@
+/* PBudget landing — "the self-balancing ledger". Scoped to this page so the
+   global stylesheet stays lean. Palette + Georgia serif inherited from the
+   shipped "Statement" theme (globals.css); tabular figures come from body. */
+
+.page { --ink-2: #3d423c; margin-top: 4px; }
+
+/* Hero ------------------------------------------------------------------- */
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  padding: 40px 0 56px;
+}
+.heroText > * { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.heroText > *:nth-child(1) { animation-delay: 0.02s; }
+.heroText > *:nth-child(2) { animation-delay: 0.10s; }
+.heroText > *:nth-child(3) { animation-delay: 0.18s; }
+.heroText > *:nth-child(4) { animation-delay: 0.26s; }
+.heroText > *:nth-child(5) { animation-delay: 0.34s; }
+
+.eyebrow {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.16em; color: var(--primary); margin: 0 0 18px;
+}
+.display {
+  font-family: var(--serif); font-weight: 600;
+  font-size: clamp(34px, 5vw, 52px); line-height: 1.04;
+  letter-spacing: -0.02em; color: var(--fg); margin: 0 0 20px;
+}
+.display em { font-style: italic; color: var(--primary); }
+.lede {
+  font-size: 17px; line-height: 1.6; color: var(--ink-2);
+  max-width: 42ch; margin: 0 0 28px;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+.cta { padding: 12px 22px; font-size: 15px; border-radius: 8px; }
+.trust {
+  font-size: 13px; color: var(--muted); margin: 0;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.trust b { color: var(--ink-2); font-weight: 600; }
+
+/* Statement card (the signature) ---------------------------------------- */
+.statement {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--primary);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 30, 20, 0.05), 0 18px 44px -20px rgba(20, 40, 25, 0.28);
+  overflow: hidden;
+  animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: 0.12s;
+}
+.stmtHead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 16px 20px 12px; border-bottom: 1px solid var(--border);
+}
+.stmtTitle { font-family: var(--serif); font-size: 16px; font-weight: 600; }
+.stmtCaption { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.stmtRows { padding: 4px 0; }
+
+.stmtRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 14px;
+  align-items: baseline;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--border);
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i) * 0.13s + 0.35s);
+}
+.stmtRow:last-child { border-bottom: none; }
+.raw {
+  grid-column: 1 / -1;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px; color: var(--muted); letter-spacing: -0.01em;
+}
+.arrow { color: var(--border); padding: 0 4px; }
+.payee { font-weight: 600; color: var(--fg); }
+.tag {
+  display: inline-block; margin-left: 8px;
+  font-size: 11px; color: var(--primary);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px;
+  vertical-align: middle;
+}
+.amt { font-weight: 600; text-align: right; white-space: nowrap; }
+.amtIn { color: var(--success); }
+
+.flagged { background: rgba(180, 83, 9, 0.07); }
+.flagged .tag { color: var(--warning); border-color: rgba(180, 83, 9, 0.35); }
+.flagBadge {
+  display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 600;
+  color: var(--warning); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.merged .tag { color: var(--muted); }
+.mergeNote { font-size: 11px; color: var(--muted); margin-top: 3px; grid-column: 1 / -1; }
+
+.stmtTotal {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-top: 2px double #c4c7bc;
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: 1.25s;
+}
+.totalLabel { font-family: var(--serif); font-weight: 600; }
+.reconciled { font-size: 12px; font-weight: 600; color: var(--success); letter-spacing: 0.02em; }
+
+/* Shared section chrome -------------------------------------------------- */
+.section { padding: 44px 0; border-top: 1px solid var(--border); }
+.sectionEyebrow {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.16em; color: var(--primary); margin: 0 0 8px;
+}
+.sectionTitle {
+  font-family: var(--serif); font-size: clamp(24px, 3vw, 30px);
+  font-weight: 600; letter-spacing: -0.015em; margin: 0 0 28px;
+}
+
+/* Steps (a real ordered sequence, so numbered) -------------------------- */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.step { border-top: 2px solid var(--primary); padding-top: 16px; }
+.stepNum {
+  font-family: var(--serif); font-size: 13px; color: var(--muted);
+  font-variant-numeric: tabular-nums; margin-bottom: 10px;
+}
+.stepTitle { font-family: var(--serif); font-size: 19px; font-weight: 600; margin: 0 0 8px; }
+.stepBody { color: var(--ink-2); line-height: 1.6; margin: 0; font-size: 15px; }
+
+/* Features (statement sections) ----------------------------------------- */
+.features { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.feature {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(20, 30, 20, 0.04);
+}
+.featTitle { font-family: var(--serif); font-size: 18px; font-weight: 600; margin: 0 0 8px; }
+.featBody { color: var(--ink-2); line-height: 1.6; margin: 0; font-size: 15px; }
+
+/* Precision band --------------------------------------------------------- */
+.precision {
+  background: #0f4e38; color: #eaf1ec;
+  border-radius: 14px; padding: 48px 44px; margin: 44px 0;
+  display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center;
+}
+.precision .sectionEyebrow { color: #7fd0ae; }
+.precisionTitle {
+  font-family: var(--serif); font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 600; letter-spacing: -0.015em; margin: 0 0 14px; color: #fff;
+}
+.precisionBody { line-height: 1.65; margin: 0 0 16px; color: #cfe0d6; font-size: 15px; }
+.precisionBilingual { font-size: 14px; color: #9ec6b1; }
+/* A tiny reconciled figure column, tabular-aligned, as proof */
+.proof {
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px; padding: 8px 4px;
+}
+.proofRow {
+  display: flex; justify-content: space-between; gap: 20px;
+  padding: 9px 18px; font-size: 14px; color: #d7e5dc;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.proofRow:last-child { border-bottom: none; }
+.proofRow b { color: #fff; }
+.proofNet { color: #fff; font-weight: 600; }
+
+/* Final CTA -------------------------------------------------------------- */
+.final { text-align: center; padding: 56px 0 24px; border-top: 1px solid var(--border); }
+.finalTitle {
+  font-family: var(--serif); font-size: clamp(28px, 4vw, 40px);
+  font-weight: 600; letter-spacing: -0.02em; margin: 0 0 12px;
+}
+.finalBody { color: var(--ink-2); font-size: 16px; margin: 0 0 24px; }
+
+.foot {
+  border-top: 1px solid var(--border); margin-top: 32px; padding: 24px 0;
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-size: 13px; color: var(--muted);
+}
+
+/* Motion ----------------------------------------------------------------- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heroText > *, .statement, .stmtRow, .stmtTotal {
+    animation: none; opacity: 1; transform: none;
+  }
+}
+
+/* Responsive ------------------------------------------------------------- */
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; gap: 36px; padding: 24px 0 40px; }
+  .steps { grid-template-columns: 1fr; gap: 22px; }
+  .features { grid-template-columns: 1fr; }
+  .precision { grid-template-columns: 1fr; padding: 36px 26px; gap: 28px; }
+}
