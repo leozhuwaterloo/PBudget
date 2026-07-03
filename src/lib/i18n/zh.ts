@@ -176,6 +176,51 @@ const zh: Messages = {
   "catmap.colPlaid": "Plaid 分类",
   "catmap.colYours": "您的分类",
   "catmap.overridden": "已覆盖",
+
+  // landing (logged-out home)
+  "landing.eyebrow": "自动化个人记账",
+  "landing.h1": "会<em>自己对账</em>的账本。",
+  "landing.sub":
+    "PBudget 通过 Plaid 连接你的银行账户，自动归类、合并并对账每一笔交易，整理成一份你真正能用来做预算的月度账本。",
+  "landing.ctaPrimary": "创建你的账本",
+  "landing.ctaSecondary": "登录",
+  "landing.trust": "银行连接由 Plaid 保护 · 支持 English 与简体中文",
+
+  "landing.stmt.title": "本月",
+  "landing.stmt.caption": "对账单",
+  "landing.stmt.reconciled": "已对账",
+
+  "landing.stepsEyebrow": "如何运作",
+  "landing.stepsTitle": "三步，从原始流水到对好的账本。",
+  "landing.step1.title": "连接",
+  "landing.step1.body": "通过 Plaid 关联你的账户，交易自动同步进来——无需手动导入。",
+  "landing.step2.title": "对账",
+  "landing.step2.body":
+    "PBudget 为每一笔交易归类，把退款或拆分合并成单独一行，并把看起来可疑的交易标记出来，交由你审核。",
+  "landing.step3.title": "预算",
+  "landing.step3.body": "按分类逐月对比支出与预算——收入与转账不计入其中。",
+
+  "landing.featuresEyebrow": "核心功能",
+  "landing.featuresTitle": "经得起推敲的账目。",
+  "landing.feat.cat.title": "自动归类",
+  "landing.feat.cat.body": "交易一到账即被归类。分类名只需改一次，即在所有月份（包括过去）全部生效。",
+  "landing.feat.merge.title": "合并分组",
+  "landing.feat.merge.body": "一笔消费与它的退款，或跨卡的拆分，会合并成单独一行对账——让合计如实反映。",
+  "landing.feat.audit.title": "为你的账目把关",
+  "landing.feat.audit.body": "未知商家、重复扣款和异常金额都会被标记。逐笔批准或拒绝——最终由你说了算。",
+  "landing.feat.report.title": "月度报告",
+  "landing.feat.report.body": "收入、支出、净额。每个月一份清晰的现金流摘要，未处理的标记置于顶部。",
+
+  "landing.precisionEyebrow": "精确",
+  "landing.precisionTitle": "每一个数字都对得上。",
+  "landing.precisionBody":
+    "金额以等宽数字对齐到分，如真正的账本一般。收入与转账绝不会虚增你的支出——你看到的，就是你真正花掉的。",
+  "landing.bilingual": "完整双语 — Fully bilingual interface.",
+
+  "landing.finalTitle": "打开你的账本。",
+  "landing.finalBody": "免费探索。连接银行账户后，每个受管账户每月 $1。",
+  "landing.finalCta": "开始使用",
+  "landing.footer": "PBudget — 个人预算，由 Plaid 支持。",
 };
 
 export default zh;

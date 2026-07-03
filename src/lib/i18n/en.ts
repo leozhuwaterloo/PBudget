@@ -176,6 +176,57 @@ const en = {
   "catmap.colPlaid": "Plaid category",
   "catmap.colYours": "Your category",
   "catmap.overridden": "overridden",
+
+  // landing (logged-out home)
+  "landing.eyebrow": "Automated personal bookkeeping",
+  "landing.h1": "The ledger that <em>balances itself.</em>",
+  "landing.sub":
+    "PBudget connects to your banks through Plaid, then sorts, merges, and reconciles every transaction into a monthly ledger you can actually budget against.",
+  "landing.ctaPrimary": "Create your ledger",
+  "landing.ctaSecondary": "Sign in",
+  "landing.trust": "Bank connections secured by Plaid · English & 简体中文",
+
+  "landing.stmt.title": "This month",
+  "landing.stmt.caption": "Statement",
+  "landing.stmt.reconciled": "Reconciled",
+
+  "landing.stepsEyebrow": "How it works",
+  "landing.stepsTitle": "Three steps from raw feed to reconciled ledger.",
+  "landing.step1.title": "Connect",
+  "landing.step1.body":
+    "Link your accounts through Plaid. Transactions flow in on their own — nothing to import by hand.",
+  "landing.step2.title": "Reconcile",
+  "landing.step2.body":
+    "PBudget categorizes each charge, merges a refund or split into a single line, and flags anything that looks off for your review.",
+  "landing.step3.title": "Budget",
+  "landing.step3.body":
+    "Track spend by category against your budget, month over month — with income and transfers kept out of the math.",
+
+  "landing.featuresEyebrow": "What's inside",
+  "landing.featuresTitle": "Bookkeeping that holds up to scrutiny.",
+  "landing.feat.cat.title": "Automatic categorization",
+  "landing.feat.cat.body":
+    "Every transaction sorted the moment it arrives. Rename a category once and it applies everywhere, including past months.",
+  "landing.feat.merge.title": "Merge groups",
+  "landing.feat.merge.body":
+    "A purchase and its refund, or a charge split across cards, collapse into one reconciled line — so your totals tell the truth.",
+  "landing.feat.audit.title": "An auditor for your books",
+  "landing.feat.audit.body":
+    "Unknown vendors, duplicate charges, and unusual amounts get flagged. You approve or reject each one — the final say is yours.",
+  "landing.feat.report.title": "Monthly report",
+  "landing.feat.report.body":
+    "Money in, money out, net. A clean cash-flow summary for every month, with any open flags surfaced up top.",
+
+  "landing.precisionEyebrow": "Precision",
+  "landing.precisionTitle": "Every figure ties out.",
+  "landing.precisionBody":
+    "Amounts align to the cent in tabular figures, the way a real ledger reads. Income and transfers never inflate your spending — what you see is what you actually spent.",
+  "landing.bilingual": "Fully bilingual — 完整的简体中文界面。",
+
+  "landing.finalTitle": "Open your ledger.",
+  "landing.finalBody": "Free to explore. $1 per managed account, per month once you connect a bank.",
+  "landing.finalCta": "Get started",
+  "landing.footer": "PBudget — personal budgeting, backed by Plaid.",
 };
 
 export type Messages = typeof en;
