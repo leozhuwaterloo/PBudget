@@ -167,9 +167,11 @@ names, category names, transaction descriptions) is never translated.
 
 Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 
-1. After seeding and running analysis, every transaction from a never-approved vendor
-   — excluding linked-pair transactions, whose vendor is **Self** — has an open
-   unknown-vendor flag visible on `/review` (FR1.1, FR5).
+1. After seeding and running analysis, every **posted** transaction from a
+   never-approved vendor — excluding linked-pair transactions, whose vendor is
+   **Self** — has an open unknown-vendor flag visible on `/review` (the pending
+   fixture transaction is exempt per FR1 exemption b, verified by criterion 15)
+   (FR1.1, FR5).
 2. Approving a vendor removes all its open unknown-vendor flags, and a subsequent
    sync/analysis of a new fixture transaction from that vendor produces no new
    unknown-vendor flag (FR2).
@@ -274,10 +276,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   all four rules on both sides rather than unconditionally flagging them as unmatched
   transfers; the duplicate rule flags **both** transactions in the window, each
   dismissed individually.
-- **This cycle round 2 defaults, PENDING user confirmation** (user was away when
-  asked): (a) an unlink is permanent — the analyzer never auto-pairs the same two
-  transactions again; manual re-pairing stays possible (FR3, criterion 17);
-  (b) linked-pair exclusions in FR6/FR7 apply from auto-match, while the pair is
-  still pending confirmation — consistent with the FR1 exemptions; (c) criteria
-  15–16 added so the posted-only exemption and dismissal permanence are actually
-  verified, with the needed pending-transaction fixture added to FR9.
+- **This cycle round 2 defaults, all confirmed by the user in round 3:** (a) an
+  unlink is permanent — the analyzer never auto-pairs the same two transactions
+  again unless the user manually re-pairs them (FR3, criterion 17); (b) linked-pair
+  exclusions in FR6/FR7 apply from auto-match, while the pair is still pending
+  confirmation — consistent with the FR1 exemptions; (c) criteria 15–16 kept so the
+  posted-only exemption and dismissal permanence are actually verified, with the
+  needed pending-transaction fixture in FR9.
