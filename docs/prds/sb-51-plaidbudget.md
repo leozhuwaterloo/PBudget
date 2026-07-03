@@ -57,7 +57,8 @@ Rules (all four in v1):
    `TRANSFER_IN`/`TRANSFER_OUT` or e-transfer-style name) with no linked counterpart.
 3. **Unusual amount** — an approved vendor charging ≥ 3× its historical median
    (needs ≥ 3 prior transactions from that vendor).
-4. **Duplicate charge** — same vendor + same amount within a 3-day window.
+4. **Duplicate charge** — same vendor + same amount within a 3-day window. **Both**
+   transactions in the window are flagged; each is dismissed individually (FR4).
 
 Two exemptions apply across all four rules: (a) transactions in a linked transfer
 pair (FR3) are exempt from **every** rule — a linked pair is accounted for by
@@ -79,9 +80,11 @@ user within a 4-day window into a *linked pair* (status `auto`). No transfer-lik
 category is required to auto-pair (user decision, review round 3); the compensating
 control is that **every auto-linked pair is itself an open review item** on
 `/review` until the user confirms or unlinks it. The user can
-**confirm** or **unlink** a pair from the review page; unlinking re-flags both sides
-as unmatched transfers and reverts them from vendor **Self** to their raw vendor (so
-the unknown-vendor rule applies again if that vendor is unapproved). Manual pairing
+**confirm** or **unlink** a pair from the review page; unlinking reverts both sides
+from vendor **Self** to their raw vendor and re-runs all four rules on them —
+transfer-like sides get unmatched-transfer flags, sides from unapproved vendors get
+unknown-vendor flags, and a non-transfer-like side from an approved vendor ends up
+unflagged (accounted for as normal spend). Manual pairing
 of two flagged transfers is also possible, subject to the same checks
 (opposite-sign, equal amount, different accounts of the same user) but with **no
 time-window limit** — its purpose is catching real transfers that settle outside
@@ -125,6 +128,9 @@ Fernet key) so the script is verifiable without production access (criterion 11)
 user seeded with an active subscription status (so it passes the billing gate with
 no Stripe calls) with fixture accounts/transactions that exercise all four rules and a transfer
 pair, so the full review/report flow is drivable locally without Plaid credentials.
+The seed also provides a follow-up step (e.g. a second seed phase) that injects
+additional fixture transactions and re-runs analysis, so post-decision behavior
+(criteria 2–3) is drivable without Plaid.
 
 **FR10 — Bilingual UI (English + Simplified Chinese).** All app pages — existing
 (dashboard, `/budget`, item detail, auth, billing) and new (`/review`, monthly
@@ -165,13 +171,14 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 4. Two fixture transactions of +$X and −$X in different accounts 2 days apart are
    auto-linked; neither carries an unmatched-transfer or unknown-vendor flag (their
    vendor is **Self**); the pair is listed on `/review` pending confirmation; and
-   unlinking it re-flags both (FR3).
+   unlinking it re-runs the rules and re-flags both (the fixture pair is
+   e-transfer-named, so both get unmatched-transfer flags) (FR3).
 5. A fixture transfer-out with no counterpart within 4 days has an open
    unmatched-transfer flag (FR1.2).
 6. A fixture charge ≥ 3× an approved vendor's median (with ≥ 3 priors) is flagged
    unusual-amount; one below the threshold is not (FR1.3).
-7. Two same-vendor, same-amount fixture charges 1 day apart are flagged duplicate
-   (FR1.4).
+7. Two same-vendor, same-amount fixture charges 1 day apart **each** carry an open
+   duplicate flag (FR1.4).
 8. Every flag and every pair pending confirmation can be driven to resolved through
    UI actions only, and `/review` then shows the all-clear state with zero open
    counters (FR4, FR5).
@@ -247,3 +254,7 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   transactions only, skipping pending ones until they post; (c) manual pairing
   requires opposite-sign + equal amount + different accounts but has no time
   window; (d) the monthly report's total in/out excludes linked pairs.
+- **Confirmed by the user in this review cycle (round 1):** unlinking a pair re-runs
+  all four rules on both sides rather than unconditionally flagging them as unmatched
+  transfers; the duplicate rule flags **both** transactions in the window, each
+  dismissed individually.
