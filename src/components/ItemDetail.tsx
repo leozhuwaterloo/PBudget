@@ -1,5 +1,3 @@
-"use client";
-import React, { useState } from "react";
 import TransactionTable, { type Txn } from "./TransactionTable";
 
 type Account = {
@@ -8,25 +6,23 @@ type Account = {
   current: number | null;
   currency_code: string | null;
   last_updated: string;
-  transactions: Txn[];
+  transaction_count: number;
 };
 
+// Merge groups span accounts (an e-transfer pair lives in two), so transactions
+// render as ONE item-wide table fed by effectiveTransactions (F8/FR3) rather than
+// per-account sub-tables — otherwise a cross-account group has no single home.
 export default function ItemDetail({
   name,
   lastUpdated,
   accounts,
+  transactions,
 }: {
   name: string;
   lastUpdated: string;
   accounts: Account[];
+  transactions: Txn[];
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const toggle = (id: string) => {
-    const next = new Set(open);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setOpen(next);
-  };
-
   return (
     <div>
       <h1>{name}</h1>
@@ -43,25 +39,21 @@ export default function ItemDetail({
           </thead>
           <tbody>
             {accounts.map((a) => (
-              <React.Fragment key={a.account_id}>
-                <tr className="clickable" onClick={() => toggle(a.account_id)}>
-                  <td>{open.has(a.account_id) ? "▾" : "▸"} {a.name}</td>
-                  <td>{a.currency_code ?? ""} {a.current ?? ""}</td>
-                  <td>{a.transactions.length}</td>
-                  <td>{new Date(a.last_updated).toLocaleString("en-ZA")}</td>
-                </tr>
-                {open.has(a.account_id) && a.transactions.length > 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ padding: 0 }}>
-                      <TransactionTable transactions={a.transactions} />
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
+              <tr key={a.account_id}>
+                <td>{a.name}</td>
+                <td>{a.currency_code ?? ""} {a.current ?? ""}</td>
+                <td>{a.transaction_count}</td>
+                <td>{new Date(a.last_updated).toLocaleString("en-ZA")}</td>
+              </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {transactions.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          <TransactionTable transactions={transactions} />
+        </div>
+      )}
     </div>
   );
 }
