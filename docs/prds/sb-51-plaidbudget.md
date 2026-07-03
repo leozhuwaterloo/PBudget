@@ -69,12 +69,16 @@ pending→posted pair as a duplicate).
 
 **FR2 — Vendor review queue.** Every distinct vendor starts *pending*. From the
 review page the user can **approve** (clears all open unknown-vendor flags for that
-vendor, past and future) or **reject** (vendor stays untrusted; each of its future
+vendor, past and future) or **reject** (vendor stays untrusted; its existing open
+flags remain until dismissed per-transaction per FR4, and each of its future
 transactions keeps getting flagged). Vendor decisions persist per user.
 
 **FR3 — Transfer auto-match + confirm.** The analyzer auto-pairs opposite-sign,
 equal-amount (same currency) transactions across two different accounts of the same
-user within a 4-day window into a *linked pair* (status `auto`). The user can
+user within a 4-day window into a *linked pair* (status `auto`). No transfer-like
+category is required to auto-pair (user decision, review round 3); the compensating
+control is that **every auto-linked pair is itself an open review item** on
+`/review` until the user confirms or unlinks it. The user can
 **confirm** or **unlink** a pair from the review page; unlinking re-flags both sides
 as unmatched transfers and reverts them from vendor **Self** to their raw vendor (so
 the unknown-vendor rule applies again if that vendor is unapproved). Manual pairing
@@ -86,13 +90,16 @@ the 4-day auto-window.
 **FR4 — Explicit resolution.** Every flag requires a user decision — approve vendor,
 confirm/unlink pair, or **dismiss** (per-transaction). Nothing auto-resolves except
 unknown-vendor flags cleared by a vendor approval and transfer flags cleared by a
-link.
+link — and an auto link is not itself a resolution: the pair stays pending until
+confirmed or unlinked (FR3), so every linked transfer still gets explicit review.
 
-**FR5 — `/review` page.** New authenticated page listing open flags grouped by rule,
+**FR5 — `/review` page.** New authenticated page listing open flags grouped by rule
+plus auto-linked pairs pending confirmation,
 newest first, with the actions above, plus counters: suspicious today, suspicious
-this month (both counted by transaction date), total open. Filterable by day or
-month (also by transaction date). Zero open flags is an explicit,
-visible "all clear" state.
+this month (both counted by transaction date), total open — all three counting open
+flags plus pairs pending confirmation. Filterable by day or
+month (also by transaction date). Zero open flags and zero unconfirmed pairs is an
+explicit, visible "all clear" state.
 
 **FR6 — Monthly report.** New report view, linked from the main nav: for a chosen
 month, spend per user
@@ -157,15 +164,17 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
    are flagged again (FR2).
 4. Two fixture transactions of +$X and −$X in different accounts 2 days apart are
    auto-linked; neither carries an unmatched-transfer or unknown-vendor flag (their
-   vendor is **Self**); unlinking them re-flags both (FR3).
+   vendor is **Self**); the pair is listed on `/review` pending confirmation; and
+   unlinking it re-flags both (FR3).
 5. A fixture transfer-out with no counterpart within 4 days has an open
    unmatched-transfer flag (FR1.2).
 6. A fixture charge ≥ 3× an approved vendor's median (with ≥ 3 priors) is flagged
    unusual-amount; one below the threshold is not (FR1.3).
 7. Two same-vendor, same-amount fixture charges 1 day apart are flagged duplicate
    (FR1.4).
-8. Every flag can be driven to resolved through UI actions only, and `/review` then
-   shows the all-clear state with zero open counters (FR4, FR5).
+8. Every flag and every pair pending confirmation can be driven to resolved through
+   UI actions only, and `/review` then shows the all-clear state with zero open
+   counters (FR4, FR5).
 9. The monthly report for the fixture month shows per-category totals matching
    hand-computed fixture sums with the linked pair excluded; remapping a Plaid
    category to a renamed user category moves its spend accordingly (FR6).
@@ -174,7 +183,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 11. The migration script, run twice against a fixture copy of the old Django schema,
     produces identical row counts (idempotent), attaches all rows to the owner user,
     and a migrated access token decrypts with the new AES key to the original
-    plaintext (FR8).
+    plaintext; running the analyzer afterwards flags the migrated fixture
+    transactions per FR1 — nothing grandfathered (FR1, FR8).
 12. `GET /api/health` returns 200 with the app running.
 13. Switching the language to 简体中文 renders `/review` and the monthly report with
     Chinese UI strings (no untranslated chrome on those pages), the choice survives
@@ -216,7 +226,12 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   built-in, implicitly-approved vendor **Self** (user decision, review round 1).
 - Transfer-like detection = Plaid `personal_finance_category` primary
   `TRANSFER_IN`/`TRANSFER_OUT`, or name matching e-transfer patterns
-  (`/e-?transfer|etfr|send money/i`).
+  (`/e-?transfer|etfr|send money/i`). This gates the unmatched-transfer rule only —
+  auto-matching pairs any opposite-sign, equal-amount, cross-account transactions
+  within the 4-day window, no transfer-like category required (user decision,
+  review round 3); the safeguard is that every auto pair must be explicitly
+  confirmed or unlinked (FR3/FR4). A transaction belongs to at most one linked
+  pair; when several candidates match, the nearest-by-date one is chosen.
 - Thresholds: 3× median for unusual amount (min 3 priors), 3-day duplicate window,
   4-day transfer-match window, exact amount match for pairs.
 - Dismissing a flag is per-transaction and permanent; the same transaction is not
@@ -226,8 +241,8 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
 - Locale is a per-user setting (cookie fallback pre-login), English default,
   Simplified Chinese as the only other locale; emails and user data untranslated
   (user decision, review round 1).
-- **Review round 2 defaults — set by the reviewer while the user was away;
-  override any of these if wrong:** (a) linked-pair transactions are exempt from
+- Review round 2 defaults, all **confirmed by the user in review round 3**:
+  (a) linked-pair transactions are exempt from
   all four rules, not just unknown-vendor; (b) the analyzer runs on posted
   transactions only, skipping pending ones until they post; (c) manual pairing
   requires opposite-sign + equal amount + different accounts but has no time
