@@ -66,7 +66,10 @@ Rules (all four in v1):
    Charges only (user decision, cycle 3): the rule fires only on money-out
    transactions, and the median is computed over that vendor's prior posted charges
    (≥ 3 required); refunds/credits neither trigger the rule nor enter the median.
-   Net-≠0 merge groups are evaluated at their net amount.
+   Net-≠0 merge groups are evaluated at their net amount. The median treats merges
+   like every other rule: merge-group legs are excluded from it, and a net-≠0
+   group whose net is a charge enters the group vendor's median at its net amount
+   (reviewer default, round 2 — see Open assumptions).
 4. **Duplicate charge** — same vendor + same **signed** amount within a 3-day
    window (a charge and its refund have opposite signs and do not pair). **Both**
    transactions in the window are flagged; each is dismissed individually (FR4).
@@ -89,8 +92,11 @@ flags remain until dismissed per-transaction per FR4, and each of its future
 transactions keeps getting flagged). Vendor decisions persist per user.
 
 **FR3 — Merge groups: transfer auto-match + manual N-way merge.** The user can
-merge **any N ≥ 2 of their transactions — flagged or unflagged, any accounts, any
-signs or amounts, no time window** (user decision, cycle 3) — into a *merge group*
+merge **any N ≥ 2 of their posted transactions — flagged or unflagged, any
+accounts, any signs or amounts, no time window** (user decision, cycle 3; the
+posted-only restriction is a round-2 reviewer default — a pending row's posted
+replacement arrives under a different Plaid ID and would strand the group,
+consistent with FR1 exemption d) — into a *merge group*
 that displays everywhere (transaction lists, `/review`, reports) as **one
 transaction** whose amount is the signed sum of its legs. All legs must share a
 currency (a mixed-currency sum is undefined). The group's title is user-selectable,
@@ -132,7 +138,7 @@ dissolve.
 **FR5 — `/review` page.** New authenticated page listing open flags grouped by rule
 plus auto groups pending confirmation, newest first, with the actions above —
 including a merge picker whose leg candidates are **any** of the user's
-transactions, flagged or unflagged — plus counters: suspicious today, suspicious
+**posted** transactions, flagged or unflagged (pending rows excluded, FR3) — plus counters: suspicious today, suspicious
 this month (both counted by transaction date; a merge group uses its group date,
 FR3), total open — all three counting open flags plus groups pending confirmation.
 Filterable by day or month (same dates). Zero open flags and zero unconfirmed
@@ -195,14 +201,21 @@ User-facing branding (UI chrome, page titles, email sender name) becomes
 **PBudget**, and all technical identifiers follow: package name; image
 `leozhu:5000/pbudget`; deploy step `make deploy run=pbudget` (Setups k8s directory,
 manifest, and resource names renamed plaidbudget → pbudget); Vault paths
-`secret/pbudget/config` and `secret/db/postgres-ai/pbudget` (policy + role renamed,
-secrets seeded under the new paths on first deploy — never clobbering; old
-plaidbudget paths retired); the app's own `pbudget` database + owner role in
-postgres-ai (bare SQL identifier); nginx-internal vhost `pbudget.conf` with
-`server_name pbudget.{{ domain }}` replacing `plaid.{{ domain }}`;
-`APP_URL=https://pbudget.ppvnx.com`; `EMAIL_FROM=PBudget
-<no-reply@pbudget.ppvnx.com>`. The renamed deploy step removes the superseded
-plaidbudget k8s resources. User data is untouched.
+`secret/pbudget/config` and `secret/db/postgres-ai/pbudget` (policy + role
+renamed; on first deploy the existing `secret/plaidbudget/config` **values are
+copied** to `secret/pbudget/config` — fresh-seeded only where no old value
+exists, never clobbering — while `secret/db/postgres-ai/pbudget` gets **new**
+creds for the new role; old plaidbudget paths retired after the copy); the
+app's own `pbudget` database + owner role in postgres-ai (bare SQL identifier);
+nginx-internal vhost `pbudget.conf` with `server_name pbudget.{{ domain }}`
+replacing `plaid.{{ domain }}`; `APP_URL=https://pbudget.ppvnx.com`;
+`EMAIL_FROM=PBudget <no-reply@pbudget.ppvnx.com>`. The renamed deploy step
+removes the superseded plaidbudget k8s resources. **User data is carried over,
+not abandoned** (reviewer default, round 2): the deploy copies the existing
+plaidbudget database contents into the new `pbudget` database (one-time,
+idempotent — skipped when `pbudget` already has data), so the owner account,
+linked Plaid items/access tokens, and synced history survive the rename with
+no bank re-linking.
 
 ## Non-goals
 
@@ -315,7 +328,10 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   `make deploy run=pbudget` (renamed step per FR11: single pod, image
   `leozhu:5000/pbudget` via the cluster registry, Vault-injected secrets, own
   `pbudget` database in postgres-ai, nginx-internal vhost
-  `server_name pbudget.{{ domain }}`). Health check:
+  `server_name pbudget.{{ domain }}`). The step carries the old deployment
+  over per FR11: copies `secret/plaidbudget/config` values to the new Vault
+  path and the plaidbudget database contents into `pbudget` before retiring
+  the old resources. Health check:
   `curl -fsS https://pbudget.ppvnx.com/api/health` → HTTP 200 through the public
   hostname.
 - **Data migration (one-off, run by the owner):** `npm run migrate:portfolio` with
@@ -363,6 +379,16 @@ Verifiable end-to-end against the seeded demo user (FR9) unless noted:
   cycles' 2-leg "linked pair" semantics (opposite-sign/equal-amount constraints on
   manual pairing, the built-in vendor **Self**, pair exemption from all rules) are
   **superseded** by the cycle-3 merge-group model below.
+- **Applied in review cycle 3, round 2 (2026-07-03) as reviewer defaults — the
+  user was asked but unavailable; confirm or override:** (a) the FR11 rename
+  **carries data over** rather than starting fresh: plaidbudget database
+  contents are copied into `pbudget`, and `secret/plaidbudget/config` values
+  are copied to `secret/pbudget/config` (`secret/db/postgres-ai/pbudget` gets
+  new creds for the new role); (b) merge legs are **posted transactions only**
+  (FR3/FR5) — pending rows are excluded from the merge picker, since their
+  posted replacement arrives under a different Plaid ID; (c) the unusual-amount
+  median (FR1.3) **excludes merge-group legs** and includes a net-≠0 group's
+  net charge under the group vendor.
 - **Confirmed by the user in review cycle 3, round 1 (2026-07-03):** (a) full
   technical rename to **PBudget** with public URL **pbudget.ppvnx.com** (FR11);
   (b) linking generalized from 2-leg pairs to **N-way merge groups** displayed as
