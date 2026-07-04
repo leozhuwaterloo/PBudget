@@ -84,8 +84,11 @@ analysis, as today):
 Re-match triggers: after sync/analyze, and after any vendor create/edit/delete or
 priority change. Matching is deterministic and idempotent; `unmatched_vendor` and
 `vendor_conflict` are *queue-type* items that auto-close when re-matching shows the
-condition no longer holds (unlike the three suspicion rules, which keep the
-never-auto-closed invariant and permanent dismissal).
+condition no longer holds. A `vendor_conflict` can additionally be dismissed
+manually (FR6), which suppresses it for that transaction; `unmatched_vendor` items
+have no dismiss — they clear only by matching. The three suspicion rules keep
+today's invariant unchanged: never auto-closed, only user actions close them,
+dismissal permanent.
 
 ## Pages
 
@@ -172,10 +175,12 @@ on Review.
 
 **FR6 — Review v2.** One page, sectioned:
 
-1. **Unmatched transactions** — every posted txn (and net-≠0 group) with no vendor.
-   Actions per row: instantiate a catalog vendor, create a custom vendor pre-filled
-   from the row (equals-condition on its normalized string), or extend an existing
-   vendor's conditions. Re-match runs after each action; the queue shrinks live.
+1. **Unmatched transactions** — every posted txn (and net-≠0 group) with no vendor,
+   shown as a flat paged list, one row per transaction. Actions per row: instantiate
+   a catalog vendor, create a custom vendor pre-filled from the row (equals-condition
+   on its normalized string), or extend an existing vendor's conditions. Re-match
+   runs after each action and removes **every** queue row the new/edited vendor now
+   matches — not just the acted-on row; the queue shrinks live.
 2. **Conflicts** — multi-matched txns showing every matching vendor and the priority
    winner. Actions: jump to the vendors to edit conditions/priority, or dismiss
    (accept the winner; permanent for that txn).
@@ -285,6 +290,22 @@ model User { plan String @default("free") }   // free|pro|max
 - Multi-currency budget math (single-currency assumption stands, as in `Report.tsx`).
 - Proration/refund handling beyond what Stripe Checkout/portal do natively.
 
+## Deployment
+
+Unchanged from today's setup — V2 rides the existing pipeline:
+
+- **Local dev:** `npm run dev` (`next dev -p 5300`) → http://localhost:5300, SQLite
+  via Prisma (`npm run db:migrate` applies migrations).
+- **Production:** from the Setups repo, `make deploy run=plaidbudget` — builds and
+  imports the image, applies Prisma migrations against the shared `postgres-ai`
+  cluster, seeds Vault secrets (first deploy only), and applies the manifest. Live
+  at https://pbudget.ppvnx.com. The two new Stripe price env vars
+  (`STRIPE_PRICE_PRO`, `STRIPE_PRICE_MAX`, FR10) must be seeded in Vault before the
+  first V2 deploy.
+- **Health check:** `GET /api/health` returns `{"ok":true}` (the existing k8s probe
+  target) — https://pbudget.ppvnx.com/api/health in prod,
+  http://localhost:5300/api/health in dev.
+
 ## Open assumptions (flag disagreements in review)
 
 1. New vendors append at the **end** of the priority order (lowest priority).
@@ -303,8 +324,9 @@ model User { plan String @default("free") }   // free|pro|max
 ## Acceptance criteria
 
 1. A transaction matching no vendor appears in Review → Unmatched; creating a vendor
-   from it (or instantiating a matching catalog entry) removes it from the queue and
-   sets its `vendorId` without a fresh sync.
+   from it (or instantiating a matching catalog entry) removes it — and every other
+   unmatched row the new vendor matches — from the queue and sets their `vendorId`
+   without a fresh sync.
 2. Two vendors matching the same transaction: the higher-priority one is assigned,
    a conflict item appears; reordering priorities flips the assignment and re-match
    auto-closes the conflict when conditions no longer overlap.
