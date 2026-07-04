@@ -70,8 +70,9 @@ analysis, as today):
 2. **Vendor match (FR1):** the highest-priority vendor whose conditions match claims
    the transaction (materialized as `vendorId`). More than one match → the priority
    winner is still assigned and a `vendor_conflict` review item fires. Zero matches
-   → an `unmatched_vendor` review item fires: **every transaction must end up
-   matched to a vendor or sitting in the review queue.**
+   → an `unmatched_vendor` review item fires: **every effective transaction
+   (ungrouped txn or net-≠0 group) must end up matched to a vendor or sitting in
+   the review queue.**
 3. **Category resolution (FR3), at read time:** per-split-part category override →
    the winning vendor's **first matching condition row's category**, else the
    vendor's **default category** (both optional, FR1) → `CategoryMapping` on the
@@ -86,7 +87,11 @@ analysis, as today):
 Re-match triggers: after sync/analyze, and after any vendor create/edit/delete or
 priority change. Matching is deterministic and idempotent; `unmatched_vendor` and
 `vendor_conflict` are *queue-type* items that auto-close when re-matching shows the
-condition no longer holds. A `vendor_conflict` can additionally be dismissed
+condition no longer holds. Both queue types are evaluated over effective items
+(ungrouped txns + net-≠0 groups) — the same domain as today's flag rules and the
+`unknown_vendor` they replace: `vendorId` is still materialized on every posted
+transaction, but a grouped leg is represented by its group (vendor = primary leg,
+FR1) and net-0 groups stay out of the queue. A `vendor_conflict` can additionally be dismissed
 manually (FR6), which suppresses it for that transaction; `unmatched_vendor` items
 have no dismiss — they clear only by matching. The three suspicion rules keep
 today's invariant unchanged: never auto-closed, only user actions close them,
@@ -203,10 +208,13 @@ on Review.
 
 **FR6 — Review v2.** One page, sectioned:
 
-1. **Unmatched transactions** — every posted txn (and net-≠0 group) with no vendor,
-   shown as a flat paged list, one row per transaction. Actions per row: instantiate
+1. **Unmatched transactions** — every unmatched effective item: posted ungrouped
+   txns with no vendor, and net-≠0 groups whose primary leg has none — shown as a
+   flat paged list, one row per item. Actions per row: instantiate
    a catalog vendor, create a custom vendor pre-filled from the row (equals-condition
-   on its normalized string), or extend an existing vendor's conditions. Re-match
+   on its normalized string — on merchant name when the row has one, else on
+   transaction name, mirroring the `merchantName ?? name` key), or extend an
+   existing vendor's conditions. Re-match
    runs after each action and removes **every** queue row the new/edited vendor now
    matches — not just the acted-on row; the queue shrinks live.
 2. **Conflicts** — multi-matched txns showing every matching vendor and the priority
@@ -268,8 +276,11 @@ price is archived in Stripe.
 - Prisma migration for the new tables/columns (below), applied to dev SQLite and
   prod `postgres-ai` via the existing deploy step.
 - Data migration (idempotent script, like `migrate-portfolio.ts`): each existing
-  **approved** `Vendor` row becomes a V2 vendor with one equals-condition on its
-  normalized name (priority = `decidedAt` order); `pending`/`rejected` rows are
+  **approved** `Vendor` row becomes a V2 vendor with equals-condition rows on
+  merchant name and/or transaction name — whichever reproduce the legacy
+  `merchantName ?? name` key, which can originate from either field per
+  transaction — so its matched transactions stay matched (AC12); priority =
+  `decidedAt` order. `pending`/`rejected` rows are
   dropped — their transactions surface in the unmatched queue. Open/dismissed
   `unknown_vendor` flags are deleted (superseded by the queue). First re-match
   builds the initial unmatched backlog, worked down via the catalog.
