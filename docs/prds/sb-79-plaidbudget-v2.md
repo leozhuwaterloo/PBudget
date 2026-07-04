@@ -186,8 +186,11 @@ condition-row categories, split-part category). Delete requires the category to 
 **FR5 — Manual splits.** The user can split any posted, **ungrouped** transaction
 into N ≥ 2 parts. There is **no auto-split — always manual**. Each part has an
 amount (non-zero, same sign as the parent, integer-cents sum exactly equal to the
-parent), an optional label, and an optional category override (defaults to the
-parent's resolved category). Vendor is inherited from the parent (per-part vendors
+parent), an optional label, and an optional category override. An unset override
+stores nothing: the part resolves at read time through the parent's waterfall
+(funnel step 3), so it keeps following vendor/config changes — the split UI may
+*display* the parent's currently-resolved category as the default, but must not
+snapshot it. Vendor is inherited from the parent (per-part vendors
 out of scope). Split and merge are mutually exclusive on a transaction: a split
 parent can't be merged (its parts aren't merge candidates either) and a merge leg
 can't be split — dissolve/unsplit first. The read model replaces the parent with
