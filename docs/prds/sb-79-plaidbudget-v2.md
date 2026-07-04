@@ -126,7 +126,9 @@ the row's category is an outcome, not a matching field):
 - Plaid category: primary and/or detailed (from the stored category JSON)
 
 Matching materializes `PlaidTransaction.vendorId` (nullable). Merge groups take
-their vendor from the primary leg's `vendorId`. First match in priority order wins;
+their vendor from the primary leg's `vendorId` (primary leg = the existing
+`primaryLeg` rule in `src/lib/analysis/groups.ts`: largest outflow, else largest
+|amount| — the same leg groups already take their title/category from). First match in priority order wins;
 multi-match additionally fires `vendor_conflict` (FR6) so the user can tighten
 conditions or reorder — the ideal end state is zero conflicts. Vendors are kept
 precise and non-overlapping by design: broad category-level fallbacks belong to
@@ -384,3 +386,8 @@ Unchanged from today's setup — V2 rides the existing pipeline:
     shows Dashboard · Review · Accounts · Customizations.
 14. `seed-demo.ts` + `check-analysis.ts` pass, exercising vendor rules, a conflict,
     a split, and the tier limit.
+15. Categories & budgets (FR4): renaming a category updates every referencing row
+    (`CategoryMapping`, vendor default, condition-row, split-part) and spend follows
+    under the new name; deleting a referenced category is rejected until references
+    are removed; toggling `excludeFromTotals` on a category removes its spend from
+    the Dashboard monthly-trend widget.
