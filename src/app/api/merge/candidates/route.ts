@@ -8,7 +8,7 @@ import { normalizeVendor, plaidPrimary } from "@/lib/analysis/vendor";
 // user's POSTED, ungrouped transactions (flagged or not; FR3). Pending rows and
 // existing group legs are never mergeable. `exclude` drops already-picked ids.
 export async function GET(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 

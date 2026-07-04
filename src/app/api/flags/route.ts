@@ -31,7 +31,7 @@ type FlagEntry =
   | { id: string; rule: string; level: "group"; mergeGroupId: string; vendor: string | null; title: string; amount: number | null; currency: string | null; date: Date };
 
 export async function GET(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 

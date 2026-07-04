@@ -19,7 +19,10 @@ model User {
   emailVerified        DateTime?
   createdAt            DateTime  @default(now())
 
-  // billing ($1 / managed Plaid account / month)
+  // billing (V2: tier per Plaid connection — free|pro|max, set by the Stripe
+  // webhook from the subscription price id, FR10). subscriptionStatus/ids stay
+  // for the Stripe round-trip; the legacy $1/account quantity model is retired.
+  plan                 String    @default("free") // free | pro | max
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
   subscriptionStatus   String? // active | trialing | past_due | canceled | ...
@@ -83,6 +86,7 @@ model PlaidItem {
   institutionId      String
   institution        PlaidInstitution @relation(fields: [institutionId], references: [institutionId], onDelete: Cascade)
   accessToken        String // AES-256-GCM encrypted Plaid access token
+  createdAt          DateTime         @default(now()) // FR10 downgrade ordering: first `limit` items by connection date keep syncing
   lastUpdated        DateTime         @updatedAt
   lastForceRefreshed DateTime
   accounts           PlaidAccount[]
@@ -105,6 +109,7 @@ model PlaidAccount {
   isoCurrencyCode String?
   lastUpdated     DateTime           @updatedAt
   transactions    PlaidTransaction[]
+  vendorConditions VendorCondition[] // back-relation for VendorCondition.accountId (FR1)
 
   @@index([itemId])
 }
@@ -125,32 +130,88 @@ model PlaidTransaction {
   // ponytail: original used an ML model (PlaidTransactionMeta.predicted_category),
   // not portable. We derive this from Plaid's personal_finance_category at sync.
   predictedCategory    String?
+  vendorId             String? // FR1: materialized winning-vendor match (null = unmatched/queue)
   lastUpdated          DateTime     @updatedAt
 
   @@index([accountId])
+  @@index([vendorId])
 }
 
 model TransactionCategory {
-  id     String  @id @default(cuid())
-  userId String
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name   String
-  budget Decimal @default(0)
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  budget            Decimal @default(0)
+  excludeFromTotals Boolean @default(false) // FR4: keep off Dashboard totals (Income/Transfer/…)
 
   @@unique([userId, name])
 }
 
 // ---- Analysis domain (src/lib/analysis/*) ---------------------------------
 
+// V2 vendor (FR1): a user-owned match rule. Ascending `priority` = match order;
+// a vendor matches when ANY of its condition rows match. status/decidedAt are the
+// retired approval model.
 model Vendor {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String // normalized vendor string
-  status    String    @default("pending") // pending | approved | rejected
-  decidedAt DateTime?
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String // display name
+  icon         String? // bundled icon slug | null → letter avatar
+  categoryName String? // optional DEFAULT category (FR3 fallback)
+  priority     Int? // ascending = match order; NULL = legacy row, never matches
+  // DEPRECATED (legacy approval model): read ONLY by F14's data migration. Do not
+  // use in new code. Columns are dropped after the prod data migration is confirmed.
+  status       String?
+  decidedAt    DateTime?
+  conditions   VendorCondition[]
 
   @@unique([userId, name])
+  @@unique([userId, priority])
+}
+
+// One AND-row of a vendor (FR1): matches when ALL its set fields hold. The first
+// matching row (by `order`) decides the transaction's category.
+model VendorCondition {
+  id             String        @id @default(cuid())
+  vendorId       String
+  vendor         Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  order          Int // row order within the vendor; first matching row decides category
+  categoryName   String? // per-row category outcome (not a matching field)
+  nameOp         String? // contains | equals | starts_with | regex
+  nameValue      String?
+  merchantOp     String?
+  merchantValue  String?
+  amountMin      Decimal? // signed, Plaid convention (+ = outflow)
+  amountMax      Decimal?
+  accountId      String?
+  account        PlaidAccount? @relation(fields: [accountId], references: [accountId], onDelete: SetNull)
+  paymentChannel String? // online | in store | other
+  plaidPrimary   String?
+  plaidDetailed  String?
+
+  @@index([vendorId])
+}
+
+// A manual split of one posted ungrouped transaction into N parts (FR5). The read
+// model replaces the parent with its parts; the analyzer keeps evaluating the parent.
+model TransactionSplit {
+  id                  String      @id @default(cuid())
+  userId              String
+  parentTransactionId String      @unique // one split per transaction
+  parts               SplitPart[]
+}
+
+model SplitPart {
+  id           String           @id @default(cuid())
+  splitId      String
+  split        TransactionSplit @relation(fields: [splitId], references: [id], onDelete: Cascade)
+  amount       Decimal // signed, same sign as parent; integer-cents sum == parent
+  label        String?
+  categoryName String? // optional override; unset → resolves through the parent's waterfall
+
+  @@index([splitId])
 }
 
 model TransactionFlag {

@@ -56,8 +56,8 @@ export async function createMergeGroup(
 // auto-match never recreates this exact set (a manual re-merge stays possible),
 // resolve the group's own OPEN flags (the group ceases to exist), delete it
 // (legs cascade), then re-run the analyzer so the freed legs get re-evaluated —
-// transfer-like legs get unmatched_transfer, unapproved-vendor legs get
-// unknown_vendor. Dismissed flags stay dismissed (permanence, FR4), since the
+// transfer-like legs get unmatched_transfer. Dismissed flags stay dismissed
+// (permanence, FR4), since the
 // analyzer never reopens a dismissed flag.
 export async function dissolveGroup(userId: string, groupId: string): Promise<void> {
   const legs = await prisma.mergeGroupLeg.findMany({ where: { groupId } });

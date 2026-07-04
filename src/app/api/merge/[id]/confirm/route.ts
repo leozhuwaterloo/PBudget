@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 // auto group is a pending review item until confirmed or dissolved. Flags don't
 // change (an auto group is already an effective item, so it was already evaluated).
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
 
   const group = await prisma.mergeGroup.findFirst({ where: { id: params.id, userId: g.user!.id } });

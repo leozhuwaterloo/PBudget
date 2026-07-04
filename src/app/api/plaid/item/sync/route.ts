@@ -7,7 +7,7 @@ import { reconcileQuantity } from "@/lib/stripe";
 import { analyzeUser } from "@/lib/analysis/analyze";
 
 export async function POST(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const { item_id } = await req.json().catch(() => ({}));
   if (!item_id) return NextResponse.json({ error: "Missing item_id" }, { status: 400 });

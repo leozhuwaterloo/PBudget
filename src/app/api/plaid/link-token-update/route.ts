@@ -5,7 +5,7 @@ import { decrypt } from "@/lib/crypto";
 import { createUpdateLinkToken } from "@/lib/plaid";
 
 export async function POST(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const { item_id } = await req.json().catch(() => ({}));
   if (!item_id) return NextResponse.json({ error: "Missing item_id" }, { status: 400 });
