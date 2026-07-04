@@ -13,8 +13,9 @@ overrides, Plaid detailed-category rules, and ~150 merchant `contains` lists map
 into a fixed 21-value category enum. Accurate, but every correction was a code edit.
 
 V2 rebuilds that funnel as **user-editable configuration**: user-defined vendors
-with rich matching conditions (the contains-lists become editable rules), vendor →
-user-category assignment, custom categories with budgets, manual splits (the
+with rich matching conditions (the contains-lists become editable rules), per-rule
+vendor → category assignment (every transaction falls to a vendor; a vendor falls
+to a list of categories), custom categories with budgets, manual splits (the
 per-txn-ID override lists become UI actions), and a review queue guaranteeing every
 transaction is either matched to a vendor or explicitly awaiting the user. Pages are
 re-scoped around this funnel: a graphs-only Dashboard, a Review hub for everything
@@ -72,10 +73,11 @@ analysis, as today):
    → an `unmatched_vendor` review item fires: **every transaction must end up
    matched to a vendor or sitting in the review queue.**
 3. **Category resolution (FR3), at read time:** per-split-part category override →
-   matched vendor's assigned category (optional per vendor) → `CategoryMapping` on
-   the Plaid primary → humanized Plaid primary. (The old funnel's detailed-category
-   granularity is reachable by giving a vendor a condition on the Plaid detailed
-   category — the mapping table itself stays primary-level.)
+   the winning vendor's **first matching condition row's category**, else the
+   vendor's **default category** (both optional, FR1) → `CategoryMapping` on the
+   Plaid primary → humanized Plaid primary. (The old funnel's detailed-category
+   granularity is reachable by giving a condition row a Plaid detailed-category
+   condition — the mapping table itself stays primary-level.)
 4. **Suspicion flags:** `unmatched_transfer`, `unusual_amount`, `duplicate_charge`
    carry over with today's semantics and thresholds; vendor identity for them
    becomes `vendorId` (fallback: normalized string for unmatched txns).
@@ -103,11 +105,16 @@ dismissal permanent.
 ## Functional requirements
 
 **FR1 — Vendor matching engine.** A vendor is a user-owned record: display name,
-optional icon, optional category (one of the user's categories), strict priority
-(unique integer per user; list is user-reorderable), and **1..N condition rows**. A
-condition row matches when ALL of its specified fields hold (AND); a vendor matches
-when ANY of its condition rows match (OR) — exactly the shape of one line in the old
-funnel. Condition fields (each optional, ≥1 required):
+optional icon, optional **default category**, strict priority (unique integer per
+user; list is user-reorderable), and **1..N ordered condition rows**. A condition
+row matches when ALL of its specified fields hold (AND); a vendor matches when ANY
+of its condition rows match (OR) — exactly the shape of one line in the old funnel.
+Each row may additionally carry its own category (one of the user's categories):
+a transaction falls to a vendor, and a vendor falls to a **list of categories** —
+the first matching row (in row order within the vendor) decides the category,
+falling back to the vendor's default (FR3). Multiple matching rows within ONE
+vendor are normal, not a conflict. Condition fields (each optional, ≥1 required;
+the row's category is an outcome, not a matching field):
 
 - transaction name: `contains` | `equals` | `starts_with` | `regex` (case-insensitive,
   against the whitespace-normalized string; regex length capped at 200, invalid
@@ -121,7 +128,11 @@ funnel. Condition fields (each optional, ≥1 required):
 Matching materializes `PlaidTransaction.vendorId` (nullable). Merge groups take
 their vendor from the primary leg's `vendorId`. First match in priority order wins;
 multi-match additionally fires `vendor_conflict` (FR6) so the user can tighten
-conditions or reorder — the ideal end state is zero conflicts.
+conditions or reorder — the ideal end state is zero conflicts. Vendors are kept
+precise and non-overlapping by design: broad category-level fallbacks belong to
+the lower tiers of the category waterfall (FR3), not to wide vendor conditions,
+and one-off personal noise is matched by coarse bucket vendors (FR2: Self,
+General Bank) rather than a catch-all.
 
 **FR2 — Vendor catalog.** A predefined, checked-in catalog seeded from the old
 funnel's fixed merchant lists (extract every distinct merchant/name string from
@@ -131,8 +142,12 @@ Portfolio `e8e10b8~1:App/airflow_tasks/dags/transaction_processor/process_transa
 Eats, Pet Valu, Air Canada, Rogers/Fido/Bell, Steam, IKEA, Dollarama, Amazon,
 Taobao…). Each catalog entry carries: display name, default condition rows
 (translating that line of the old funnel: the contains-string plus any payment-channel
-/ Plaid-category constraint it had), suggested category (the old enum name, FR4),
-and an icon. Icons are bundled (no runtime external fetches): hand-collected SVGs
+/ Plaid-category constraint it had), a suggested category per row (the old enum
+name that line returned, FR4), and an icon. Alongside merchant entries, a few
+**bucket** entries (e.g. Self, General Bank) fold in the old funnel's personal-
+and bank-noise lines (transaction-ID overrides, e-transfer patterns, ABM fees,
+rebates) with per-row categories, so every historical transaction has a catalog
+path to a vendor. Icons are bundled (no runtime external fetches): hand-collected SVGs
 for the major brands, auto-generated letter-avatar for the rest. In the vendor
 builder the user browses/searches the catalog and **instantiates** an entry — a
 one-time copy into their own editable vendor (no live link to the catalog).
@@ -141,21 +156,23 @@ comment; the extraction is a one-time authored artifact, not a build step.
 
 **FR3 — Category resolution.** As specified in "The V2 funnel" step 3. Resolution
 stays at read time so any config change retroactively moves spend with no rewrite —
-same principle as today's `categoryFor`, extended with the vendor step and split
-overrides. `CategoryMapping` (plaid primary → user category) and its UI carry over
+same principle as today's `categoryFor`, extended with the vendor steps (row
+category, then vendor default) and split overrides. Every tier of the waterfall is
+user-editable in Customizations (FR9). `CategoryMapping` (plaid primary → user category) and its UI carry over
 unchanged into Customizations.
 
 **FR4 — Custom categories & budgets.** Customizations lets the user create, rename,
 and delete categories, set a monthly `budget` per category, and toggle a new
 `excludeFromTotals` flag (replaces `Budget.tsx`'s hardcoded
 `IGNORE = {Income, Transfer In, Transfer Out}`; those three names seed `true` for
-parity, as do seeded Transfer/Income/Other Income). Every user is seeded with the
+parity — rows created if the user lacks them — as do seeded
+Transfer/Income/Other Income). Every user is seeded with the
 old funnel's category set (Transfer, Grocery, Restaurant, Food Delivery, Online
 Shopping, In-Store Shopping, Game, Entertainment, Income, Other Income, Fee,
 Recurring, Utility, Pet, Travel, Cash, Gas, Baby — `BigPayment`/`Unknown`/`Ignore`
 are funnel outcomes, not categories, and are not carried over). Rename cascades to
-all rows referencing the name (`CategoryMapping.categoryName`, vendor category,
-split-part category). Delete requires the category to be unreferenced. Existing
+all rows referencing the name (`CategoryMapping.categoryName`, vendor default and
+condition-row categories, split-part category). Delete requires the category to be unreferenced. Existing
 `TransactionCategory` rows and budgets are preserved.
 
 **FR5 — Manual splits.** The user can split any posted, **ungrouped** transaction
@@ -206,13 +223,14 @@ to `/accounts`; the not-subscribed banner is replaced by tier-limit CTAs (FR10).
 sync / re-auth / connect actions — moved from today's dashboard) and, per account,
 a paged **raw transaction browser**: the `PlaidTransaction` rows as fetched (name,
 merchant, amount, date, pending, Plaid category), before any funnel processing,
-with the resolved vendor/category shown alongside and a split action per row.
+with the resolved vendor/category shown alongside and a split action on eligible
+rows (posted, ungrouped — FR5).
 Connect is blocked with an upgrade CTA when at the tier's connection limit.
 
 **FR9 — Customizations page.** Sections: **Categories & budgets** (FR4),
 **Category mappings** (FR3), **Vendors** (FR1/FR2: priority-ordered list with drag
-or up/down reorder, icon, category chip, per-vendor condition builder, catalog
-browser), **Billing** (FR10: current tier, usage `n of limit connections`,
+or up/down reorder, icon, category chips, per-vendor condition builder with
+per-row category, catalog browser), **Billing** (FR10: current tier, usage `n of limit connections`,
 upgrade/downgrade via Stripe Checkout, manage via Stripe portal).
 
 **FR10 — Tier billing.** Tiers are priced per **Plaid connection** (`PlaidItem` —
@@ -226,7 +244,9 @@ Enforcement: connecting a new bank is blocked at the limit (402-style error + CT
 on downgrade, connections beyond the limit stay visible **read-only** — items
 ordered by connection date, the first `limit` keep syncing, the excess can't sync
 until upgrade or disconnect. Free tier requires no card and no subscription — the
-global subscription gate on sync/connect is removed in favor of the limit check.
+global subscription gate (today wrapping every app API route, not just
+sync/connect) is removed everywhere; the connection limit is the only billing
+enforcement.
 The owner's existing graduated-price subscription is cancelled and re-created on a
 tier price via Checkout (one-time manual step, noted in deploy notes); the old
 price is archived in Stripe.
@@ -254,12 +274,14 @@ model Vendor {              // reshaped
   id/userId                 // as today
   name        String        // display name, unique per user
   icon        String?       // catalog slug or null → letter avatar
-  categoryName String?      // optional user category (FR3 step)
+  categoryName String?      // optional DEFAULT category (FR3 fallback)
   priority    Int           // unique per user; match order
   conditions  VendorCondition[]
 }
 model VendorCondition {
   id/vendorId
+  order       Int           // row order within the vendor; first match wins
+  categoryName String?      // optional per-row category (FR3 step)
   nameOp/nameValue          // contains|equals|starts_with|regex
   merchantOp/merchantValue
   amountMin/amountMax       // Decimal, signed
@@ -314,8 +336,9 @@ Unchanged from today's setup — V2 rides the existing pipeline:
 3. Split parts keep the parent's sign; refund-vs-charge decomposition stays merge
    territory.
 4. Catalog extraction is one-time and manual-ish (~150 entries authored from the old
-   funnel file); local one-off merchants that are clearly personal noise (e.g.
-   transaction-ID overrides, "wife transfer" strings) are excluded.
+   funnel file); personal-noise lines (transaction-ID overrides, "wife transfer"
+   strings, e-transfer patterns) are not dropped — they fold into the bucket
+   entries (FR2: Self, General Bank) so the unmatched queue can reach zero.
 5. Dashboard month selector is shared by widgets (b) and (d); (a) and (c) are fixed
    windows.
 6. Tier limits count `PlaidItem` rows regardless of sync health; a broken connection
@@ -333,9 +356,10 @@ Unchanged from today's setup — V2 rides the existing pipeline:
 3. Condition operators (contains/equals/starts_with/regex on name and merchant,
    amount range, account, payment channel, Plaid primary/detailed) each demonstrably
    include and exclude transactions in the raw browser.
-4. A vendor with a category set moves its transactions' spend to that category on
-   Dashboard immediately (read-time resolution, retroactive); clearing it falls back
-   to the Plaid mapping.
+4. Vendor categories move spend on Dashboard immediately (read-time resolution,
+   retroactive): two condition rows of one vendor route their transactions to two
+   different categories; a row without a category falls back to the vendor default,
+   and to the Plaid mapping when both are unset.
 5. Splitting a $100 charge into $60/$40 with different categories: Dashboard's
    budget-vs-actual shows $60 and $40 in the two categories; the parent is gone from
    effective lists; unsplit restores it. Sum ≠ parent or a merged transaction →
