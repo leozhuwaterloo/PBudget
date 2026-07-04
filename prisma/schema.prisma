@@ -28,6 +28,7 @@ model User {
 
   sessions           Session[]
   verificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
   items              PlaidItem[]
   categories         TransactionCategory[]
   vendors            Vendor[]
@@ -48,6 +49,17 @@ model EmailVerificationToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  createdAt DateTime @default(now()) // for 1/min email throttle
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now()) // for 1/min email throttle
 
   @@index([userId])
 }

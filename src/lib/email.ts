@@ -30,3 +30,19 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
     html: `<p>Confirm your email to start using PBudget.</p><p><a href="${url}">Verify my email</a></p>`,
   });
 }
+
+export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
+  const url = `${process.env.APP_URL || "http://localhost:5300"}/reset?token=${token}`;
+  const t = transport();
+  if (!t) {
+    console.log(`\n[email] Reset ${to}: ${url}\n`);
+    return;
+  }
+  await t.sendMail({
+    from: process.env.EMAIL_FROM || "PBudget <no-reply@pbudget.local>",
+    to,
+    subject: "Reset your PBudget password",
+    text: `Reset your password by opening: ${url} — this link expires in 1 hour. If you didn't request this, ignore this email.`,
+    html: `<p>Reset your PBudget password. This link expires in 1 hour.</p><p><a href="${url}">Reset my password</a></p><p>If you didn't request this, you can ignore this email.</p>`,
+  });
+}

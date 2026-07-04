@@ -53,6 +53,11 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
         required
       />
       {error && <div className="error">{error}</div>}
+      {mode === "login" && (
+        <p className="muted" style={{ marginTop: 8, textAlign: "right" }}>
+          <Link href="/forgot">{t("auth.forgotPassword")}</Link>
+        </p>
+      )}
       <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} disabled={busy}>
         {busy ? "…" : mode === "signup" ? t("nav.signup") : t("nav.login")}
       </button>

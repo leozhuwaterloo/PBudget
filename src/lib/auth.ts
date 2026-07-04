@@ -8,6 +8,7 @@ import { prisma } from "./db";
 const COOKIE = "pb_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const VERIFY_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+const RESET_TTL_MS = 1000 * 60 * 60; // 1 hour — password reset links are short-lived
 
 export async function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, 12);
@@ -62,4 +63,21 @@ export async function createVerificationToken(userId: string): Promise<string> {
     data: { token, userId, expiresAt: new Date(Date.now() + VERIFY_TTL_MS) },
   });
   return token;
+}
+
+export async function createPasswordResetToken(userId: string): Promise<string> {
+  const token = crypto.randomBytes(32).toString("hex");
+  await prisma.passwordResetToken.create({
+    data: { token, userId, expiresAt: new Date(Date.now() + RESET_TTL_MS) },
+  });
+  return token;
+}
+
+const EMAIL_THROTTLE_MS = 60 * 1000; // 1 verification/reset email per minute per user
+
+// True if the last token (→ email) was minted under a minute ago. Callers pass
+// the newest token's createdAt; keeps the time math in one place without fighting
+// Prisma's per-model delegate types.
+export function emailThrottled(lastCreatedAt: Date | null | undefined): boolean {
+  return !!lastCreatedAt && lastCreatedAt.getTime() > Date.now() - EMAIL_THROTTLE_MS;
 }

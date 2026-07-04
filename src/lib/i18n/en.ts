@@ -31,6 +31,23 @@ const en = {
   "auth.haveAccount": "Already have an account?",
   "auth.newHere": "New here?",
   "auth.createAccount": "Create an account",
+  "auth.forgotPassword": "Forgot your password?",
+
+  // forgot / reset password
+  "forgot.title": "Reset your password",
+  "forgot.body": "Enter your email and we'll send you a link to set a new password.",
+  "forgot.submit": "Send reset link",
+  "forgot.sentTitle": "Check your inbox",
+  "forgot.sentBody":
+    "If that email is registered, a reset link is on its way. The link expires in 1 hour. (In local dev, it's printed to the server console.)",
+  "reset.title": "Set a new password",
+  "reset.newPassword": "New password",
+  "reset.submit": "Update password",
+  "reset.doneTitle": "Password updated ✓",
+  "reset.doneBody": "You've been logged out everywhere. Log in with your new password.",
+  "reset.invalidTitle": "Link invalid or expired",
+  "reset.invalidBody": "Password reset links expire after 1 hour and can only be used once.",
+  "reset.requestNew": "Request a new reset link",
 
   // verify
   "verify.verifiedTitle": "Email verified ✓",

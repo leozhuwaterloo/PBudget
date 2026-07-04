@@ -33,6 +33,22 @@ const zh: Messages = {
   "auth.haveAccount": "已有账户？",
   "auth.newHere": "第一次来？",
   "auth.createAccount": "创建账户",
+  "auth.forgotPassword": "忘记密码？",
+
+  // forgot / reset password
+  "forgot.title": "重置您的密码",
+  "forgot.body": "输入您的邮箱，我们会向您发送设置新密码的链接。",
+  "forgot.submit": "发送重置链接",
+  "forgot.sentTitle": "请查收邮件",
+  "forgot.sentBody": "如果该邮箱已注册，重置链接即将送达。链接将在 1 小时后过期。（在本地开发环境中，链接会打印到服务器控制台。）",
+  "reset.title": "设置新密码",
+  "reset.newPassword": "新密码",
+  "reset.submit": "更新密码",
+  "reset.doneTitle": "密码已更新 ✓",
+  "reset.doneBody": "您已在所有设备上退出登录。请使用新密码登录。",
+  "reset.invalidTitle": "链接无效或已过期",
+  "reset.invalidBody": "密码重置链接在 1 小时后过期，且只能使用一次。",
+  "reset.requestNew": "申请新的重置链接",
 
   // verify
   "verify.verifiedTitle": "邮箱已验证 ✓",
