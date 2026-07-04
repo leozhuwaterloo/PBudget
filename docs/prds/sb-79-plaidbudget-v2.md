@@ -49,7 +49,8 @@ The analysis pipeline (`src/lib/analysis/`) that V2 modifies:
   over "effective items" (ungrouped txns + net-≠0 groups).
 - `effectiveTransactions` (`effective.ts`) is the merge-aware read model every list
   and sum reads through; categories resolve at read time via `categoryFor`
-  (`categories.ts`): user `CategoryMapping` override on the Plaid primary, else the
+  (`src/lib/categories.ts` — outside the analysis dir): user `CategoryMapping`
+  override on the Plaid primary, else the
   humanized primary.
 - Flag lifecycle (`fire` in `analyze.ts`): analyzer never closes a flag; only user
   actions do; dismissal is permanent.
