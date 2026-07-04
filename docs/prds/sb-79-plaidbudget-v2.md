@@ -105,14 +105,16 @@ dismissal permanent.
 ## Functional requirements
 
 **FR1 — Vendor matching engine.** A vendor is a user-owned record: display name,
-optional icon, optional **default category**, strict priority (unique integer per
+optional icon (user-settable in the builder — bundled icon library or letter
+avatar, FR2), optional **default category**, strict priority (unique integer per
 user; list is user-reorderable), and **1..N ordered condition rows**. A condition
 row matches when ALL of its specified fields hold (AND); a vendor matches when ANY
 of its condition rows match (OR) — exactly the shape of one line in the old funnel.
 Each row may additionally carry its own category (one of the user's categories):
 a transaction falls to a vendor, and a vendor falls to a **list of categories** —
-the first matching row (in row order within the vendor) decides the category,
-falling back to the vendor's default (FR3). Multiple matching rows within ONE
+the first matching row (in row order within the vendor) decides the category:
+its row category if set, else the vendor's default — later matching rows are
+never consulted (FR3). Multiple matching rows within ONE
 vendor are normal, not a conflict. Condition fields (each optional, ≥1 required;
 the row's category is an outcome, not a matching field):
 
@@ -145,13 +147,17 @@ Eats, Pet Valu, Air Canada, Rogers/Fido/Bell, Steam, IKEA, Dollarama, Amazon,
 Taobao…). Each catalog entry carries: display name, default condition rows
 (translating that line of the old funnel: the contains-string plus any payment-channel
 / Plaid-category constraint it had), a suggested category per row (the old enum
-name that line returned, FR4), and an icon. Alongside merchant entries, a few
+name that line returned, FR4), and an icon. Icons are sourced online once during development (real brand SVGs
+fetched from logo libraries such as the MIT-licensed `simple-icons` set or official
+brand assets) and checked into the repo; entries with no sourceable logo fall back
+to an auto-generated letter avatar. At runtime all icons are bundled — no external
+fetches. The user can also change any vendor's icon themselves in the vendor
+builder (pick from the bundled icon library, or letter avatar). Alongside merchant
+entries, a few
 **bucket** entries (e.g. Self, General Bank) fold in the old funnel's personal-
 and bank-noise lines (transaction-ID overrides, e-transfer patterns, ABM fees,
 rebates) with per-row categories, so every historical transaction has a catalog
-path to a vendor. Icons are bundled (no runtime external fetches): hand-collected SVGs
-for the major brands, auto-generated letter-avatar for the rest. In the vendor
-builder the user browses/searches the catalog and **instantiates** an entry — a
+path to a vendor. In the vendor builder the user browses/searches the catalog and **instantiates** an entry — a
 one-time copy into their own editable vendor (no live link to the catalog).
 Catalog data lives in-repo (e.g. `src/lib/catalog/vendors.ts`) with a provenance
 comment; the extraction is a one-time authored artifact, not a build step.
@@ -166,9 +172,9 @@ unchanged into Customizations.
 **FR4 — Custom categories & budgets.** Customizations lets the user create, rename,
 and delete categories, set a monthly `budget` per category, and toggle a new
 `excludeFromTotals` flag (replaces `Budget.tsx`'s hardcoded
-`IGNORE = {Income, Transfer In, Transfer Out}`; those three names seed `true` for
-parity — rows created if the user lacks them — as do seeded
-Transfer/Income/Other Income). Every user is seeded with the
+`IGNORE = {Income, Transfer In, Transfer Out}`; for parity, `excludeFromTotals`
+seeds `true` on Income, Transfer In, Transfer Out — rows created if the user
+lacks them — and on the seeded Transfer and Other Income categories). Every user is seeded with the
 old funnel's category set (Transfer, Grocery, Restaurant, Food Delivery, Online
 Shopping, In-Store Shopping, Game, Entertainment, Income, Other Income, Fee,
 Recurring, Utility, Pet, Travel, Cash, Gas, Baby — `BigPayment`/`Unknown`/`Ignore`
@@ -238,7 +244,8 @@ upgrade/downgrade via Stripe Checkout, manage via Stripe portal).
 **FR10 — Tier billing.** Tiers are priced per **Plaid connection** (`PlaidItem` —
 a bank login), not per bank account: **Free = 1, Pro ($5/mo) = 5, Max ($15/mo) =
 20**. Replaces the $1/bank-account quantity model: `reconcileQuantity` and the
-per-account price are retired; two flat Stripe prices are created (env
+per-account price are retired; two flat Stripe prices are created once, manually
+in Stripe (env
 `STRIPE_PRICE_PRO`, `STRIPE_PRICE_MAX`, seeded via Vault like today's
 `STRIPE_PRICE_ID`). `User.plan` (`free` default) is set by the webhook from the
 subscription's price id; only `active`/`trialing` statuses grant a paid plan.
