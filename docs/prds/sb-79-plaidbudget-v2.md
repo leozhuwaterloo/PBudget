@@ -234,7 +234,9 @@ Counters row spans open items across all sections (today / this month / total).
 total spend per month, last 12 months, excluding `excludeFromTotals` categories;
 (b) budget vs actual per category for the selected month (defaults to current);
 (c) items to review — stat tiles per Review section, linking into `/review`;
-(d) top vendors by spend for the selected month, with icons. Charts are hand-rolled
+(d) top vendors by spend for the selected month, with icons. "Spend" throughout =
+net signed amount (Plaid convention, + = outflow; refunds subtract), matching
+today's `Budget.tsx`/`Report.tsx` sums. Charts are hand-rolled
 inline SVG in the Statement theme — no chart dependency. The connect/sync UI moves
 to `/accounts`; the not-subscribed banner is replaced by tier-limit CTAs (FR10).
 
@@ -250,7 +252,9 @@ Connect is blocked with an upgrade CTA when at the tier's connection limit.
 **Category mappings** (FR3), **Vendors** (FR1/FR2: priority-ordered list with drag
 or up/down reorder, icon, category chips, per-vendor condition builder with
 per-row category, catalog browser), **Billing** (FR10: current tier, usage `n of limit connections`,
-upgrade/downgrade via Stripe Checkout, manage via Stripe portal).
+first subscription via Stripe Checkout — it can't modify an existing
+subscription — tier switches, cancellation, and payment management via the Stripe
+portal).
 
 **FR10 — Tier billing.** Tiers are priced per **Plaid connection** (`PlaidItem` —
 a bank login), not per bank account: **Free = 1, Pro ($5/mo) = 5, Max ($15/mo) =
