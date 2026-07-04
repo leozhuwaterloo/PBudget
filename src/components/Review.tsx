@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ReviewMergePicker from "./ReviewMergePicker";
 import { useT } from "@/lib/i18n/context";
 
@@ -36,20 +36,14 @@ type FlagsData = {
   flagsByRule: Record<string, FlagEntry[]>;
   pendingGroups: PendingGroup[];
 };
-type Vendor = { id: string; name: string; status: string; txnCount: number };
 
-// Rule labels are translated at render via t(`rule.${id}`).
-const RULES = ["unknown_vendor", "unmatched_transfer", "unusual_amount", "duplicate_charge"];
+// Rule labels are translated at render via t(`rule.${id}`). The V2 funnel retired
+// unknown_vendor; the unmatched/conflict queue UI arrives in F12.
+const RULES = ["unmatched_transfer", "unusual_amount", "duplicate_charge"];
 
 const money = (amount: number | null, currency: string | null) =>
   amount == null ? "—" : `${currency ? currency + " " : ""}${(-amount).toFixed(2)}`;
 const day = (iso: string) => new Date(iso).toLocaleDateString();
-
-const STATUS_COLOR: Record<string, string> = {
-  approved: "var(--success)",
-  rejected: "var(--warning)",
-  pending: "var(--muted)",
-};
 
 async function getJson(url: string) {
   const res = await fetch(url);
@@ -67,7 +61,6 @@ async function postJson(url: string) {
 export default function Review() {
   const t = useT();
   const [data, setData] = useState<FlagsData | null>(null);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -85,11 +78,8 @@ export default function Review() {
       setBusy(true);
       setError("");
       try {
-        const [flags, vend] = await Promise.all([getJson(`/api/flags${query}`), getJson(`/api/vendors`)]);
-        if (!cancelled) {
-          setData(flags);
-          setVendors(vend.vendors);
-        }
+        const flags = await getJson(`/api/flags${query}`);
+        if (!cancelled) setData(flags);
       } catch (e: any) {
         if (!cancelled) setError(e.message);
       } finally {
@@ -115,49 +105,9 @@ export default function Review() {
     }
   };
 
-  const vendorByName = useMemo(() => new Map(vendors.map((v) => [v.name, v])), [vendors]);
-
   const hasVisible =
     !!data &&
     (data.pendingGroups.length > 0 || RULES.some((id) => (data.flagsByRule[id] ?? []).length > 0));
-
-  const vendorActions = (name: string | null) => {
-    if (!name) return null;
-    const v = vendorByName.get(name);
-    if (!v) return null;
-    return (
-      <>
-        <span
-          style={{
-            color: STATUS_COLOR[v.status] ?? "var(--muted)",
-            fontSize: 12,
-            fontWeight: 600,
-            textTransform: "uppercase",
-          }}
-        >
-          {t(`status.${v.status}`)}
-        </span>
-        {v.status !== "approved" && (
-          <button
-            className="btn btn-sm btn-success"
-            disabled={busy}
-            onClick={() => act(() => postJson(`/api/vendors/${v.id}/approve`))}
-          >
-            {t("review.approveVendor")}
-          </button>
-        )}
-        {v.status !== "rejected" && (
-          <button
-            className="btn btn-sm btn-ghost"
-            disabled={busy}
-            onClick={() => act(() => postJson(`/api/vendors/${v.id}/reject`))}
-          >
-            {t("review.reject")}
-          </button>
-        )}
-      </>
-    );
-  };
 
   return (
     <div>
@@ -302,7 +252,6 @@ export default function Review() {
                           <td>{day(e.date)}</td>
                           <td>
                             <div className="row wrap">
-                              {id === "unknown_vendor" && vendorActions(e.vendor)}
                               {e.level === "transaction" && (
                                 <button
                                   className="btn btn-sm"

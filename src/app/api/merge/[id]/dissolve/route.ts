@@ -7,7 +7,7 @@ import { dissolveGroup } from "@/lib/analysis/merge";
 // remembers the leg set so auto-match never recreates it, then re-runs the
 // analyzer to re-flag the freed legs (dismissed flags stay dismissed).
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
 
   const group = await prisma.mergeGroup.findFirst({ where: { id: params.id, userId: g.user!.id } });

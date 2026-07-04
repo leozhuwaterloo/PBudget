@@ -27,10 +27,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <>
                 <Link href="/dashboard">{t(locale, "nav.dashboard")}</Link>
                 <Link href="/review">{t(locale, "nav.review")}</Link>
-                <Link href="/report">{t(locale, "nav.report")}</Link>
-                <Link href="/budget">{t(locale, "nav.budget")}</Link>
-                <Link href="/settings/categories">{t(locale, "nav.categories")}</Link>
-                <Link href="/billing">{t(locale, "nav.billing")}</Link>
+                <Link href="/accounts">{t(locale, "nav.accounts")}</Link>
+                <Link href="/customizations">{t(locale, "nav.customizations")}</Link>
                 <LogoutButton />
               </>
             ) : (

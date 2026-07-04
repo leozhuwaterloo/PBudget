@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 // override or humanized default) and whether it's overridden. `categories` is the
 // user's existing category names, for the free-text suggestions (FR6).
 export async function GET() {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 
@@ -52,7 +52,7 @@ export async function GET() {
 // sync. Mapping applies at read time (categoryFor), so no backfill — /report and
 // /budget move spend retroactively.
 export async function PUT(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 

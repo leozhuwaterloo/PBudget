@@ -8,10 +8,9 @@ import { analyzeUser } from "@/lib/analysis/analyze";
 // Validate N≥2, all posted, single currency (a mixed-currency sum is undefined),
 // none already grouped; then createMergeGroup(status:"confirmed") — manual merges
 // are born confirmed — and re-run the analyzer so the group is evaluated per the
-// merge rules (a net-≠0 group from an unapproved vendor gets an unknown_vendor
-// flag; transfer rule never fires on groups).
+// suspicion rules (transfer rule never fires on groups).
 export async function POST(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 

@@ -5,7 +5,11 @@ export const DUPLICATE_WINDOW_DAYS = 3;
 export const AUTOMATCH_WINDOW_DAYS = 4;
 
 export const RULES = {
-  unknownVendor: "unknown_vendor",
+  // Queue-type items (engine lands in F1's match.ts): every effective item is
+  // matched to a vendor or sits in one of these two queues.
+  unmatchedVendor: "unmatched_vendor",
+  vendorConflict: "vendor_conflict",
+  // Suspicion flags (analyzer fires these today).
   unmatchedTransfer: "unmatched_transfer",
   unusualAmount: "unusual_amount",
   duplicateCharge: "duplicate_charge",

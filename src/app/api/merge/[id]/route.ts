@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 
 // PATCH /api/merge/[id] — retitle a group (the only user-editable field).
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 

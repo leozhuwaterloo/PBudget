@@ -157,14 +157,8 @@ async function seedBase(): Promise<void> {
       update: { name, itemId: ITEM_ID, isoCurrencyCode: CURRENCY },
     });
   }
-
-  // Vendor A is seeded already approved (the only non-default vendor state); the
-  // analyzer (F1) upserts the rest as pending on its first run.
-  await prisma.vendor.upsert({
-    where: { userId_name: { userId: USER_ID, name: "vendor a" } },
-    create: { userId: USER_ID, name: "vendor a", status: "approved", decidedAt: now },
-    update: { status: "approved", decidedAt: now },
-  });
+  // V2 retired the approval model: the analyzer no longer upserts Vendor rows and
+  // unusual_amount fires for every vendor (identity = normalized string until F1).
 }
 
 async function main(): Promise<void> {

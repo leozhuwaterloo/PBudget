@@ -7,12 +7,14 @@
 // imported — it runs main() on load). Criterion numbers refer to the PRD.
 import { prisma } from "../src/lib/db";
 import { analyzeUser } from "../src/lib/analysis/analyze";
-import { normalizeVendor } from "../src/lib/analysis/vendor";
 
 const USER_ID = "demo-user";
 // A flag we dismiss at the end of phase 1 so phase-2 re-analysis can prove
-// dismissal permanence (criterion 16). Book Nook is untouched by phase 2.
-const DISMISS_TXN = "demo-txn-unknown-books";
+// dismissal permanence (criterion 16). Vendor B's unusual_amount fires in both
+// phases and nothing else asserts it, so re-analysis would re-fire it if
+// permanence didn't hold.
+const DISMISS_TXN = "demo-txn-b-unusual";
+const DISMISS_RULE = "unusual_amount";
 
 let failures = 0;
 function check(cond: boolean, msg: string): void {
@@ -29,36 +31,12 @@ const anyFlag = (transactionId: string, rule: string) =>
   prisma.transactionFlag.findFirst({ where: { transactionId, rule } });
 
 async function phase1(): Promise<void> {
-  const posted = await prisma.plaidTransaction.findMany({
-    where: { pending: false, account: { item: { userId: USER_ID } } },
-  });
-  const legIds = new Set(
-    (await prisma.mergeGroupLeg.findMany({ select: { transactionId: true } })).map(
-      (l) => l.transactionId
-    )
+  // unknown_vendor is retired: the analyzer never fires it anywhere (the funnel's
+  // unmatched/conflict queue replaces it in F1).
+  check(
+    (await prisma.transactionFlag.count({ where: { rule: "unknown_vendor" } })) === 0,
+    "retired: no unknown_vendor flags exist"
   );
-  const approvedVendors = new Set(
-    (await prisma.vendor.findMany({ where: { userId: USER_ID, status: "approved" } })).map(
-      (v) => v.name
-    )
-  );
-
-  // Criterion 1: every posted non-leg txn from a never-approved vendor is flagged.
-  for (const t of posted) {
-    if (legIds.has(t.transactionId)) continue;
-    // This check dismisses DISMISS_TXN at the end (criterion-16 setup), so accept
-    // open-or-dismissed for it — keeps the check safely re-runnable.
-    if (t.transactionId === DISMISS_TXN) continue;
-    const vendor = normalizeVendor(t.merchantName, t.name);
-    if (approvedVendors.has(vendor)) continue;
-    check(
-      !!(await openFlag(t.transactionId, "unknown_vendor")),
-      `criterion 1: open unknown_vendor on ${t.transactionId} (${vendor})`
-    );
-  }
-  // Book Nook itself must be flagged (open on first run, or dismissed after a
-  // re-run) — assert it's accounted for without requiring a specific status.
-  check(!!(await anyFlag(DISMISS_TXN, "unknown_vendor")), `criterion 1: unknown_vendor on ${DISMISS_TXN}`);
 
   // Criterion 4 (first half): e-transfer pair became one auto net-0 group titled
   // from the outflow leg; neither leg carries an open flag.
@@ -91,9 +69,10 @@ async function phase1(): Promise<void> {
     check(!!(await openFlag(id, "unmatched_transfer")), `criterion 5/14: unmatched_transfer on ${id}`);
   }
 
-  // Criterion 6: pre-approved vendor's ≥3× charge is flagged unusual; its
-  // below-threshold charge and its refund are not (refund is not a charge, so it
-  // neither triggers nor shifts the charges-only median).
+  // Criterion 6: a vendor's ≥3× charge is flagged unusual; its below-threshold
+  // charge and its refund are not (refund is not a charge, so it neither triggers
+  // nor shifts the charges-only median). Approval model is retired — unusual fires
+  // for every vendor now.
   check(
     !!(await openFlag("demo-txn-a-unusual", "unusual_amount")),
     "criterion 6: Vendor A >=3x charge has open unusual_amount"
@@ -117,33 +96,25 @@ async function phase1(): Promise<void> {
   });
   check(pendingFlags === 0, "criterion 15: pending fixture txn carries no flags");
 
-  // Criterion 19 (first half): the pending vendor's txns carry unknown_vendor but
-  // NO unusual_amount (unusual only fires on approved vendors).
-  // Note: the fixture's Vendor B priors are three identical $100 charges 2 days
-  // apart, so duplicate_charge legitimately also fires on them — we assert the
-  // substantive guarantee (no unusual_amount pre-approval), not literal exclusivity.
-  for (const id of ["demo-txn-b-prior-1", "demo-txn-b-prior-2", "demo-txn-b-prior-3", "demo-txn-b-unusual"]) {
-    check(!(await anyFlag(id, "unusual_amount")), `criterion 19: no unusual_amount on ${id} (unapproved)`);
-    check(!!(await openFlag(id, "unknown_vendor")), `criterion 19: unknown_vendor on ${id}`);
-  }
+  // Vendor B's ≥3× charge fires unusual_amount too (no approval gate); its
+  // identical-$100 priors 2 days apart legitimately fire duplicate_charge.
+  // b-unusual is the DISMISS_TXN, so accept open-or-dismissed to stay re-runnable.
+  check(!!(await anyFlag("demo-txn-b-unusual", "unusual_amount")), "unusual_amount fires for any vendor (no approval gate)");
+  check(!!(await openFlag("demo-txn-b-prior-1", "duplicate_charge")), "Vendor B identical priors flagged duplicate_charge");
 
   await idempotency();
 
   // Set up criterion 16: dismiss a flag that phase-2 re-analysis must not reopen.
   await prisma.transactionFlag.updateMany({
-    where: { transactionId: DISMISS_TXN, rule: "unknown_vendor" },
+    where: { transactionId: DISMISS_TXN, rule: DISMISS_RULE },
     data: { status: "dismissed", resolvedAt: new Date() },
   });
-  console.log(`  · dismissed unknown_vendor on ${DISMISS_TXN} (criterion 16 setup)`);
+  console.log(`  · dismissed ${DISMISS_RULE} on ${DISMISS_TXN} (criterion 16 setup)`);
 }
 
 async function phase2(): Promise<void> {
-  // Posted replacement of the pending txn is flagged per its (unknown) vendor.
-  check(
-    !!(await openFlag("demo-txn-pending-posted", "unknown_vendor")),
-    "criterion 15: posted replacement is flagged unknown_vendor"
-  );
-  // The pending original stays invisible, so the pending→posted pair is NOT a duplicate.
+  // The pending original stays invisible, so the pending→posted pair is NOT a
+  // duplicate (and the posted replacement, a lone new charge, carries no flags).
   check(
     !(await anyFlag("demo-txn-pending-posted", "duplicate_charge")),
     "criterion 15: pending->posted pair is NOT flagged as duplicate"
@@ -154,7 +125,7 @@ async function phase2(): Promise<void> {
   check(pendingFlags === 0, "criterion 15: pending original still carries no flags");
 
   // Criterion 16: the flag dismissed before phase 2 stays dismissed.
-  const dismissed = await anyFlag(DISMISS_TXN, "unknown_vendor");
+  const dismissed = await anyFlag(DISMISS_TXN, DISMISS_RULE);
   check(
     !!dismissed && dismissed.status === "dismissed",
     "criterion 16: dismissed flag stays dismissed after re-analysis"

@@ -5,6 +5,9 @@ const en = {
   // nav
   "nav.dashboard": "Dashboard",
   "nav.review": "Review",
+  "nav.accounts": "Accounts",
+  "nav.customizations": "Customizations",
+  // report/budget/categories/billing pages stay reachable-by-URL until F14 deletes them
   "nav.report": "Report",
   "nav.budget": "Budget",
   "nav.categories": "Categories",
@@ -12,6 +15,25 @@ const en = {
   "nav.login": "Log in",
   "nav.signup": "Sign up",
   "nav.logout": "Log out",
+
+  // ==================================================================
+  // V2 PAGES — parallel-safe i18n regions (F0). Each page card edits ONLY
+  // its own region below; keep the same markers in en.ts and zh.ts so the
+  // UI cards stay on disjoint lines.
+  // ==================================================================
+
+  // --- accounts page (F8) — add accounts.* strings within this region ---
+  "accounts.title": "Accounts",
+  "accounts.stub": "Connections and raw transactions will live here.",
+
+  // --- customizations page (F9–F11) — add customizations.* strings within this region ---
+  "customizations.title": "Customizations",
+  "customizations.stub": "Categories, mappings, vendors, and billing will live here.",
+
+  // --- review v2 (F12) — add review-v2 strings within this region ---
+
+  // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
+  // (end V2 page regions)
 
   // common
   "common.loading": "Loading…",

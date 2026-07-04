@@ -29,51 +29,22 @@ export async function analyzeUser(userId: string): Promise<void> {
     where: { pending: false, account: { item: { userId } } },
   });
 
-  // 2. Upsert a pending Vendor row for every distinct normalized vendor seen
-  //    (FR2 "every distinct vendor starts pending"). Existing rows are untouched
-  //    so an already-approved/rejected decision survives re-analysis.
-  const vendorNames = new Set(posted.map((t) => normalizeVendor(t.merchantName, t.name)));
-  for (const name of vendorNames) {
-    await prisma.vendor.upsert({
-      where: { userId_name: { userId, name } },
-      create: { userId, name },
-      update: {},
-    });
-  }
-
-  // 3. Auto-match opposite-sign equal-amount cross-account pairs into net-0 groups.
+  // 2. Auto-match opposite-sign equal-amount cross-account pairs into net-0 groups.
+  //    (V2 retires the pending-Vendor upsert + unknown_vendor rule; the funnel's
+  //    unmatched/conflict queue engine lands in F1's match.ts.)
   await autoMatch(userId, posted);
 
-  // 4-6. Rules over effective items + flag upsert invariant.
+  // 3-4. Suspicion rules over effective items + flag upsert invariant. Vendor
+  //      identity stays the normalized string until F1 swaps it to vendorId.
   const items = await buildEffectiveItems(userId);
-  const vendors = await prisma.vendor.findMany({ where: { userId } });
-  const approvedNames = new Set(
-    vendors.filter((v) => v.status === "approved").map((v) => v.name)
-  );
-  const approved = (v: string) => approvedNames.has(v);
-
   for (const it of items) {
-    // 5.1 unknown_vendor — vendor not approved (txns and net-≠0 groups).
-    if (!approved(it.vendor)) await fire(userId, RULES.unknownVendor, it.target);
-    // 5.2 unmatched_transfer — transfer-like individual txn (never on groups).
+    // unmatched_transfer — transfer-like individual txn (never on groups).
     if (it.isTxn && it.transferLike) await fire(userId, RULES.unmatchedTransfer, it.target);
-    // 5.4 duplicate_charge — same vendor + same signed amount within the window.
+    // duplicate_charge — same vendor + same signed amount within the window.
     if (hasDuplicate(it, items)) await fire(userId, RULES.duplicateCharge, it.target);
   }
-  // 5.3 unusual_amount — approved vendors only, charges only, ≥3 priors.
-  await applyUnusualAmount(userId, items, approved);
-}
-
-// F2's vendor-approval flow re-runs rule 5.3 over the just-approved vendor's
-// charges (SPEC "Vendor approval" — a big historical charge must still surface
-// after approval clears the unknown_vendor flags). Same median path as analyzeUser.
-export async function evaluateUnusualForVendor(userId: string, vendorName: string): Promise<void> {
-  const vendor = await prisma.vendor.findUnique({
-    where: { userId_name: { userId, name: vendorName } },
-  });
-  if (vendor?.status !== "approved") return;
-  const items = await buildEffectiveItems(userId);
-  await applyUnusualAmount(userId, items, (v) => v === vendorName);
+  // unusual_amount — charges only, ≥3 priors (approval model gone: every vendor).
+  await applyUnusualAmount(userId, items);
 }
 
 // --- Effective items --------------------------------------------------------
@@ -182,17 +153,12 @@ function hasDuplicate(it: Item, items: Item[]): boolean {
   );
 }
 
-// Rule 5.3, factored so F2's approval path reuses it (never fork the median).
 // A charge ≥ 3× the median of that vendor's ≥3 prior posted charges. Charges
-// only — refunds neither trigger nor enter the median.
-async function applyUnusualAmount(
-  userId: string,
-  items: Item[],
-  approved: (v: string) => boolean
-): Promise<void> {
+// only — refunds neither trigger nor enter the median. Applies to every vendor
+// (the approval model is retired; identity is the normalized string until F1).
+async function applyUnusualAmount(userId: string, items: Item[]): Promise<void> {
   const charges = items.filter((it) => it.amount > 0);
   for (const it of charges) {
-    if (!approved(it.vendor)) continue;
     const priors = charges
       .filter((o) => o.vendor === it.vendor && o.date.getTime() < it.date.getTime())
       .map((o) => o.amount);

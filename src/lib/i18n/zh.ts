@@ -7,6 +7,9 @@ const zh: Messages = {
   // nav
   "nav.dashboard": "仪表板",
   "nav.review": "审核",
+  "nav.accounts": "账户",
+  "nav.customizations": "自定义",
+  // report/budget/categories/billing pages stay reachable-by-URL until F14 deletes them
   "nav.report": "报告",
   "nav.budget": "预算",
   "nav.categories": "分类",
@@ -14,6 +17,25 @@ const zh: Messages = {
   "nav.login": "登录",
   "nav.signup": "注册",
   "nav.logout": "退出登录",
+
+  // ==================================================================
+  // V2 PAGES — parallel-safe i18n regions (F0). Each page card edits ONLY
+  // its own region below; keep the same markers in en.ts and zh.ts so the
+  // UI cards stay on disjoint lines.
+  // ==================================================================
+
+  // --- accounts page (F8) — add accounts.* strings within this region ---
+  "accounts.title": "账户",
+  "accounts.stub": "连接和原始交易将显示在这里。",
+
+  // --- customizations page (F9–F11) — add customizations.* strings within this region ---
+  "customizations.title": "自定义",
+  "customizations.stub": "分类、映射、商户和账单将显示在这里。",
+
+  // --- review v2 (F12) — add review-v2 strings within this region ---
+
+  // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
+  // (end V2 page regions)
 
   // common
   "common.loading": "加载中…",

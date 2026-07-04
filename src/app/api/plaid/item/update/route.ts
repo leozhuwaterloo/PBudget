@@ -5,7 +5,7 @@ import { reconcileQuantity } from "@/lib/stripe";
 
 // Exchange a Plaid Link public_token for an access token, then sync the item.
 export async function POST(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const { public_token } = await req.json().catch(() => ({}));
   if (!public_token) return NextResponse.json({ error: "Missing public_token" }, { status: 400 });

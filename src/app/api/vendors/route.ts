@@ -6,7 +6,7 @@ import { normalizeVendor } from "@/lib/analysis/vendor";
 // GET /api/vendors?status= — the user's Vendor rows (optionally filtered by
 // status) with a posted-transaction count each (the FR2 review-queue data).
 export async function GET(req: Request) {
-  const g = await gate({ verified: true, subscribed: true });
+  const g = await gate({ verified: true });
   if (g.error) return g.error;
   const userId = g.user!.id;
 
