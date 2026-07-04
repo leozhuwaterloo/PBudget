@@ -92,7 +92,9 @@ condition no longer holds. Both queue types are evaluated over effective items
 (ungrouped txns + net-≠0 groups) — the same domain as today's flag rules and the
 `unknown_vendor` they replace: `vendorId` is still materialized on every posted
 transaction, but a grouped leg is represented by its group (vendor = primary leg,
-FR1) and net-0 groups stay out of the queue. A `vendor_conflict` can additionally be dismissed
+FR1) and net-0 groups stay out of the queue. An unmatched split parent appears as
+**one** queue row (not one per part) — matching operates on the parent transaction
+and parts inherit its vendor (FR5). A `vendor_conflict` can additionally be dismissed
 manually (FR6), which suppresses it for that transaction; `unmatched_vendor` items
 have no dismiss — they clear only by matching. The three suspicion rules keep
 today's invariant unchanged: never auto-closed, only user actions close them,
@@ -235,7 +237,10 @@ Counters row spans open items across all sections (today / this month / total).
 total spend per month, last 12 months, excluding `excludeFromTotals` categories;
 (b) budget vs actual per category for the selected month (defaults to current);
 (c) items to review — stat tiles per Review section, linking into `/review`;
-(d) top vendors by spend for the selected month, with icons. "Spend" throughout =
+(d) top vendors by spend for the selected month, with icons — counting only spend
+in non-`excludeFromTotals` categories, the same exclusion as widget (a), so
+transfer/income buckets (Self, General Bank) don't dominate the list (assumption
+7). "Spend" throughout =
 net signed amount (Plaid convention, + = outflow; refunds subtract), matching
 today's `Budget.tsx`/`Report.tsx` sums. Charts are hand-rolled
 inline SVG in the Statement theme — no chart dependency. The connect/sync UI moves
@@ -371,6 +376,10 @@ Unchanged from today's setup — V2 rides the existing pipeline:
    windows.
 6. Tier limits count `PlaidItem` rows regardless of sync health; a broken connection
    still occupies a slot until removed.
+7. The top-vendors widget (FR7 d) applies the same `excludeFromTotals` exclusion as
+   the monthly trend — vendor totals count only non-excluded spend. (Defaulted in
+   review round 3; flag if you'd rather include everything or hide bucket vendors
+   instead.)
 
 ## Acceptance criteria
 
