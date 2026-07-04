@@ -28,6 +28,8 @@ const en = {
   "auth.loginTitle": "Welcome back",
   "auth.email": "Email",
   "auth.password": "Password",
+  "auth.showPassword": "Show password",
+  "auth.hidePassword": "Hide password",
   "auth.haveAccount": "Already have an account?",
   "auth.newHere": "New here?",
   "auth.createAccount": "Create an account",

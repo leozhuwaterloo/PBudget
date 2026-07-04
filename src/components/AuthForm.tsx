@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useT } from "@/lib/i18n/context";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
@@ -44,9 +45,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
         required
       />
       <label htmlFor="password">{t("auth.password")}</label>
-      <input
+      <PasswordInput
         id="password"
-        type="password"
         autoComplete={mode === "signup" ? "new-password" : "current-password"}
         value={password}
         onChange={(e) => setPassword(e.target.value)}

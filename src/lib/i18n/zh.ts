@@ -30,6 +30,8 @@ const zh: Messages = {
   "auth.loginTitle": "欢迎回来",
   "auth.email": "邮箱",
   "auth.password": "密码",
+  "auth.showPassword": "显示密码",
+  "auth.hidePassword": "隐藏密码",
   "auth.haveAccount": "已有账户？",
   "auth.newHere": "第一次来？",
   "auth.createAccount": "创建账户",
