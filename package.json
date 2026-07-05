@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "check:analysis": "tsx scripts/check-analysis.ts",
+    "check:categories": "tsx scripts/check-categories.ts",
     "migrate:portfolio": "tsx scripts/migrate-portfolio.ts"
   },
   "prisma": {
