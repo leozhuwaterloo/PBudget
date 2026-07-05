@@ -53,7 +53,7 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
         <div className="card-header">
           {t("dash.trend.title")} <span className="muted" style={{ fontWeight: 400 }}>· {t("dash.trend.sub")}</span>
         </div>
-        <TrendChart data={data.trend} monthLabel={monthLabel} money={money} emptyText={t("dash.trend.empty")} />
+        <TrendChart data={data.trend} monthLabel={monthLabel} money={money} emptyText={t("dash.trend.empty")} ariaLabel={t("dash.trend.aria")} />
       </section>
 
       {/* (c) items to review — stat tiles, fixed window */}
@@ -157,11 +157,13 @@ function TrendChart({
   monthLabel,
   money,
   emptyText,
+  ariaLabel,
 }: {
   data: { month: string; spend: number }[];
   monthLabel: (k: string) => string;
   money: (n: number) => string;
   emptyText: string;
+  ariaLabel: string;
 }) {
   const max = Math.max(...data.map((d) => d.spend));
   if (max <= 0) return <p className="muted">{emptyText}</p>;
@@ -172,7 +174,7 @@ function TrendChart({
   const bw = step * 0.6;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Monthly spend trend" style={{ display: "block" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel} style={{ display: "block" }}>
       <line x1={padL} y1={padT + chartH} x2={W - padR} y2={padT + chartH} stroke="var(--border)" />
       {data.map((d, i) => {
         const h = (d.spend / max) * chartH;

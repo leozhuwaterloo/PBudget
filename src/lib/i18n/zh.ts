@@ -12,6 +12,7 @@ const zh: Messages = {
   "nav.login": "登录",
   "nav.signup": "注册",
   "nav.logout": "退出登录",
+  "nav.language": "语言",
 
   // ==================================================================
   // V2 PAGES — parallel-safe i18n regions (F0). Each page card edits ONLY
@@ -207,6 +208,7 @@ const zh: Messages = {
   "dash.trend.title": "每月消费",
   "dash.trend.sub": "最近 12 个月",
   "dash.trend.empty": "暂无可绘制的消费。",
+  "dash.trend.aria": "每月消费趋势",
   "dash.review.title": "待审核项",
   "dash.review.unmatched": "未匹配",
   "dash.review.conflicts": "冲突",
