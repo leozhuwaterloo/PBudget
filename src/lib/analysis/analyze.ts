@@ -5,6 +5,8 @@ import type { PlaidTransaction } from "@prisma/client";
 import { prisma } from "../db";
 import { normalizeVendor, isTransferLike } from "./vendor";
 import { createMergeGroup } from "./merge";
+import { rematchUser } from "./match";
+import { primaryLeg } from "./groups";
 import {
   AUTOMATCH_WINDOW_DAYS,
   DUPLICATE_WINDOW_DAYS,
@@ -30,12 +32,15 @@ export async function analyzeUser(userId: string): Promise<void> {
   });
 
   // 2. Auto-match opposite-sign equal-amount cross-account pairs into net-0 groups.
-  //    (V2 retires the pending-Vendor upsert + unknown_vendor rule; the funnel's
-  //    unmatched/conflict queue engine lands in F1's match.ts.)
   await autoMatch(userId, posted);
 
-  // 3-4. Suspicion rules over effective items + flag upsert invariant. Vendor
-  //      identity stays the normalized string until F1 swaps it to vendorId.
+  // 3. Vendor match (FR1): materialize vendorId on every posted txn + maintain the
+  //    unmatched_vendor / vendor_conflict queue flags. Runs after auto-match so a
+  //    group's queueing keys on its (now grouped) primary leg.
+  await rematchUser(userId);
+
+  // 4. Suspicion rules over effective items + flag upsert invariant. Vendor
+  //    identity is vendorId (fallback: normalized string for unmatched txns).
   const items = await buildEffectiveItems(userId);
   for (const it of items) {
     // unmatched_transfer — transfer-like individual txn (never on groups).
@@ -58,25 +63,31 @@ type Item = {
   isTxn: boolean;
 };
 
+// Vendor identity for the suspicion rules (FR1): the materialized vendorId when a
+// vendor matched, else the normalized string. Namespaced so a cuid can never
+// collide with a normalized name across the two identity spaces.
+const vendorIdentity = (vendorId: string | null, normalized: string): string =>
+  vendorId ? `v:${vendorId}` : `n:${normalized}`;
+
 // Ungrouped posted txns + net-≠0 groups (at their net, under the group vendor).
 // Net-0 groups and all group legs are exempt from every rule.
 async function buildEffectiveItems(userId: string): Promise<Item[]> {
   const posted = await prisma.plaidTransaction.findMany({
     where: { pending: false, account: { item: { userId } } },
   });
-  const legIds = new Set(
-    (await prisma.mergeGroupLeg.findMany({ select: { transactionId: true } })).map(
-      (l) => l.transactionId
-    )
-  );
-  const groups = await prisma.mergeGroup.findMany({ where: { userId } });
+  const groups = await prisma.mergeGroup.findMany({
+    where: { userId },
+    include: { legs: true },
+  });
+  const legIds = new Set(groups.flatMap((g) => g.legs.map((l) => l.transactionId)));
+  const postedById = new Map(posted.map((t) => [t.transactionId, t]));
 
   const items: Item[] = [];
   for (const t of posted) {
     if (legIds.has(t.transactionId)) continue; // legs are represented by their group
     items.push({
       target: { transactionId: t.transactionId },
-      vendor: normalizeVendor(t.merchantName, t.name),
+      vendor: vendorIdentity(t.vendorId, normalizeVendor(t.merchantName, t.name)),
       amount: cents(t.amount),
       date: t.datetime,
       transferLike: isTransferLike(t),
@@ -85,9 +96,13 @@ async function buildEffectiveItems(userId: string): Promise<Item[]> {
   }
   for (const g of groups) {
     if (cents(g.netAmount) === 0) continue; // net-0 self-transfer is accounted for
+    const legs = g.legs
+      .map((l) => postedById.get(l.transactionId))
+      .filter((t): t is PlaidTransaction => !!t);
+    const primary = legs.length ? primaryLeg(legs) : null;
     items.push({
       target: { mergeGroupId: g.id },
-      vendor: g.vendorName ?? "",
+      vendor: vendorIdentity(primary?.vendorId ?? null, g.vendorName ?? ""),
       amount: cents(g.netAmount),
       date: g.date,
       transferLike: false,
