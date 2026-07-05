@@ -13,7 +13,7 @@
 //  - ALL confirmed merges and ALL splits are browsable, dissolve/unsplit work (AC7);
 //  - the counters row reflects open items across every section.
 import { prisma } from "../src/lib/db";
-import { reviewData } from "../src/lib/review";
+import { reviewData, dismissFlag } from "../src/lib/review";
 import { createVendor } from "../src/lib/vendors";
 import { rematchUser } from "../src/lib/analysis/match";
 import { analyzeUser } from "../src/lib/analysis/analyze";
@@ -130,6 +130,18 @@ async function main(): Promise<void> {
   check(data.counters.totalOpen === openTotal, "counters.totalOpen spans open items across every section");
   const startTotal = data.counters.totalOpen;
 
+  // --- G2: unmatched_vendor items have NO dismiss --------------------------
+  // The dismiss route calls dismissFlag; unmatched_vendor must be rejected and
+  // stay open, or the txn silently leaves the queue (setQueueFlag never reopens
+  // a dismissed flag) and the match-or-queue invariant breaks.
+  const unFlagId = findUn(UN_OTHER)!.flagId;
+  const guarded = await dismissFlag(USER, unFlagId);
+  check(guarded === "forbidden", "G2: dismissing an unmatched_vendor flag is rejected (route → 4xx)");
+  const unFlag = await prisma.transactionFlag.findUnique({ where: { id: unFlagId } });
+  check(unFlag?.status === "open", "G2: the rejected unmatched_vendor flag remains status=open");
+  data = await reviewData(USER);
+  check(!!findUn(UN_OTHER), "G2: it still shows in the unmatched queue (only matching a vendor clears it)");
+
   // --- AC1: create a vendor from an unmatched row --------------------------
   // The UI POSTs /api/vendors with an equals condition on the row's merchant; the
   // create rematches. Both Zqueue rows must leave the queue; Zother must remain.
@@ -145,7 +157,8 @@ async function main(): Promise<void> {
 
   // --- Conflict dismiss is permanent ---------------------------------------
   const confFlagId = conflict!.flagId;
-  await prisma.transactionFlag.update({ where: { id: confFlagId }, data: { status: "dismissed", resolvedAt: new Date() } });
+  const okConf = await dismissFlag(USER, confFlagId); // same seam the route uses
+  check(okConf === "ok", "conflict dismiss via the guarded path succeeds (guard only blocks unmatched_vendor)");
   data = await reviewData(USER);
   check(!data.conflicts.find((c) => c.id === CONF), "conflict dismissed → gone from the section");
   await rematchUser(USER); // overlap still exists — a permanent dismissal must NOT reopen
@@ -156,7 +169,8 @@ async function main(): Promise<void> {
 
   // --- Suspicion dismiss ---------------------------------------------------
   const dupFlag = (data.suspicion["duplicate_charge"] ?? [])[0];
-  await prisma.transactionFlag.update({ where: { id: dupFlag.flagId }, data: { status: "dismissed", resolvedAt: new Date() } });
+  const okDup = await dismissFlag(USER, dupFlag.flagId); // guarded path allows suspicion rules
+  check(okDup === "ok", "suspicion dismiss via the guarded path succeeds");
   await analyzeUser(USER); // re-analyze must not reopen a dismissed suspicion flag
   data = await reviewData(USER);
   check((data.suspicion["duplicate_charge"] ?? []).length === 1, "suspicion: dismissed duplicate stays dismissed after re-analyze");
