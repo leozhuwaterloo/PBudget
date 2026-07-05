@@ -343,7 +343,7 @@ function UnmatchedSection({
   const p = Math.min(page, pages - 1);
   const slice = rows.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE);
   return (
-    <Section title={t("review.unmatchedTitle", { n: rows.length })} help={t("review.unmatchedHelp")}>
+    <Section id="unmatched" title={t("review.unmatchedTitle", { n: rows.length })} help={t("review.unmatchedHelp")}>
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
@@ -410,7 +410,7 @@ function ConflictSection({
   const t = useT();
   if (rows.length === 0) return null;
   return (
-    <Section title={t("review.conflictsTitle", { n: rows.length })} help={t("review.conflictsHelp")}>
+    <Section id="conflicts" title={t("review.conflictsTitle", { n: rows.length })} help={t("review.conflictsHelp")}>
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
@@ -494,7 +494,7 @@ function SuspicionSection({
   const anything = SUSPICION_RULES.some((rule) => (suspicion[rule] ?? []).length > 0);
   if (!anything) return null;
   return (
-    <Section title={t("review.suspicionTitle")} help={t("review.suspicionHelp")}>
+    <Section id="suspicion" title={t("review.suspicionTitle")} help={t("review.suspicionHelp")}>
       {SUSPICION_RULES.map((rule) => {
         const entries = suspicion[rule] ?? [];
         if (!entries.length) return null;
@@ -565,7 +565,7 @@ function MergeSplitSection({
   const { pendingGroups, mergeGroups, splits } = data;
   if (pendingGroups.length === 0 && mergeGroups.length === 0 && splits.length === 0) return null;
   return (
-    <Section title={t("review.mergesSplitsTitle")} help={t("review.mergesSplitsHelp")}>
+    <Section id="pending" title={t("review.mergesSplitsTitle")} help={t("review.mergesSplitsHelp")}>
       {pendingGroups.length > 0 && (
         <GroupTable
           title={t("review.pendingGroups", { n: pendingGroups.length })}
@@ -705,9 +705,9 @@ function GroupTable({
   );
 }
 
-function Section({ title, help, children }: { title: string; help?: string; children: React.ReactNode }) {
+function Section({ id, title, help, children }: { id?: string; title: string; help?: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginBottom: 28 }}>
+    <section id={id} style={{ marginBottom: 28, scrollMarginTop: 16 }}>
       <h2 style={{ fontSize: 17, margin: "20px 0 4px" }}>{title}</h2>
       {help && <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>{help}</p>}
       {children}
