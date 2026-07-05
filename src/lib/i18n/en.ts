@@ -177,6 +177,36 @@ const en = {
   "cust.billing.error": "Something went wrong. Please try again.",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
+  "review.countToday": "Today",
+  "review.unmatchedTitle": "Unmatched transactions ({n})",
+  "review.unmatchedHelp":
+    "Every posted item with no vendor. Match one and the queue shrinks — every row the new or edited vendor now matches disappears, no re-sync needed.",
+  "review.createVendor": "New vendor",
+  "review.addToVendor": "Add to a vendor",
+  "review.fromCatalog": "From catalog",
+  "review.conflictsTitle": "Conflicts ({n})",
+  "review.conflictsHelp":
+    "More than one vendor matches. The ★ winner is assigned by priority — tighten conditions or reorder in Customizations, or dismiss to keep the winner for this transaction.",
+  "review.colMatches": "Matching vendors",
+  "review.winner": "Priority winner",
+  "review.editVendors": "Edit in Customizations",
+  "review.suspicionTitle": "Suspicion flags",
+  "review.suspicionHelp": "Transfers, unusual amounts and possible duplicates the funnel wants a second look at.",
+  "review.mergesSplitsTitle": "Merges & splits",
+  "review.mergesSplitsHelp":
+    "Auto-matched groups awaiting confirmation, plus every confirmed merge and split — dissolve or unsplit anytime.",
+  "review.allMerges": "All merged groups ({n})",
+  "review.allSplits": "All splits ({n})",
+  "review.unsplit": "Unsplit",
+  "review.part": "part",
+  "review.prev": "Previous",
+  "review.next": "Next",
+  "review.pageOf": "Page {page} of {pages}",
+  "review.pickVendor": "Add this condition to which vendor?",
+  "review.noVendors": "You have no vendors yet — use “New vendor” instead.",
+  "review.condCount": "{n} conditions",
+  "rule.unmatched_vendor": "Unmatched vendor",
+  "rule.vendor_conflict": "Vendor conflict",
 
   // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
   "dash.title": "Dashboard",

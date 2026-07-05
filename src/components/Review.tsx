@@ -1,18 +1,44 @@
 "use client";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReviewMergePicker from "./ReviewMergePicker";
+import CatalogBrowser from "./CatalogBrowser";
+import VendorEditor, { type Vendor, type Condition, type Refs } from "./VendorEditor";
 import { useT } from "@/lib/i18n/context";
 
-// The auditor loop (FR4/FR5). All state comes from the F2/F3 JSON APIs; every
-// flag is drivable to resolution here. Amounts are stored Plaid-convention
+// Review v2 — the funnel's human hub (F12, FR6). One sectioned page over
+// GET /api/review: a counters row spanning every open item, then Unmatched,
+// Conflicts, Suspicion flags, and Merges & splits. Every mutation reuses an
+// existing route (vendors / catalog / flag-dismiss / merge / splits) and then
+// refetches, so the queues shrink live. Amounts are stored Plaid-convention
 // (positive = outflow) and rendered user-convention (spend negative) via -amount.
 
-type FlagEntry = {
+type UnmatchedRow = {
+  flagId: string;
+  level: "transaction" | "group";
   id: string;
-  rule: string;
+  title: string;
+  name: string;
+  merchantName: string | null;
+  amount: number | null;
+  currency: string | null;
+  date: string;
+};
+type ConflictRow = {
+  flagId: string;
+  level: "transaction" | "group";
+  id: string;
+  title: string;
+  subtitle: string;
+  amount: number | null;
+  currency: string | null;
+  date: string;
+  winnerVendorId: string | null;
+  vendors: { id: string; name: string; priority: number | null }[];
+};
+type SuspicionEntry = {
+  flagId: string;
   level: "transaction" | "group";
   transactionId?: string;
-  mergeGroupId?: string;
   vendor: string | null;
   name?: string;
   title?: string;
@@ -20,9 +46,8 @@ type FlagEntry = {
   currency: string | null;
   date: string;
 };
-
 type Leg = { transactionId: string; name: string | null; amount: number | null };
-type PendingGroup = {
+type GroupRow = {
   id: string;
   title: string;
   vendor: string | null;
@@ -31,15 +56,26 @@ type PendingGroup = {
   date: string;
   legs: Leg[];
 };
-type FlagsData = {
+type SplitRow = {
+  parentTransactionId: string;
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  date: string;
+  parts: { amount: number | null; label: string | null; categoryName: string | null }[];
+};
+type ReviewData = {
   counters: { today: number; thisMonth: number; totalOpen: number };
-  flagsByRule: Record<string, FlagEntry[]>;
-  pendingGroups: PendingGroup[];
+  unmatched: UnmatchedRow[];
+  conflicts: ConflictRow[];
+  suspicion: Record<string, SuspicionEntry[]>;
+  pendingGroups: GroupRow[];
+  mergeGroups: GroupRow[];
+  splits: SplitRow[];
 };
 
-// Rule labels are translated at render via t(`rule.${id}`). The V2 funnel retired
-// unknown_vendor; the unmatched/conflict queue UI arrives in F12.
-const RULES = ["unmatched_transfer", "unusual_amount", "duplicate_charge"];
+const SUSPICION_RULES = ["unmatched_transfer", "unusual_amount", "duplicate_charge"];
+const PAGE_SIZE = 25;
 
 const money = (amount: number | null, currency: string | null) =>
   amount == null ? "—" : `${currency ? currency + " " : ""}${(-amount).toFixed(2)}`;
@@ -57,29 +93,98 @@ async function postJson(url: string) {
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
+async function delJson(url: string, body: unknown) {
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+// Pre-fill a vendor condition from an unmatched row: an equals on the merchant
+// name when the row has one, else on the transaction name — mirroring the
+// merchantName ?? name key the funnel identifies vendors by. Matching normalizes
+// both sides, so the raw value is fine (it re-matches the same rows).
+function prefillCondition(row: UnmatchedRow): Condition {
+  const merch = row.merchantName?.trim();
+  const useMerchant = !!merch;
+  return {
+    categoryName: null,
+    nameOp: useMerchant ? null : "equals",
+    nameValue: useMerchant ? null : row.name,
+    merchantOp: useMerchant ? "equals" : null,
+    merchantValue: useMerchant ? merch! : null,
+    amountMin: null,
+    amountMax: null,
+    accountId: null,
+    paymentChannel: null,
+    plaidPrimary: null,
+    plaidDetailed: null,
+  };
+}
+const prefillName = (row: UnmatchedRow) => (row.merchantName?.trim() || row.name || "").slice(0, 100);
+// id-less initial → VendorEditor POSTs (create); the pre-fill just seeds the form.
+const createInitial = (row: UnmatchedRow): Vendor => ({
+  id: "",
+  name: prefillName(row),
+  icon: null,
+  categoryName: null,
+  priority: null,
+  conditions: [prefillCondition(row)],
+});
+// Existing vendor + the new row → VendorEditor PATCHes (replace-rows), extending it.
+const extendInitial = (vendor: Vendor, row: UnmatchedRow): Vendor => ({
+  ...vendor,
+  conditions: [...vendor.conditions, prefillCondition(row)],
+});
+
+type Modal =
+  | { kind: "catalog" }
+  | { kind: "create"; row: UnmatchedRow }
+  | { kind: "pick"; row: UnmatchedRow }
+  | { kind: "extend"; row: UnmatchedRow; vendor: Vendor }
+  | { kind: "merge"; seedId?: string };
 
 export default function Review() {
   const t = useT();
-  const [data, setData] = useState<FlagsData | null>(null);
-  const [busy, setBusy] = useState(true);
+  const [data, setData] = useState<ReviewData | null>(null);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [] });
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const [mode, setMode] = useState<"all" | "day" | "month">("all");
-  const [dayVal, setDayVal] = useState(() => new Date().toISOString().slice(0, 10));
-  const [monthVal, setMonthVal] = useState(() => new Date().toISOString().slice(0, 7));
-  const [picker, setPicker] = useState<{ seedId?: string } | null>(null);
+  const [page, setPage] = useState(0);
+  const [modal, setModal] = useState<Modal | null>(null);
 
-  const query =
-    mode === "day" && dayVal ? `?day=${dayVal}` : mode === "month" && monthVal ? `?month=${monthVal}` : "";
+  // Static-ish reference data for the vendor editor (categories + account/plaid refs).
+  useEffect(() => {
+    (async () => {
+      try {
+        const [c, r] = await Promise.all([getJson("/api/categories"), getJson("/api/vendors/refs")]);
+        setCategories((c.categories ?? []).map((x: { name: string }) => x.name));
+        setRefs(r);
+      } catch {
+        /* editor still works without refs; surfaced on save if truly broken */
+      }
+    })();
+  }, []);
 
+  // Review payload + the vendor list (for "extend an existing vendor"), refetched
+  // after every action so the queues shrink live (AC1).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setBusy(true);
       setError("");
       try {
-        const flags = await getJson(`/api/flags${query}`);
-        if (!cancelled) setData(flags);
+        const [rev, v] = await Promise.all([getJson("/api/review"), getJson("/api/vendors")]);
+        if (cancelled) return;
+        setData(rev);
+        setVendors(v.vendors ?? []);
       } catch (e: any) {
         if (!cancelled) setError(e.message);
       } finally {
@@ -89,25 +194,31 @@ export default function Review() {
     return () => {
       cancelled = true;
     };
-  }, [query, reloadKey]);
+  }, [reloadKey]);
 
-  // Every action refetches (reloadKey bump) so new group-level flags surface
-  // and resolved ones disappear (criterion 19).
+  const reload = () => setReloadKey((k) => k + 1);
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
     try {
       await fn();
-      setReloadKey((k) => k + 1);
+      reload();
     } catch (e: any) {
       setError(e.message);
       setBusy(false);
     }
   };
+  const afterSave = () => {
+    setModal(null);
+    reload();
+  };
 
-  const hasVisible =
+  const hasBrowse = !!data && (data.mergeGroups.length > 0 || data.splits.length > 0);
+  const nothing =
     !!data &&
-    (data.pendingGroups.length > 0 || RULES.some((id) => (data.flagsByRule[id] ?? []).length > 0));
+    data.counters.totalOpen === 0 &&
+    data.pendingGroups.length === 0 &&
+    !hasBrowse;
 
   return (
     <div>
@@ -115,36 +226,15 @@ export default function Review() {
 
       {data && (
         <div className="row wrap" style={{ gap: 12, marginBottom: 16 }}>
-          <Counter label={t("review.suspiciousToday")} value={data.counters.today} />
+          <Counter label={t("review.countToday")} value={data.counters.today} />
           <Counter label={t("review.thisMonth")} value={data.counters.thisMonth} />
           <Counter label={t("review.totalOpen")} value={data.counters.totalOpen} />
         </div>
       )}
 
       <div className="row wrap" style={{ marginBottom: 16 }}>
-        <span className="muted">{t("review.filter")}</span>
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value as any)}
-          style={{ width: "auto" }}
-        >
-          <option value="all">{t("review.allDates")}</option>
-          <option value="day">{t("review.byDay")}</option>
-          <option value="month">{t("review.byMonth")}</option>
-        </select>
-        {mode === "day" && (
-          <input type="date" value={dayVal} onChange={(e) => setDayVal(e.target.value)} style={{ width: "auto" }} />
-        )}
-        {mode === "month" && (
-          <input
-            type="month"
-            value={monthVal}
-            onChange={(e) => setMonthVal(e.target.value)}
-            style={{ width: "auto" }}
-          />
-        )}
         <div className="spacer" style={{ flex: 1 }} />
-        <button className="btn" disabled={busy} onClick={() => setPicker({})}>
+        <button className="btn" disabled={busy} onClick={() => setModal({ kind: "merge" })}>
           {t("review.mergeTransactions")}
         </button>
       </div>
@@ -153,145 +243,475 @@ export default function Review() {
 
       {!data ? (
         <p className="muted">{t("common.loading")}</p>
-      ) : data.counters.totalOpen === 0 ? (
+      ) : nothing ? (
         <div className="card" style={{ textAlign: "center", padding: 32 }}>
           <div style={{ fontSize: 32, color: "var(--success)" }}>✓</div>
           <div style={{ fontSize: 18, fontWeight: 600, marginTop: 8 }}>{t("review.allClear")}</div>
-          <p className="muted" style={{ marginBottom: 0 }}>
-            {t("review.allClearBody")}
-          </p>
+          <p className="muted" style={{ marginBottom: 0 }}>{t("review.allClearBody")}</p>
         </div>
-      ) : !hasVisible ? (
-        <p className="muted">{t("review.noMatch")}</p>
       ) : (
         <>
-          {data.pendingGroups.length > 0 && (
-            <section>
-              <h2 style={{ fontSize: 16, margin: "20px 0 8px" }}>
-                {t("review.pendingGroups", { n: data.pendingGroups.length })}
-              </h2>
-              <div className="card" style={{ padding: 0 }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t("review.colGroup")}</th>
-                      <th>{t("review.colNet")}</th>
-                      <th>{t("review.colDate")}</th>
-                      <th>{t("review.colActions")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.pendingGroups.map((g) => (
-                      <tr key={g.id}>
-                        <td>
-                          <strong>{g.title}</strong>
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {g.legs
-                              .map((l) => `${l.name ?? l.transactionId} (${money(l.amount, g.currency)})`)
-                              .join("  +  ")}
-                          </div>
-                        </td>
-                        <td>{money(g.amount, g.currency)}</td>
-                        <td>{day(g.date)}</td>
-                        <td>
-                          <div className="row wrap">
-                            <button
-                              className="btn btn-sm btn-primary"
-                              disabled={busy}
-                              onClick={() => act(() => postJson(`/api/merge/${g.id}/confirm`))}
-                            >
-                              {t("review.confirm")}
-                            </button>
-                            <button
-                              className="btn btn-sm"
-                              disabled={busy}
-                              onClick={() => act(() => postJson(`/api/merge/${g.id}/dissolve`))}
-                            >
-                              {t("review.dissolve")}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
+          <UnmatchedSection
+            rows={data.unmatched}
+            page={page}
+            setPage={setPage}
+            busy={busy}
+            onCreate={(row) => setModal({ kind: "create", row })}
+            onExtend={(row) => setModal({ kind: "pick", row })}
+            onCatalog={() => setModal({ kind: "catalog" })}
+          />
 
-          {RULES.map((id) => {
-            const entries = data.flagsByRule[id] ?? [];
-            if (!entries.length) return null;
-            return (
-              <section key={id}>
-                <h2 style={{ fontSize: 16, margin: "20px 0 8px" }}>
-                  {t(`rule.${id}`)} ({entries.length})
-                </h2>
-                <div className="card" style={{ padding: 0 }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t("review.colItem")}</th>
-                        <th>{t("review.colAmount")}</th>
-                        <th>{t("review.colDate")}</th>
-                        <th>{t("review.colActions")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((e) => (
-                        <tr key={e.id}>
-                          <td>
-                            <strong>{e.level === "group" ? e.title : e.vendor}</strong>
-                            <div className="muted" style={{ fontSize: 12 }}>
-                              {e.level === "group"
-                                ? `${t("review.mergedGroup")} · ${e.vendor ?? "—"}`
-                                : e.name}
-                            </div>
-                          </td>
-                          <td>{money(e.amount, e.currency)}</td>
-                          <td>{day(e.date)}</td>
-                          <td>
-                            <div className="row wrap">
-                              {e.level === "transaction" && (
-                                <button
-                                  className="btn btn-sm"
-                                  disabled={busy}
-                                  onClick={() => setPicker({ seedId: e.transactionId })}
-                                >
-                                  {t("review.merge")}
-                                </button>
-                              )}
-                              <button
-                                className="btn btn-sm btn-ghost"
-                                disabled={busy}
-                                onClick={() => act(() => postJson(`/api/flags/${e.id}/dismiss`))}
-                              >
-                                {t("review.dismiss")}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            );
-          })}
+          <ConflictSection rows={data.conflicts} busy={busy} act={act} />
+
+          <SuspicionSection
+            suspicion={data.suspicion}
+            busy={busy}
+            act={act}
+            onMerge={(id) => setModal({ kind: "merge", seedId: id })}
+          />
+
+          <MergeSplitSection data={data} busy={busy} act={act} />
         </>
       )}
 
-      {picker && (
-        <ReviewMergePicker
-          seedId={picker.seedId}
-          onClose={() => setPicker(null)}
-          onMerged={() => {
-            setPicker(null);
-            setReloadKey((k) => k + 1);
-          }}
-        />
+      {/* --- Modals --- */}
+      {modal?.kind === "merge" && (
+        <ReviewMergePicker seedId={modal.seedId} onClose={() => setModal(null)} onMerged={afterSave} />
+      )}
+      {modal?.kind === "catalog" && (
+        <Overlay onClose={() => setModal(null)}>
+          <CatalogBrowser onClose={() => setModal(null)} onInstantiated={afterSave} />
+        </Overlay>
+      )}
+      {modal?.kind === "create" && (
+        <Overlay onClose={() => setModal(null)} maxWidth={860}>
+          <VendorEditor
+            initial={createInitial(modal.row)}
+            categories={categories}
+            refs={refs}
+            onCancel={() => setModal(null)}
+            onSaved={afterSave}
+          />
+        </Overlay>
+      )}
+      {modal?.kind === "pick" && (
+        <Overlay onClose={() => setModal(null)}>
+          <VendorPicker
+            vendors={vendors}
+            onPick={(vendor) => setModal({ kind: "extend", row: modal.row, vendor })}
+            onClose={() => setModal(null)}
+          />
+        </Overlay>
+      )}
+      {modal?.kind === "extend" && (
+        <Overlay onClose={() => setModal(null)} maxWidth={860}>
+          <VendorEditor
+            initial={extendInitial(modal.vendor, modal.row)}
+            categories={categories}
+            refs={refs}
+            onCancel={() => setModal(null)}
+            onSaved={afterSave}
+          />
+        </Overlay>
       )}
     </div>
+  );
+}
+
+// --- Sections ---------------------------------------------------------------
+
+function UnmatchedSection({
+  rows,
+  page,
+  setPage,
+  busy,
+  onCreate,
+  onExtend,
+  onCatalog,
+}: {
+  rows: UnmatchedRow[];
+  page: number;
+  setPage: (n: number) => void;
+  busy: boolean;
+  onCreate: (row: UnmatchedRow) => void;
+  onExtend: (row: UnmatchedRow) => void;
+  onCatalog: () => void;
+}) {
+  const t = useT();
+  if (rows.length === 0) return null;
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const p = Math.min(page, pages - 1);
+  const slice = rows.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE);
+  return (
+    <Section title={t("review.unmatchedTitle", { n: rows.length })} help={t("review.unmatchedHelp")}>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>{t("review.colItem")}</th>
+              <th>{t("review.colAmount")}</th>
+              <th>{t("review.colDate")}</th>
+              <th>{t("review.colActions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((r) => (
+              <tr key={r.flagId}>
+                <td>
+                  <strong>{r.merchantName?.trim() || r.name}</strong>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {r.level === "group" ? `${t("review.mergedGroup")} · ${r.title}` : r.name}
+                  </div>
+                </td>
+                <td>{money(r.amount, r.currency)}</td>
+                <td>{day(r.date)}</td>
+                <td>
+                  <div className="row wrap">
+                    <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => onCreate(r)}>
+                      {t("review.createVendor")}
+                    </button>
+                    <button className="btn btn-sm" disabled={busy} onClick={() => onExtend(r)}>
+                      {t("review.addToVendor")}
+                    </button>
+                    <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onCatalog}>
+                      {t("review.fromCatalog")}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pages > 1 && (
+        <div className="row" style={{ gap: 10, marginTop: 8, alignItems: "center" }}>
+          <button className="btn btn-sm" disabled={p === 0} onClick={() => setPage(p - 1)}>
+            {t("review.prev")}
+          </button>
+          <span className="muted">{t("review.pageOf", { page: p + 1, pages })}</span>
+          <button className="btn btn-sm" disabled={p >= pages - 1} onClick={() => setPage(p + 1)}>
+            {t("review.next")}
+          </button>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function ConflictSection({
+  rows,
+  busy,
+  act,
+}: {
+  rows: ConflictRow[];
+  busy: boolean;
+  act: (fn: () => Promise<unknown>) => void;
+}) {
+  const t = useT();
+  if (rows.length === 0) return null;
+  return (
+    <Section title={t("review.conflictsTitle", { n: rows.length })} help={t("review.conflictsHelp")}>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>{t("review.colItem")}</th>
+              <th>{t("review.colMatches")}</th>
+              <th>{t("review.colAmount")}</th>
+              <th>{t("review.colActions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.flagId}>
+                <td>
+                  <strong>{r.title}</strong>
+                  <div className="muted" style={{ fontSize: 12 }}>{day(r.date)} · {r.subtitle}</div>
+                </td>
+                <td>
+                  <div className="row wrap" style={{ gap: 6 }}>
+                    {r.vendors.map((v) => {
+                      const winner = v.id === r.winnerVendorId;
+                      return (
+                        <span
+                          key={v.id}
+                          title={winner ? t("review.winner") : undefined}
+                          style={{
+                            display: "inline-block",
+                            fontSize: 12,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            whiteSpace: "nowrap",
+                            background: winner ? "rgba(21,104,74,0.12)" : "var(--bg-3)",
+                            color: winner ? "var(--primary)" : "var(--muted)",
+                            border: `1px solid ${winner ? "rgba(21,104,74,0.25)" : "var(--border)"}`,
+                            fontWeight: winner ? 700 : 400,
+                          }}
+                        >
+                          {winner ? "★ " : ""}
+                          {v.name} #{v.priority}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </td>
+                <td>{money(r.amount, r.currency)}</td>
+                <td>
+                  <div className="row wrap">
+                    <a className="btn btn-sm" href="/customizations#vendors">
+                      {t("review.editVendors")}
+                    </a>
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      disabled={busy}
+                      onClick={() => act(() => postJson(`/api/flags/${r.flagId}/dismiss`))}
+                    >
+                      {t("review.dismiss")}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
+function SuspicionSection({
+  suspicion,
+  busy,
+  act,
+  onMerge,
+}: {
+  suspicion: Record<string, SuspicionEntry[]>;
+  busy: boolean;
+  act: (fn: () => Promise<unknown>) => void;
+  onMerge: (transactionId: string) => void;
+}) {
+  const t = useT();
+  const anything = SUSPICION_RULES.some((rule) => (suspicion[rule] ?? []).length > 0);
+  if (!anything) return null;
+  return (
+    <Section title={t("review.suspicionTitle")} help={t("review.suspicionHelp")}>
+      {SUSPICION_RULES.map((rule) => {
+        const entries = suspicion[rule] ?? [];
+        if (!entries.length) return null;
+        return (
+          <div key={rule} style={{ marginBottom: 14 }}>
+            <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>
+              {t(`rule.${rule}`)} ({entries.length})
+            </h3>
+            <div className="card" style={{ padding: 0 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("review.colItem")}</th>
+                    <th>{t("review.colAmount")}</th>
+                    <th>{t("review.colDate")}</th>
+                    <th>{t("review.colActions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.flagId}>
+                      <td>
+                        <strong>{e.level === "group" ? e.title : e.vendor}</strong>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {e.level === "group" ? `${t("review.mergedGroup")} · ${e.vendor ?? "—"}` : e.name}
+                        </div>
+                      </td>
+                      <td>{money(e.amount, e.currency)}</td>
+                      <td>{day(e.date)}</td>
+                      <td>
+                        <div className="row wrap">
+                          {e.level === "transaction" && e.transactionId && (
+                            <button className="btn btn-sm" disabled={busy} onClick={() => onMerge(e.transactionId!)}>
+                              {t("review.merge")}
+                            </button>
+                          )}
+                          <button
+                            className="btn btn-sm btn-ghost"
+                            disabled={busy}
+                            onClick={() => act(() => postJson(`/api/flags/${e.flagId}/dismiss`))}
+                          >
+                            {t("review.dismiss")}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </Section>
+  );
+}
+
+function MergeSplitSection({
+  data,
+  busy,
+  act,
+}: {
+  data: ReviewData;
+  busy: boolean;
+  act: (fn: () => Promise<unknown>) => void;
+}) {
+  const t = useT();
+  const { pendingGroups, mergeGroups, splits } = data;
+  if (pendingGroups.length === 0 && mergeGroups.length === 0 && splits.length === 0) return null;
+  return (
+    <Section title={t("review.mergesSplitsTitle")} help={t("review.mergesSplitsHelp")}>
+      {pendingGroups.length > 0 && (
+        <GroupTable
+          title={t("review.pendingGroups", { n: pendingGroups.length })}
+          groups={pendingGroups}
+          busy={busy}
+          renderActions={(g) => (
+            <>
+              <button
+                className="btn btn-sm btn-primary"
+                disabled={busy}
+                onClick={() => act(() => postJson(`/api/merge/${g.id}/confirm`))}
+              >
+                {t("review.confirm")}
+              </button>
+              <button
+                className="btn btn-sm"
+                disabled={busy}
+                onClick={() => act(() => postJson(`/api/merge/${g.id}/dissolve`))}
+              >
+                {t("review.dissolve")}
+              </button>
+            </>
+          )}
+        />
+      )}
+
+      {mergeGroups.length > 0 && (
+        <GroupTable
+          title={t("review.allMerges", { n: mergeGroups.length })}
+          groups={mergeGroups}
+          busy={busy}
+          renderActions={(g) => (
+            <button
+              className="btn btn-sm"
+              disabled={busy}
+              onClick={() => act(() => postJson(`/api/merge/${g.id}/dissolve`))}
+            >
+              {t("review.dissolve")}
+            </button>
+          )}
+        />
+      )}
+
+      {splits.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>{t("review.allSplits", { n: splits.length })}</h3>
+          <div className="card" style={{ padding: 0 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("review.colItem")}</th>
+                  <th>{t("review.colAmount")}</th>
+                  <th>{t("review.colDate")}</th>
+                  <th>{t("review.colActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {splits.map((s) => (
+                  <tr key={s.parentTransactionId}>
+                    <td>
+                      <strong>{s.title}</strong>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {s.parts
+                          .map((pt) => `${pt.label ?? t("review.part")} ${money(pt.amount, s.currency)}${pt.categoryName ? ` (${pt.categoryName})` : ""}`)
+                          .join("  +  ")}
+                      </div>
+                    </td>
+                    <td>{money(s.amount, s.currency)}</td>
+                    <td>{day(s.date)}</td>
+                    <td>
+                      <button
+                        className="btn btn-sm"
+                        disabled={busy}
+                        onClick={() => act(() => delJson("/api/splits", { parentTransactionId: s.parentTransactionId }))}
+                      >
+                        {t("review.unsplit")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// --- Small shared pieces ----------------------------------------------------
+
+function GroupTable({
+  title,
+  groups,
+  busy,
+  renderActions,
+}: {
+  title: string;
+  groups: GroupRow[];
+  busy: boolean;
+  renderActions: (g: GroupRow) => React.ReactNode;
+}) {
+  const t = useT();
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>{title}</h3>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>{t("review.colGroup")}</th>
+              <th>{t("review.colNet")}</th>
+              <th>{t("review.colDate")}</th>
+              <th>{t("review.colActions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => (
+              <tr key={g.id}>
+                <td>
+                  <strong>{g.title}</strong>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {g.legs.map((l) => `${l.name ?? l.transactionId} (${money(l.amount, g.currency)})`).join("  +  ")}
+                  </div>
+                </td>
+                <td>{money(g.amount, g.currency)}</td>
+                <td>{day(g.date)}</td>
+                <td>
+                  <div className="row wrap">{renderActions(g)}</div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, help, children }: { title: string; help?: string; children: React.ReactNode }) {
+  return (
+    <section style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 17, margin: "20px 0 4px" }}>{title}</h2>
+      {help && <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>{help}</p>}
+      {children}
+    </section>
   );
 }
 
@@ -300,6 +720,89 @@ function Counter({ label, value }: { label: string; value: number }) {
     <div className="card" style={{ margin: 0, minWidth: 130 }}>
       <div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div>
       <div className="muted">{label}</div>
+    </div>
+  );
+}
+
+// Centered overlay wrapper so VendorEditor / CatalogBrowser (plain cards) render
+// as modals — same shell ReviewMergePicker uses inline.
+function Overlay({
+  children,
+  onClose,
+  maxWidth = 640,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  maxWidth?: number;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "40px 16px",
+        overflow: "auto",
+        zIndex: 50,
+      }}
+      onClick={onClose}
+    >
+      <div style={{ maxWidth, width: "100%" }} onClick={(ev) => ev.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Choose which existing vendor to extend with the new equals condition.
+function VendorPicker({
+  vendors,
+  onPick,
+  onClose,
+}: {
+  vendors: Vendor[];
+  onPick: (v: Vendor) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="card" style={{ margin: 0 }}>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+        <div className="card-header" style={{ margin: 0 }}>{t("review.pickVendor")}</div>
+        <button className="btn btn-sm btn-ghost" onClick={onClose}>{t("common.cancel")}</button>
+      </div>
+      {vendors.length === 0 ? (
+        <p className="muted">{t("review.noVendors")}</p>
+      ) : (
+        <div style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--border)", borderRadius: 6 }}>
+          {vendors.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className="row"
+              style={{
+                width: "100%",
+                gap: 8,
+                padding: "8px 12px",
+                borderBottom: "1px solid var(--border)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+              onClick={() => onPick(v)}
+            >
+              <strong style={{ flex: 1 }}>{v.name}</strong>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {t("review.condCount", { n: v.conditions.length })}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,239 @@
+// Review hub read model (F12, FR6). One call assembles everything /review shows so
+// the client refetches after each action and watches the queues shrink. Read-only:
+// every mutation goes through an existing route (vendors / catalog / flag-dismiss /
+// merge / splits). Kept out of the route handler so it's unit-testable without HTTP
+// (see scripts/check-review.ts). Amounts stay Plaid-convention (+ = outflow); the
+// UI renders them user-convention.
+import { prisma } from "./db";
+import { normalizeVendor } from "./analysis/vendor";
+import { primaryLeg } from "./analysis/groups";
+import { matchesVendor } from "./analysis/match";
+import { RULES } from "./analysis/constants";
+
+const num = (d: unknown): number | null => (d == null ? null : Number(d));
+
+// UTC calendar boundaries (same convention as /api/flags) for the counters.
+const dayRange = (d: Date) => {
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+};
+const monthRange = (d: Date) => {
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  return { start, end };
+};
+const inRange = (date: Date, r: { start: Date; end: Date }) => date >= r.start && date < r.end;
+
+const SUSPICION = [RULES.unmatchedTransfer, RULES.unusualAmount, RULES.duplicateCharge] as const;
+
+export type UnmatchedRow = {
+  flagId: string;
+  level: "transaction" | "group";
+  id: string;
+  title: string;
+  name: string;
+  merchantName: string | null;
+  amount: number | null;
+  currency: string | null;
+  date: Date;
+};
+export type ConflictRow = {
+  flagId: string;
+  level: "transaction" | "group";
+  id: string;
+  title: string;
+  subtitle: string;
+  amount: number | null;
+  currency: string | null;
+  date: Date;
+  winnerVendorId: string | null;
+  vendors: { id: string; name: string; priority: number | null }[];
+};
+export type SuspicionEntry = {
+  flagId: string;
+  level: "transaction" | "group";
+  transactionId?: string;
+  mergeGroupId?: string;
+  vendor: string | null;
+  name?: string;
+  title?: string;
+  amount: number | null;
+  currency: string | null;
+  date: Date;
+};
+export type GroupRow = {
+  id: string;
+  title: string;
+  vendor: string | null;
+  amount: number | null;
+  currency: string | null;
+  date: Date;
+  legs: { transactionId: string; name: string | null; amount: number | null }[];
+};
+export type SplitRow = {
+  parentTransactionId: string;
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  date: Date;
+  parts: { amount: number | null; label: string | null; categoryName: string | null }[];
+};
+export type ReviewPayload = {
+  counters: { today: number; thisMonth: number; totalOpen: number };
+  unmatched: UnmatchedRow[];
+  conflicts: ConflictRow[];
+  suspicion: Record<string, SuspicionEntry[]>;
+  pendingGroups: GroupRow[];
+  mergeGroups: GroupRow[];
+  splits: SplitRow[];
+};
+
+export async function reviewData(userId: string): Promise<ReviewPayload> {
+  const [openFlags, allGroups, splits, posted, vendorRows] = await Promise.all([
+    prisma.transactionFlag.findMany({ where: { userId, status: "open" } }),
+    prisma.mergeGroup.findMany({ where: { userId }, include: { legs: true } }),
+    prisma.transactionSplit.findMany({
+      where: { userId },
+      include: { parts: { orderBy: { id: "asc" } } },
+    }),
+    prisma.plaidTransaction.findMany({ where: { pending: false, account: { item: { userId } } } }),
+    prisma.vendor.findMany({
+      where: { userId, priority: { not: null } },
+      include: { conditions: true },
+      orderBy: { priority: "asc" },
+    }),
+  ]);
+
+  const txnById = new Map(posted.map((t) => [t.transactionId, t]));
+  const groupById = new Map(allGroups.map((gr) => [gr.id, gr]));
+  // Match order = ascending priority; legacy/condition-less vendors never match.
+  const vendors = vendorRows.filter((v) => v.conditions.length > 0);
+
+  // The representative txn behind a flag: the txn itself, or a group's primary leg.
+  const legsOf = (grp: (typeof allGroups)[number]) =>
+    grp.legs.map((l) => txnById.get(l.transactionId)).filter((t): t is (typeof posted)[number] => !!t);
+  const flagTxn = (f: (typeof openFlags)[number]) => {
+    if (f.transactionId) return txnById.get(f.transactionId) ?? null;
+    const grp = f.mergeGroupId ? groupById.get(f.mergeGroupId) : null;
+    const legs = grp ? legsOf(grp) : [];
+    return legs.length ? primaryLeg(legs) : null;
+  };
+  const byDateDesc = (a: { date: Date }, b: { date: Date }) => b.date.getTime() - a.date.getTime();
+
+  // --- Unmatched queue: one row per effective item (merchant/name for pre-fill) ---
+  const unmatched: UnmatchedRow[] = openFlags
+    .filter((f) => f.rule === RULES.unmatchedVendor)
+    .flatMap((f) => {
+      const t = flagTxn(f);
+      if (!t) return [];
+      const isGroup = !!f.mergeGroupId;
+      const grp = isGroup ? groupById.get(f.mergeGroupId!) : null;
+      return [{
+        flagId: f.id,
+        level: isGroup ? ("group" as const) : ("transaction" as const),
+        id: isGroup ? grp!.id : t.transactionId,
+        title: isGroup ? grp!.title : t.name,
+        name: t.name,
+        merchantName: t.merchantName,
+        amount: isGroup ? num(grp!.netAmount) : num(t.amount),
+        currency: isGroup ? grp!.currency : t.isoCurrencyCode,
+        date: isGroup ? grp!.date : t.datetime,
+      }];
+    })
+    .sort(byDateDesc);
+
+  // --- Conflicts: every matching vendor + the priority winner (materialized) ---
+  const conflicts: ConflictRow[] = openFlags
+    .filter((f) => f.rule === RULES.vendorConflict)
+    .flatMap((f) => {
+      const t = flagTxn(f);
+      if (!t) return [];
+      const isGroup = !!f.mergeGroupId;
+      const grp = isGroup ? groupById.get(f.mergeGroupId!) : null;
+      const matching = vendors.filter((v) => matchesVendor(v, t));
+      return [{
+        flagId: f.id,
+        level: isGroup ? ("group" as const) : ("transaction" as const),
+        id: isGroup ? grp!.id : t.transactionId,
+        title: isGroup ? grp!.title : normalizeVendor(t.merchantName, t.name),
+        subtitle: isGroup ? grp!.title : t.name,
+        amount: isGroup ? num(grp!.netAmount) : num(t.amount),
+        currency: isGroup ? grp!.currency : t.isoCurrencyCode,
+        date: isGroup ? grp!.date : t.datetime,
+        winnerVendorId: t.vendorId,
+        vendors: matching.map((v) => ({ id: v.id, name: v.name, priority: v.priority })),
+      }];
+    })
+    .sort(byDateDesc);
+
+  // --- Suspicion rules: same entry shape the old queue used ---
+  const suspicion: Record<string, SuspicionEntry[]> = {};
+  for (const rule of SUSPICION) suspicion[rule] = [];
+  for (const f of openFlags) {
+    if (!(SUSPICION as readonly string[]).includes(f.rule)) continue;
+    if (f.transactionId) {
+      const t = txnById.get(f.transactionId);
+      if (!t) continue;
+      suspicion[f.rule].push({
+        flagId: f.id, level: "transaction", transactionId: t.transactionId,
+        vendor: normalizeVendor(t.merchantName, t.name), name: t.name,
+        amount: num(t.amount), currency: t.isoCurrencyCode, date: t.datetime,
+      });
+    } else {
+      const grp = groupById.get(f.mergeGroupId!);
+      if (!grp) continue;
+      suspicion[f.rule].push({
+        flagId: f.id, level: "group", mergeGroupId: grp.id,
+        vendor: grp.vendorName, title: grp.title,
+        amount: num(grp.netAmount), currency: grp.currency, date: grp.date,
+      });
+    }
+  }
+  for (const rule of SUSPICION) suspicion[rule].sort(byDateDesc);
+
+  // --- Merge groups (pending auto vs all confirmed) + splits ---
+  const groupView = (grp: (typeof allGroups)[number]): GroupRow => ({
+    id: grp.id, title: grp.title, vendor: grp.vendorName,
+    amount: num(grp.netAmount), currency: grp.currency, date: grp.date,
+    legs: grp.legs.map((l) => {
+      const t = txnById.get(l.transactionId);
+      return { transactionId: l.transactionId, name: t?.name ?? null, amount: t ? num(t.amount) : null };
+    }),
+  });
+  const pendingGroups = allGroups.filter((grp) => grp.status === "auto").map(groupView).sort(byDateDesc);
+  const mergeGroups = allGroups.filter((grp) => grp.status === "confirmed").map(groupView).sort(byDateDesc);
+
+  const splitRows: SplitRow[] = splits.flatMap((s) => {
+    const t = txnById.get(s.parentTransactionId);
+    if (!t) return [];
+    return [{
+      parentTransactionId: s.parentTransactionId,
+      title: t.name,
+      amount: num(t.amount),
+      currency: t.isoCurrencyCode,
+      date: t.datetime,
+      parts: s.parts.map((p) => ({ amount: num(p.amount), label: p.label, categoryName: p.categoryName })),
+    }];
+  }).sort(byDateDesc);
+
+  // --- Counters: open items across ALL sections, by their own date ---
+  const now = new Date();
+  const today = dayRange(now);
+  const thisMonth = monthRange(now);
+  const openDates = [
+    ...unmatched.map((r) => r.date),
+    ...conflicts.map((r) => r.date),
+    ...SUSPICION.flatMap((rule) => suspicion[rule].map((e) => e.date)),
+    ...pendingGroups.map((r) => r.date),
+  ];
+  const counters = {
+    today: openDates.filter((d) => inRange(d, today)).length,
+    thisMonth: openDates.filter((d) => inRange(d, thisMonth)).length,
+    totalOpen: openDates.length,
+  };
+
+  return { counters, unmatched, conflicts, suspicion, pendingGroups, mergeGroups, splits: splitRows };
+}
