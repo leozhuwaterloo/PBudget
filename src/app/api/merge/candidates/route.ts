@@ -3,6 +3,7 @@ import { gate, num } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { categoryFor } from "@/lib/categories";
 import { normalizeVendor, plaidPrimary } from "@/lib/analysis/vendor";
+import { splitParentIds } from "@/lib/splits";
 
 // GET /api/merge/candidates?exclude=id1,id2 — the merge picker's pool: ALL of the
 // user's POSTED, ungrouped transactions (flagged or not; FR3). Pending rows and
@@ -23,6 +24,8 @@ export async function GET(req: Request) {
       (l) => l.transactionId
     )
   );
+  // Split parents can never be merged (FR5) — drop them from the picker.
+  const splitParents = await splitParentIds(userId);
   const [txns, mappings] = await Promise.all([
     prisma.plaidTransaction.findMany({
       where: { pending: false, account: { item: { userId } } },
@@ -32,7 +35,9 @@ export async function GET(req: Request) {
   ]);
 
   const candidates = txns
-    .filter((t) => !legIds.has(t.transactionId) && !exclude.has(t.transactionId))
+    .filter(
+      (t) => !legIds.has(t.transactionId) && !splitParents.has(t.transactionId) && !exclude.has(t.transactionId)
+    )
     .map((t) => {
       const pp = plaidPrimary(t.category);
       return {

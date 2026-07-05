@@ -7,6 +7,7 @@ import { normalizeVendor, isTransferLike } from "./vendor";
 import { createMergeGroup } from "./merge";
 import { rematchUser } from "./match";
 import { primaryLeg } from "./groups";
+import { splitParentIds } from "../splits";
 import {
   AUTOMATCH_WINDOW_DAYS,
   DUPLICATE_WINDOW_DAYS,
@@ -123,7 +124,10 @@ async function autoMatch(userId: string, posted: PlaidTransaction[]): Promise<vo
   const memo = new Set(
     (await prisma.dissolvedGroupMemo.findMany({ where: { userId } })).map((m) => m.legKey)
   );
-  const cands = posted.filter((t) => !grouped.has(t.transactionId));
+  // Split parents can never be merged (FR5 merge/split mutual exclusion), so they
+  // never enter the auto-match pool.
+  const splitParents = await splitParentIds(userId);
+  const cands = posted.filter((t) => !grouped.has(t.transactionId) && !splitParents.has(t.transactionId));
 
   type Pair = { a: string; b: string; dist: number; key: string };
   const pairs: Pair[] = [];

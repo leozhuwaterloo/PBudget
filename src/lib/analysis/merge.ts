@@ -23,6 +23,14 @@ export async function createMergeGroup(
   });
   if (legs.length < 2) throw new Error("createMergeGroup: need >= 2 legs");
 
+  // Merge/split mutual exclusion (FR5): a split parent can never become a merge
+  // leg. Callers pre-filter (auto-match skips split parents; the manual route 400s),
+  // so this invariant should never trip.
+  const splitParents = await prisma.transactionSplit.count({
+    where: { parentTransactionId: { in: legIds } },
+  });
+  if (splitParents > 0) throw new Error("createMergeGroup: split parents cannot be merged");
+
   const primary = primaryLeg(legs);
   const pp = plaidPrimary(primary.category);
   const mappings = await prisma.categoryMapping.findMany({ where: { userId } });
