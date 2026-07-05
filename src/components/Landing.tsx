@@ -153,7 +153,7 @@ function Statement({ tr }: { tr: (k: string, p?: Record<string, string | number>
           <span className={styles.raw}>SP GENERIC*STOREXYZ</span>
           <span>
             <span className={styles.payee}>STOREXYZ</span>
-            <span className={styles.flagBadge}>{tr("rule.unknown_vendor")}</span>
+            <span className={styles.flagBadge}>{tr("rule.unmatched_vendor")}</span>
           </span>
           <span className={styles.amt}>89.00</span>
         </div>
