@@ -10,6 +10,7 @@ const en = {
   "nav.login": "Log in",
   "nav.signup": "Sign up",
   "nav.logout": "Log out",
+  "nav.language": "Language",
 
   // ==================================================================
   // V2 PAGES — parallel-safe i18n regions (F0). Each page card edits ONLY
@@ -210,6 +211,7 @@ const en = {
   "dash.trend.title": "Monthly spend",
   "dash.trend.sub": "last 12 months",
   "dash.trend.empty": "No spend to chart yet.",
+  "dash.trend.aria": "Monthly spend trend",
   "dash.review.title": "Items to review",
   "dash.review.unmatched": "Unmatched",
   "dash.review.conflicts": "Conflicts",

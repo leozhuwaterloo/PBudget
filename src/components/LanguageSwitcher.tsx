@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { LOCALES, type Locale } from "@/lib/i18n";
-import { useLocale } from "@/lib/i18n/context";
+import { useLocale, useT } from "@/lib/i18n/context";
 
 // Nav language control. Sets the `locale` cookie always (so pre-login and
 // logged-out users get their choice), and persists User.locale when logged in.
@@ -9,6 +9,7 @@ import { useLocale } from "@/lib/i18n/context";
 // User.locale over the cookie — refreshing first would read the stale value.
 export default function LanguageSwitcher() {
   const locale = useLocale();
+  const t = useT();
   const router = useRouter();
 
   const change = async (next: Locale) => {
@@ -23,7 +24,7 @@ export default function LanguageSwitcher() {
 
   return (
     <select
-      aria-label="Language"
+      aria-label={t("nav.language")}
       value={locale}
       onChange={(e) => change(e.target.value as Locale)}
       style={{ width: "auto" }}
