@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReviewMergePicker from "./ReviewMergePicker";
 import CatalogBrowser from "./CatalogBrowser";
 import VendorEditor, { type Vendor, type Condition, type Refs } from "./VendorEditor";
@@ -195,6 +195,22 @@ export default function Review() {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  // Deep-link scroll (AC8): the sections render from client-fetched JSON, so on a
+  // client-side <Link> nav from the Dashboard tiles the anchor isn't in the DOM
+  // when Next processes the hash — native hash-scroll only fires on full loads.
+  // Once data has rendered, scroll the location.hash target into view (once).
+  // Deferred a frame so it runs after Next's nav-scroll-to-top (which fires at
+  // nav time, before this async data lands, and would otherwise race us to 0).
+  // Hidden/empty section → getElementById is null → no-op (lands at top).
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!data || scrolledRef.current) return;
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    scrolledRef.current = true;
+    requestAnimationFrame(() => document.getElementById(hash)?.scrollIntoView());
+  }, [data]);
 
   const reload = () => setReloadKey((k) => k + 1);
   const act = async (fn: () => Promise<unknown>) => {
