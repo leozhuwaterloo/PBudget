@@ -54,6 +54,21 @@ const en = {
   // --- review v2 (F12) — add review-v2 strings within this region ---
 
   // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
+  "dash.title": "Dashboard",
+  "dash.month": "Month",
+  "dash.empty": "Connect a bank on the Accounts page to see your spending here.",
+  "dash.trend.title": "Monthly spend",
+  "dash.trend.sub": "last 12 months",
+  "dash.trend.empty": "No spend to chart yet.",
+  "dash.review.title": "Items to review",
+  "dash.review.unmatched": "Unmatched",
+  "dash.review.conflicts": "Conflicts",
+  "dash.review.suspicion": "Suspicion flags",
+  "dash.review.pending": "Pending merges",
+  "dash.budget.title": "Budget vs actual",
+  "dash.budget.empty": "No budgets or spend this month.",
+  "dash.vendors.title": "Top vendors",
+  "dash.vendors.empty": "No vendor spend this month.",
   // (end V2 page regions)
 
   // common

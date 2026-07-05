@@ -16,6 +16,7 @@
     "check:tiers": "tsx scripts/check-tiers.ts",
     "check:catalog": "tsx scripts/check-catalog.ts",
     "check:splits": "tsx scripts/check-splits.ts",
+    "check:dashboard": "tsx scripts/check-dashboard.ts",
     "migrate:portfolio": "tsx scripts/migrate-portfolio.ts"
   },
   "prisma": {
