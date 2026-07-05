@@ -9,11 +9,6 @@ const zh: Messages = {
   "nav.review": "审核",
   "nav.accounts": "账户",
   "nav.customizations": "自定义",
-  // report/budget/categories/billing pages stay reachable-by-URL until F14 deletes them
-  "nav.report": "报告",
-  "nav.budget": "预算",
-  "nav.categories": "分类",
-  "nav.billing": "账单",
   "nav.login": "登录",
   "nav.signup": "注册",
   "nav.logout": "退出登录",
@@ -229,8 +224,6 @@ const zh: Messages = {
   "common.save": "保存",
   "common.saving": "保存中…",
   "common.reset": "重置",
-  "common.subscribe": "订阅",
-  "common.requestFailed": "请求失败",
   "common.genericError": "出错了",
 
   // auth
@@ -276,88 +269,25 @@ const zh: Messages = {
   "resend.sent": "验证邮件已发送。",
   "resend.failed": "发送失败——您登录了吗？",
 
-  // dashboard
-  "dashboard.title": "您的银行",
-  "dashboard.bannerTitle": "开始订阅",
-  "dashboard.bannerBody": "——每个管理账户每月 $1。您需要有效的订阅才能连接和同步账户。",
-  "dashboard.noBanks": "尚未连接任何银行。",
-  "dashboard.colBank": "银行",
-  "dashboard.colAccounts": "账户数",
-  "dashboard.colLastUpdated": "最后更新",
-  "dashboard.colActions": "操作",
-  "dashboard.sync": "同步",
-  "dashboard.reauth": "重新授权",
-  "dashboard.connect": "连接银行账户",
-  "dashboard.viewBudget": "查看预算规划",
 
-  // billing
-  "billing.title": "账单",
-  "billing.subtitle": "每个管理账户每月 $1。",
-  "billing.status": "状态",
-  "billing.statusNone": "无",
-  "billing.managedAccounts": "管理的账户",
-  "billing.estimatedMonthly": "预计每月",
-  "billing.manage": "管理账单",
 
-  // item detail
-  "item.updated": "更新于",
-  "item.colAccount": "账户",
-  "item.colCurrent": "当前余额",
-  "item.colTransactions": "交易数",
-  "item.colLastUpdated": "最后更新",
 
   // transaction table fields + group badge
-  "field.name": "交易名称",
-  "field.merchant": "商户名称",
-  "field.category": "分类",
-  "field.amount": "金额",
-  "field.date": "日期",
-  "field.lastUpdated": "最后更新",
-  "field.bank": "银行",
-  "field.account": "账户",
   "txn.groupBadge": "合并 · {n}",
-  "txn.groupTooltip": "{n} 笔交易的合并组",
 
-  // budget
-  "budget.title": "预算规划",
-  "budget.empty": "暂无交易——请在仪表板连接并同步银行。",
-  "budget.colMonth": "月份",
-  "budget.colTotal": "总计（不含收入和转账）",
-  "budget.colCategory": "分类",
-  "budget.colSpent": "已花费",
-  "budget.colBudget": "预算",
-  "budget.colUsage": "使用率",
-  "budget.colTransactions": "交易数",
-  "budget.na": "不适用",
 
   // report
-  "report.title": "月度报告",
-  "report.month": "月份",
-  "report.noActivity": "本月无活动。",
-  "report.cashFlow": "现金流",
   "report.moneyIn": "收入",
   "report.moneyOut": "支出",
   "report.net": "净额",
-  "report.flagsThisMonth": "本月标记",
-  "report.open": "待处理",
-  "report.resolved": "已处理",
-  "report.category": "分类",
-  "report.spend": "支出",
-  "report.noSpend": "本月无分类支出。",
 
   // review
   "review.title": "审核",
-  "review.suspiciousToday": "今日可疑",
   "review.thisMonth": "本月",
   "review.totalOpen": "待处理总数",
-  "review.filter": "筛选",
-  "review.allDates": "所有日期",
-  "review.byDay": "按日",
-  "review.byMonth": "按月",
   "review.mergeTransactions": "合并交易…",
   "review.allClear": "全部处理完毕",
   "review.allClearBody": "没有待处理的标记，也没有等待确认的合并组。",
-  "review.noMatch": "没有符合此筛选的标记。",
   "review.pendingGroups": "自动匹配的合并组——待确认（{n}）",
   "review.colGroup": "合并组",
   "review.colNet": "净额",
@@ -368,8 +298,6 @@ const zh: Messages = {
   "review.confirm": "确认",
   "review.dissolve": "解散",
   "review.mergedGroup": "合并组",
-  "review.approveVendor": "批准商户",
-  "review.reject": "拒绝",
   "review.merge": "合并…",
   "review.dismiss": "忽略",
 
@@ -378,11 +306,6 @@ const zh: Messages = {
   "rule.unmatched_transfer": "未匹配转账",
   "rule.unusual_amount": "异常金额",
   "rule.duplicate_charge": "重复扣款",
-
-  // review — vendor status
-  "status.approved": "已批准",
-  "status.rejected": "已拒绝",
-  "status.pending": "待处理",
 
   // merge picker
   "merge.title": "合并交易",

@@ -19,7 +19,9 @@
     "check:splits": "tsx scripts/check-splits.ts",
     "check:dashboard": "tsx scripts/check-dashboard.ts",
     "check:review": "tsx scripts/check-review.ts",
-    "migrate:portfolio": "tsx scripts/migrate-portfolio.ts"
+    "check:migration": "tsx scripts/check-migration.ts",
+    "migrate:portfolio": "tsx scripts/migrate-portfolio.ts",
+    "migrate:vendors": "tsx scripts/migrate-vendors-v2.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
