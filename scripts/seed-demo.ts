@@ -141,14 +141,38 @@ const MATCH_FIXTURES: Fx[] = [
   { id: "f1-group-secondary", account: CHEQUING, amount: 100, name: "Zgroup Secondary", merchant: "Zgroupvendor", primary: gm, daysAgo: 11 },
 ];
 
+// --- F2 category-waterfall fixtures -----------------------------------------
+// Exercise the read-time waterfall (F2): per-row category routing, the fallback
+// chain (vendor default → CategoryMapping → humanized primary), vendor-identity
+// exposure, and a split whose parts replace their parent. Unique "zf2…" tokens keep
+// them off every F1 probe; distinct amounts keep them off the suspicion rules
+// (except the intentional split-parent duplicate). → point 4
+const F2_FIXTURES: Fx[] = [
+  // Router vendor, two rows w/ different categories: alpha→row0 (Grocery),
+  // beta→row1 (Restaurant), both→first matching row wins (Grocery).
+  { id: "f2-router-alpha", account: CHEQUING, amount: 21, name: "Zf2alpha buy", merchant: "Zf2 Router", primary: gm, daysAgo: 9 },
+  { id: "f2-router-beta", account: CHEQUING, amount: 22, name: "Zf2beta buy", merchant: "Zf2 Router", primary: gm, daysAgo: 8 },
+  { id: "f2-router-both", account: CHEQUING, amount: 26, name: "Zf2alpha Zf2beta buy", merchant: "Zf2 Router", primary: gm, daysAgo: 7 },
+  // Fallback chain: matching row w/o a category → vendor default (Pet).
+  { id: "f2-vdefault-hit", account: CHEQUING, amount: 23, name: "Zf2vdefault buy", merchant: "VDefault Co", primary: gm, daysAgo: 9 },
+  // → CategoryMapping (PERSONAL_CARE → Utility) when vendor has no default either.
+  { id: "f2-mapping-hit", account: CHEQUING, amount: 24, name: "Zf2mapping buy", merchant: "Mapping Co", primary: "PERSONAL_CARE", daysAgo: 9 },
+  // → humanized Plaid primary (Bank Fees) when nothing above is set.
+  { id: "f2-humanized-hit", account: CHEQUING, amount: 25, name: "Zf2humanized buy", merchant: "Humanized Co", primary: "BANK_FEES", daysAgo: 9 },
+  // Split parent (300) + same-vendor same-amount twin 1 day apart: the analyzer must
+  // see the parent WHOLE (300) so both fire duplicate_charge (parts 100/200 never do).
+  { id: "f2-split-parent", account: CHEQUING, amount: 300, name: "Zf2split Parent", merchant: "Zf2split Inc", primary: gm, daysAgo: 5 },
+  { id: "f2-split-dup", account: CHEQUING, amount: 300, name: "Zf2split Twin", merchant: "Zf2split Inc", primary: gm, daysAgo: 4 },
+];
+
 type CondSpec = Partial<
   Pick<
     import("@prisma/client").VendorCondition,
-    | "nameOp" | "nameValue" | "merchantOp" | "merchantValue"
+    | "nameOp" | "nameValue" | "merchantOp" | "merchantValue" | "categoryName"
     | "accountId" | "paymentChannel" | "plaidPrimary" | "plaidDetailed"
   >
 > & { amountMin?: number; amountMax?: number };
-type VendorSpec = { name: string; priority: number; conditions: CondSpec[] };
+type VendorSpec = { name: string; priority: number; conditions: CondSpec[]; categoryName?: string; icon?: string };
 
 // One vendor per operator (unique priority). conf-high/conf-low deliberately
 // overlap on f1-conflict; check-analysis flips their priorities and breaks the
@@ -169,6 +193,30 @@ const MATCH_VENDORS: VendorSpec[] = [
   { name: "probe-detailed", priority: 111, conditions: [{ nameOp: "contains", nameValue: "zdetailed", plaidDetailed: "GENERAL_SERVICES_MEMBERSHIP" }] },
 ];
 
+// F2 waterfall vendors: per-row categories, a default-category vendor, category-less
+// vendors that force the CategoryMapping/humanized fallbacks, and the split parent's
+// vendor (row category "Travel" + an icon, to prove category & icon exposure).
+const F2_VENDORS: VendorSpec[] = [
+  { name: "f2-router", priority: 200, conditions: [
+    { nameOp: "contains", nameValue: "zf2alpha", categoryName: "Grocery" },
+    { nameOp: "contains", nameValue: "zf2beta", categoryName: "Restaurant" },
+  ] },
+  { name: "f2-vdefault", priority: 201, categoryName: "Pet", conditions: [
+    { nameOp: "contains", nameValue: "zf2vdefault" }, // no row category → vendor default
+  ] },
+  { name: "f2-mapping", priority: 202, conditions: [
+    { nameOp: "contains", nameValue: "zf2mapping" }, // no row/default → CategoryMapping
+  ] },
+  { name: "f2-humanized", priority: 203, conditions: [
+    { nameOp: "contains", nameValue: "zf2humanized" }, // nothing set → humanized primary
+  ] },
+  { name: "f2-split-vendor", priority: 204, icon: "airplane", conditions: [
+    { nameOp: "contains", nameValue: "zf2split", categoryName: "Travel" },
+  ] },
+];
+
+const ALL_VENDORS = [...MATCH_VENDORS, ...F2_VENDORS];
+
 // Upsert vendors + rows idempotently (delete/recreate rows so re-seed converges).
 async function seedVendors(): Promise<void> {
   // Drop the closer vendor that check-analysis creates at runtime (priority 300):
@@ -179,20 +227,47 @@ async function seedVendors(): Promise<void> {
   // Clear priorities first so a re-seed over a reordered DB (check-analysis flips
   // conf-high/conf-low) can reassign the target ints without a @@unique collision.
   await prisma.vendor.updateMany({
-    where: { userId: USER_ID, name: { in: MATCH_VENDORS.map((v) => v.name) } },
+    where: { userId: USER_ID, name: { in: ALL_VENDORS.map((v) => v.name) } },
     data: { priority: null },
   });
-  for (const v of MATCH_VENDORS) {
+  for (const v of ALL_VENDORS) {
     const vendor = await prisma.vendor.upsert({
       where: { userId_name: { userId: USER_ID, name: v.name } },
-      create: { userId: USER_ID, name: v.name, priority: v.priority },
-      update: { priority: v.priority },
+      create: { userId: USER_ID, name: v.name, priority: v.priority, categoryName: v.categoryName ?? null, icon: v.icon ?? null },
+      update: { priority: v.priority, categoryName: v.categoryName ?? null, icon: v.icon ?? null },
     });
     await prisma.vendorCondition.deleteMany({ where: { vendorId: vendor.id } });
     await prisma.vendorCondition.createMany({
       data: v.conditions.map((c, i) => ({ vendorId: vendor.id, order: i, ...c })),
     });
   }
+}
+
+// F2 read-model extras: a CategoryMapping for the fallback-chain test and a
+// TransactionSplit whose parts replace their parent in the effective read model.
+async function seedF2Extras(): Promise<void> {
+  // PERSONAL_CARE → "Utility": no other fixture predicts this primary, so it only
+  // moves f2-mapping-hit (the vendor there has no row/default category).
+  await prisma.categoryMapping.upsert({
+    where: { userId_plaidPrimary: { userId: USER_ID, plaidPrimary: "PERSONAL_CARE" } },
+    create: { userId: USER_ID, plaidPrimary: "PERSONAL_CARE", categoryName: "Utility" },
+    update: { categoryName: "Utility" },
+  });
+
+  // Split f2-split-parent (300) into an overridden part (100 → Grocery) and an
+  // un-overridden part (200 → follows the parent's live waterfall = vendor "Travel").
+  const split = await prisma.transactionSplit.upsert({
+    where: { parentTransactionId: "f2-split-parent" },
+    create: { userId: USER_ID, parentTransactionId: "f2-split-parent" },
+    update: {},
+  });
+  await prisma.splitPart.deleteMany({ where: { splitId: split.id } });
+  await prisma.splitPart.createMany({
+    data: [
+      { splitId: split.id, amount: 100, label: "groceries", categoryName: "Grocery" },
+      { splitId: split.id, amount: 200, label: "everything else" },
+    ],
+  });
 }
 
 // Idempotent manual merge (F1's net-≠0 group test): skip if a leg is already grouped.
@@ -276,11 +351,12 @@ async function seedBase(): Promise<void> {
 async function main(): Promise<void> {
   const phase2 = process.argv.includes("--phase2");
   await seedBase();
-  for (const f of [...PHASE1, ...MATCH_FIXTURES]) await upsertTxn(f);
+  for (const f of [...PHASE1, ...MATCH_FIXTURES, ...F2_FIXTURES]) await upsertTxn(f);
   if (phase2) {
     for (const f of PHASE2) await upsertTxn(f);
   }
-  await seedVendors(); // F1: vendors + condition rows (before analyze so rematch sees them)
+  await seedVendors(); // F1/F2: vendors + condition rows (before analyze so rematch sees them)
+  await seedF2Extras(); // F2: CategoryMapping + split parts (read at effective-model time)
   await ensureManualMerge(["f1-group-primary", "f1-group-secondary"]); // net-≠0 group
   await analyzeUser(USER_ID);
 

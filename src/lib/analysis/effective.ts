@@ -1,8 +1,8 @@
-import type { PlaidTransaction } from "@prisma/client";
+import type { PlaidTransaction, Vendor, VendorCondition } from "@prisma/client";
 import { prisma } from "../db";
-import { normalizeVendor, plaidPrimary } from "./vendor";
+import { normalizeVendor } from "./vendor";
 import { primaryLeg } from "./groups";
-import { categoryFor } from "../categories";
+import { resolveCategory } from "../categories";
 
 export type EffectiveLeg = {
   id: string;
@@ -12,58 +12,100 @@ export type EffectiveLeg = {
   date: Date;
 };
 
+// The shared read contract for the V2 pages (F8/F12/F13). Every list/sum/page reads
+// through effectiveTransactions so config changes move spend retroactively.
 export type EffectiveTransaction = {
   isGroup: boolean;
-  id: string; // txn transactionId, or group id
+  id: string; // txn transactionId, group id, or split-part id
+  parentId: string | null; // split part → its parent txn id; else null
   title: string;
-  vendorName: string;
+  vendorName: string; // matched vendor's display name, else normalized string
+  vendorId: string | null; // materialized winning vendor (null = unmatched/queue)
+  vendorIcon: string | null; // matched vendor's icon slug (null = unmatched or no icon)
   categoryName: string | null;
   date: Date;
   amount: number; // signed Plaid convention; netAmount for groups (net-0 → 0)
   currency: string | null;
-  legs: EffectiveLeg[]; // [] for ungrouped txns; the member txns for groups
+  legs: EffectiveLeg[]; // [] for ungrouped txns and split parts; members for groups
 };
 
-// Merge-aware read model (FR6/FR7, SPEC "effectiveTransactions"). Every list,
-// report and budget card reads through this so a group collapses to ONE line at
-// its net and legs never appear individually. Ungrouped posted txns pass through
-// as-is; each group (auto OR confirmed — exclusions apply from the moment of
-// auto-match) becomes one synthetic entry at netAmount. Net-0 groups are included
-// at amount 0 (lists show them; report/budget sums then contribute nothing).
-// Categories resolve at READ time (via categoryFor) so a remap retroactively
-// moves spend — for groups, from the primary leg, same as createMergeGroup.
+type LoadedVendor = Vendor & { conditions: VendorCondition[] };
+
+// Merge-, split- and vendor-aware read model (FR3/FR5/FR6/FR7). A merge group
+// collapses to ONE line at its net; a split PARENT is replaced by its parts (one
+// line per part); ungrouped unsplit txns pass through. Vendor identity is the
+// materialized vendorId — matched vendor's display name + icon, falling back to the
+// normalized string when unmatched (groups key on the primary leg). Categories
+// resolve at READ time through the full waterfall (resolveCategory) so any vendor
+// rule / mapping / split-override change retroactively moves spend.
 export async function effectiveTransactions(
   userId: string,
   range: { from?: Date; to?: Date } = {}
 ): Promise<EffectiveTransaction[]> {
-  const [posted, groups, mappings] = await Promise.all([
+  const [posted, groups, mappings, vendors, splits] = await Promise.all([
     prisma.plaidTransaction.findMany({
       where: { pending: false, account: { item: { userId } } },
     }),
     prisma.mergeGroup.findMany({ where: { userId }, include: { legs: true } }),
     prisma.categoryMapping.findMany({ where: { userId } }),
+    prisma.vendor.findMany({ where: { userId }, include: { conditions: true } }),
+    prisma.transactionSplit.findMany({
+      where: { userId },
+      include: { parts: { orderBy: { id: "asc" } } },
+    }),
   ]);
 
   const postedById = new Map(posted.map((t) => [t.transactionId, t]));
   const legIds = new Set(groups.flatMap((g) => g.legs.map((l) => l.transactionId)));
+  const vendorById = new Map<string, LoadedVendor>(vendors.map((v) => [v.id, v]));
+  const splitByParent = new Map(splits.map((s) => [s.parentTransactionId, s]));
+  const vendorOf = (id: string | null): LoadedVendor | null =>
+    (id && vendorById.get(id)) || null;
   const inRange = (d: Date) =>
     (!range.from || d >= range.from) && (!range.to || d <= range.to);
-  const category = (cat: string | null): string | null => {
-    const pp = plaidPrimary(cat);
-    return pp ? categoryFor(mappings, pp) : null;
-  };
 
   const out: EffectiveTransaction[] = [];
 
   for (const t of posted) {
     if (legIds.has(t.transactionId)) continue; // legs are represented by their group
     if (!inRange(t.datetime)) continue;
+    const vendor = vendorOf(t.vendorId);
+    const vendorName = vendor?.name ?? normalizeVendor(t.merchantName, t.name);
+    const vendorIcon = vendor?.icon ?? null;
+    const split = splitByParent.get(t.transactionId);
+
+    if (split) {
+      // Parent is REPLACED by its parts: part category = its override, else the
+      // parent's live waterfall resolution (never snapshotted); parts inherit the
+      // parent's vendor, date and currency.
+      for (const part of split.parts) {
+        out.push({
+          isGroup: false,
+          id: part.id,
+          parentId: t.transactionId,
+          title: part.label ? `${t.name} — ${part.label}` : t.name,
+          vendorName,
+          vendorId: t.vendorId,
+          vendorIcon,
+          categoryName: resolveCategory(mappings, vendor, t, part.categoryName),
+          date: t.datetime,
+          amount: Number(part.amount),
+          currency: t.isoCurrencyCode,
+          legs: [],
+        });
+      }
+      continue;
+    }
+
     out.push({
       isGroup: false,
       id: t.transactionId,
+      parentId: null,
       title: t.name,
-      vendorName: normalizeVendor(t.merchantName, t.name),
-      categoryName: category(t.category),
+      vendorName,
+      vendorId: t.vendorId,
+      vendorIcon,
+      categoryName: resolveCategory(mappings, vendor, t, null),
       date: t.datetime,
       amount: Number(t.amount),
       currency: t.isoCurrencyCode,
@@ -77,12 +119,18 @@ export async function effectiveTransactions(
       .map((l) => postedById.get(l.transactionId))
       .filter((t): t is PlaidTransaction => !!t);
     const primary = legRows.length ? primaryLeg(legRows) : null;
+    const vendor = vendorOf(primary?.vendorId ?? null);
     out.push({
       isGroup: true,
       id: g.id,
+      parentId: null,
       title: g.title,
-      vendorName: g.vendorName ?? "",
-      categoryName: primary ? category(primary.category) : g.categoryName,
+      vendorName: vendor?.name ?? g.vendorName ?? "",
+      vendorId: primary?.vendorId ?? null,
+      vendorIcon: vendor?.icon ?? null,
+      categoryName: primary
+        ? resolveCategory(mappings, vendor, primary, null)
+        : g.categoryName,
       date: g.date,
       amount: Number(g.netAmount),
       currency: g.currency,
