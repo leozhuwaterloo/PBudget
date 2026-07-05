@@ -7,6 +7,7 @@
 // imported — it runs main() on load). Criterion numbers refer to the PRD.
 import { prisma } from "../src/lib/db";
 import { analyzeUser } from "../src/lib/analysis/analyze";
+import { rematchUser } from "../src/lib/analysis/match";
 
 const USER_ID = "demo-user";
 // A flag we dismiss at the end of phase 1 so phase-2 re-analysis can prove
@@ -29,6 +30,12 @@ const openFlag = (transactionId: string, rule: string) =>
   prisma.transactionFlag.findFirst({ where: { transactionId, rule, status: "open" } });
 const anyFlag = (transactionId: string, rule: string) =>
   prisma.transactionFlag.findFirst({ where: { transactionId, rule } });
+const groupFlag = (mergeGroupId: string, rule: string, status?: string) =>
+  prisma.transactionFlag.findFirst({ where: { mergeGroupId, rule, ...(status ? { status } : {}) } });
+const vendorByName = (name: string) =>
+  prisma.vendor.findFirst({ where: { userId: USER_ID, name } });
+const vendorIdOf = async (transactionId: string): Promise<string | null> =>
+  (await prisma.plaidTransaction.findUnique({ where: { transactionId } }))?.vendorId ?? null;
 
 async function phase1(): Promise<void> {
   // unknown_vendor is retired: the analyzer never fires it anywhere (the funnel's
@@ -102,6 +109,8 @@ async function phase1(): Promise<void> {
   check(!!(await anyFlag("demo-txn-b-unusual", "unusual_amount")), "unusual_amount fires for any vendor (no approval gate)");
   check(!!(await openFlag("demo-txn-b-prior-1", "duplicate_charge")), "Vendor B identical priors flagged duplicate_charge");
 
+  await vendorMatching();
+
   await idempotency();
 
   // Set up criterion 16: dismiss a flag that phase-2 re-analysis must not reopen.
@@ -132,6 +141,103 @@ async function phase2(): Promise<void> {
   );
 
   await idempotency();
+}
+
+// F1 vendor matching engine + queue rules (task point 4). Mutates vendors and
+// re-runs rematchUser to exercise the conflict/unmatched lifecycles; runs on a
+// fresh seed before the idempotency snapshot.
+async function vendorMatching(): Promise<void> {
+  // Every operator both includes (HIT gets the vendorId) and excludes (MISS stays
+  // unmatched). Covers contains/equals/starts_with/regex on name and merchant,
+  // amount range, account, payment channel, and Plaid primary/detailed.
+  const PROBES: [string, string, string][] = [
+    ["probe-name-contains", "f1-name-contains-hit", "f1-name-contains-miss"],
+    ["probe-name-equals", "f1-name-equals-hit", "f1-name-equals-miss"],
+    ["probe-name-starts", "f1-name-starts-hit", "f1-name-starts-miss"],
+    ["probe-name-regex", "f1-name-regex-hit", "f1-name-regex-miss"],
+    ["probe-merch-contains", "f1-merch-contains-hit", "f1-merch-contains-miss"],
+    ["probe-merch-regex", "f1-merch-regex-hit", "f1-merch-regex-miss"],
+    ["probe-amount", "f1-amount-hit", "f1-amount-miss"],
+    ["probe-account", "f1-account-hit", "f1-account-miss"],
+    ["probe-channel", "f1-channel-hit", "f1-channel-miss"],
+    ["probe-primary", "f1-primary-hit", "f1-primary-miss"],
+    ["probe-detailed", "f1-detailed-hit", "f1-detailed-miss"],
+  ];
+  for (const [vname, hit, miss] of PROBES) {
+    const v = await vendorByName(vname);
+    check(!!v && (await vendorIdOf(hit)) === v.id, `operator ${vname}: HIT is matched`);
+    check((await vendorIdOf(miss)) === null, `operator ${vname}: MISS is excluded`);
+  }
+
+  // Multi-match: priority winner assigned + vendor_conflict opens; reorder flips
+  // the winner; removing the overlap auto-closes the conflict (criterion 2).
+  const confHigh = (await vendorByName("conf-high"))!;
+  const confLow = (await vendorByName("conf-low"))!;
+  check((await vendorIdOf("f1-conflict")) === confHigh.id, "conflict: priority winner (conf-high) assigned");
+  check(!!(await openFlag("f1-conflict", "vendor_conflict")), "conflict: vendor_conflict opens on multi-match");
+
+  // Flip priorities 10<->20 (temp value dodges the @@unique([userId, priority])).
+  await prisma.vendor.update({ where: { id: confHigh.id }, data: { priority: 100000 } });
+  await prisma.vendor.update({ where: { id: confLow.id }, data: { priority: 10 } });
+  await prisma.vendor.update({ where: { id: confHigh.id }, data: { priority: 20 } });
+  await rematchUser(USER_ID);
+  check((await vendorIdOf("f1-conflict")) === confLow.id, "conflict: reorder flips the winner to conf-low");
+  check(!!(await openFlag("f1-conflict", "vendor_conflict")), "conflict: still open while both vendors overlap");
+
+  // Break the overlap: conf-low no longer matches → conflict auto-closes.
+  await prisma.vendorCondition.updateMany({ where: { vendorId: confLow.id }, data: { merchantValue: "zzz-no-overlap" } });
+  await rematchUser(USER_ID);
+  check((await vendorIdOf("f1-conflict")) === confHigh.id, "conflict: only conf-high matches after overlap removed");
+  const conf = await anyFlag("f1-conflict", "vendor_conflict");
+  check(!!conf && conf.status === "resolved", "conflict: vendor_conflict auto-closes when overlap gone");
+
+  // unmatched_vendor opens for a no-match txn and auto-closes once a vendor matches
+  // (criterion 1). No fresh sync — just rematch.
+  check((await vendorIdOf("f1-unmatch")) === null, "unmatched: f1-unmatch matches no vendor initially");
+  check(!!(await openFlag("f1-unmatch", "unmatched_vendor")), "unmatched: unmatched_vendor opens for a no-match txn");
+  const closer = await prisma.vendor.create({
+    data: {
+      userId: USER_ID, name: "unmatch-closer", priority: 300,
+      conditions: { create: [{ order: 0, nameOp: "contains", nameValue: "zunmatch" }] },
+    },
+  });
+  await rematchUser(USER_ID);
+  check((await vendorIdOf("f1-unmatch")) === closer.id, "unmatched: a matching vendor claims f1-unmatch");
+  const um = await anyFlag("f1-unmatch", "unmatched_vendor");
+  check(!!um && um.status === "resolved", "unmatched: unmatched_vendor auto-closes on match");
+
+  // A net-≠0 group queues via its GROUP (not its legs); a net-0 group never queues.
+  const gLeg = await prisma.mergeGroupLeg.findUnique({ where: { transactionId: "f1-group-primary" } });
+  const grp = gLeg ? await prisma.mergeGroup.findUnique({ where: { id: gLeg.groupId } }) : null;
+  check(!!grp && Number(grp.netAmount) === 400, "group: manual merge nets +400 (≠0)");
+  check(!!grp && !!(await groupFlag(grp.id, "unmatched_vendor", "open")), "group: net-≠0 group queues unmatched_vendor");
+  const legQueued = await prisma.transactionFlag.count({
+    where: { transactionId: { in: ["f1-group-primary", "f1-group-secondary"] }, rule: "unmatched_vendor" },
+  });
+  check(legQueued === 0, "group: grouped legs themselves never queue");
+
+  const eLeg = await prisma.mergeGroupLeg.findUnique({ where: { transactionId: "demo-txn-etransfer-out" } });
+  const eGrp = eLeg ? await prisma.mergeGroup.findUnique({ where: { id: eLeg.groupId } }) : null;
+  check(!!eGrp && Number(eGrp.netAmount) === 0, "group: e-transfer group is net-0");
+  check(!!eGrp && !(await groupFlag(eGrp.id, "unmatched_vendor")), "group: net-0 group never queues");
+
+  // rematchUser is idempotent: re-running changes no vendorId or queue flag.
+  const snap = async () =>
+    JSON.stringify({
+      txns: await prisma.plaidTransaction.findMany({
+        where: { account: { item: { userId: USER_ID } } },
+        select: { transactionId: true, vendorId: true },
+        orderBy: { transactionId: "asc" },
+      }),
+      flags: await prisma.transactionFlag.findMany({
+        where: { rule: { in: ["unmatched_vendor", "vendor_conflict"] } },
+        select: { rule: true, transactionId: true, mergeGroupId: true, status: true },
+        orderBy: [{ rule: "asc" }, { transactionId: "asc" }, { mergeGroupId: "asc" }],
+      }),
+    });
+  const before = await snap();
+  await rematchUser(USER_ID);
+  check(before === (await snap()), "idempotent: re-running rematchUser changes no vendorId/queue flag");
 }
 
 // Re-running analyzeUser over unchanged data must create no new flags/groups/legs.
