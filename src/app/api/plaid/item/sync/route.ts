@@ -3,7 +3,7 @@ import { gate } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 import { refreshAndSync } from "@/lib/plaid";
-import { reconcileQuantity } from "@/lib/stripe";
+import { canSyncItem, upgradeCTA } from "@/lib/stripe";
 import { analyzeUser } from "@/lib/analysis/analyze";
 
 export async function POST(req: Request) {
@@ -16,6 +16,12 @@ export async function POST(req: Request) {
   if (!item || item.userId !== g.user!.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  // FR10: after a downgrade the oldest `limit` connections keep syncing; excess
+  // items are read-only until upgrade or disconnect.
+  const sync = await canSyncItem(g.user!, item.itemId);
+  if (!sync.ok) {
+    return NextResponse.json(upgradeCTA(g.user!.plan, sync.used), { status: 402 });
+  }
   try {
     const result = await refreshAndSync(
       g.user!.id,
@@ -23,7 +29,6 @@ export async function POST(req: Request) {
       decrypt(item.accessToken),
       item.lastForceRefreshed
     );
-    await reconcileQuantity(g.user!.id);
     // FR1: analyze the user's history after the upserts. First run analyzes all
     // existing history — nothing is grandfathered.
     await analyzeUser(g.user!.id);
