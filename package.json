@@ -12,6 +12,7 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "check:analysis": "tsx scripts/check-analysis.ts",
     "check:categories": "tsx scripts/check-categories.ts",
+    "check:vendors": "tsx scripts/check-vendors.ts",
     "check:tiers": "tsx scripts/check-tiers.ts",
     "migrate:portfolio": "tsx scripts/migrate-portfolio.ts"
   },
