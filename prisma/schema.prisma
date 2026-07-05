@@ -158,7 +158,7 @@ model Vendor {
   userId       String
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String // display name
-  icon         String? // bundled icon slug | null → letter avatar
+  link         String? // Google Maps entry (local vendor) or website (online) | null
   categoryName String? // optional DEFAULT category (FR3 fallback)
   priority     Int? // ascending = match order; NULL = legacy row, never matches
   // DEPRECATED (legacy approval model): read ONLY by F14's data migration. Do not
@@ -171,14 +171,18 @@ model Vendor {
   @@unique([userId, priority])
 }
 
-// One AND-row of a vendor (FR1): matches when ALL its set fields hold. The first
-// matching row (by `order`) decides the transaction's category.
+// One AND-row of a vendor (FR1): matches when ALL its set fields hold. Two-stage
+// model: `role="match"` rows decide vendor IDENTITY (any match → the vendor claims
+// the txn); `role="category"` rows refine the CATEGORY (first matching row by
+// `order` → its categoryName, else the vendor default). A vendor with no match
+// rows uses its category rows for identity too (the catch-all case).
 model VendorCondition {
   id             String        @id @default(cuid())
   vendorId       String
   vendor         Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  order          Int // row order within the vendor; first matching row decides category
-  categoryName   String? // per-row category outcome (not a matching field)
+  role           String        @default("category") // "match" (identity) | "category" (refine)
+  order          Int // row order within its role; first matching category row decides category
+  categoryName   String? // category outcome for a category row (ignored for match rows)
   nameOp         String? // contains | equals | starts_with | regex
   nameValue      String?
   merchantOp     String?

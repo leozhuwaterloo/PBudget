@@ -2,20 +2,18 @@
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/context";
 import CategoriesEditor from "./CategoriesEditor";
-import CategoryMappings from "./CategoryMappings";
 import BillingSection from "./BillingSection";
 
-// F9 customizations shell: subtab nav (categories / mappings / billing). Vendors
-// now lives on its own /vendors page. A category rename cascades server-side to
-// mapping rows, so bumping `mapKey` remounts the mappings section to pull the
-// cascaded names. Initial tab honors the URL hash so Stripe's portal return_url
-// (#billing) lands on the right tab.
-type Tab = "categories" | "mappings" | "billing";
-const TABS: Tab[] = ["categories", "mappings", "billing"];
+// Customizations shell: subtab nav (categories / billing). Vendors moved to
+// /vendors; the old Category Mappings tab was removed — vendors now solely
+// determine a transaction's category (a seeded catch-all vendor covers the Plaid
+// categories the mapping used to). Initial tab honors the URL hash so Stripe's
+// portal return_url (#billing) lands on the right tab.
+type Tab = "categories" | "billing";
+const TABS: Tab[] = ["categories", "billing"];
 
 export default function Customizations() {
   const t = useT();
-  const [mapKey, setMapKey] = useState(0);
   const [tab, setTab] = useState<Tab>("categories");
 
   // Hash → tab after mount (avoids SSR hydration mismatch on window.location).
@@ -42,8 +40,7 @@ export default function Customizations() {
         ))}
       </div>
 
-      {tab === "categories" && <CategoriesEditor onChanged={() => setMapKey((k) => k + 1)} />}
-      {tab === "mappings" && <CategoryMappings key={mapKey} embedded />}
+      {tab === "categories" && <CategoriesEditor />}
       {tab === "billing" && <BillingSection />}
     </div>
   );

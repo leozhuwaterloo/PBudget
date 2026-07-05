@@ -21,7 +21,7 @@ export type EffectiveTransaction = {
   title: string;
   vendorName: string; // matched vendor's display name, else normalized string
   vendorId: string | null; // materialized winning vendor (null = unmatched/queue)
-  vendorIcon: string | null; // matched vendor's icon slug (null = unmatched or no icon)
+  vendorLink: string | null; // matched vendor's link (Google Maps or website); null = unmatched/no link
   categoryName: string | null;
   date: Date;
   amount: number; // signed Plaid convention; netAmount for groups (net-0 → 0)
@@ -42,12 +42,11 @@ export async function effectiveTransactions(
   userId: string,
   range: { from?: Date; to?: Date } = {}
 ): Promise<EffectiveTransaction[]> {
-  const [posted, groups, mappings, vendors, splits] = await Promise.all([
+  const [posted, groups, vendors, splits] = await Promise.all([
     prisma.plaidTransaction.findMany({
       where: { pending: false, account: { item: { userId } } },
     }),
     prisma.mergeGroup.findMany({ where: { userId }, include: { legs: true } }),
-    prisma.categoryMapping.findMany({ where: { userId } }),
     prisma.vendor.findMany({ where: { userId }, include: { conditions: true } }),
     prisma.transactionSplit.findMany({
       where: { userId },
@@ -71,7 +70,7 @@ export async function effectiveTransactions(
     if (!inRange(t.datetime)) continue;
     const vendor = vendorOf(t.vendorId);
     const vendorName = vendor?.name ?? normalizeVendor(t.merchantName, t.name);
-    const vendorIcon = vendor?.icon ?? null;
+    const vendorLink = vendor?.link ?? null;
     const split = splitByParent.get(t.transactionId);
 
     if (split) {
@@ -86,8 +85,8 @@ export async function effectiveTransactions(
           title: part.label ? `${t.name} — ${part.label}` : t.name,
           vendorName,
           vendorId: t.vendorId,
-          vendorIcon,
-          categoryName: resolveCategory(mappings, vendor, t, part.categoryName),
+          vendorLink,
+          categoryName: resolveCategory(vendor, t, part.categoryName),
           date: t.datetime,
           amount: Number(part.amount),
           currency: t.isoCurrencyCode,
@@ -104,8 +103,8 @@ export async function effectiveTransactions(
       title: t.name,
       vendorName,
       vendorId: t.vendorId,
-      vendorIcon,
-      categoryName: resolveCategory(mappings, vendor, t, null),
+      vendorLink,
+      categoryName: resolveCategory(vendor, t, null),
       date: t.datetime,
       amount: Number(t.amount),
       currency: t.isoCurrencyCode,
@@ -127,9 +126,9 @@ export async function effectiveTransactions(
       title: g.title,
       vendorName: vendor?.name ?? g.vendorName ?? "",
       vendorId: primary?.vendorId ?? null,
-      vendorIcon: vendor?.icon ?? null,
+      vendorLink: vendor?.link ?? null,
       categoryName: primary
-        ? resolveCategory(mappings, vendor, primary, null)
+        ? resolveCategory(vendor, primary, null)
         : g.categoryName,
       date: g.date,
       amount: Number(g.netAmount),

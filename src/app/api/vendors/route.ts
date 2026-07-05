@@ -28,7 +28,7 @@ export async function GET() {
   return NextResponse.json({ vendors: await listVendors(g.user!.id) });
 }
 
-// POST — create. Body: { name, icon?, categoryName?, conditions: [...] }.
+// POST — create. Body: { name, link?, categoryName?, matchConditions: [...], categoryRules: [...] }.
 export async function POST(req: Request) {
   const g = await gate({ verified: true });
   if (g.error) return g.error;
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   }
 }
 
-// PATCH — edit. Body: { id, name, icon?, categoryName?, conditions: [...] }.
+// PATCH — edit. Body: { id, name, link?, categoryName?, matchConditions: [...], categoryRules: [...] }.
 // Rows are replaced wholesale.
 export async function PATCH(req: Request) {
   const g = await gate({ verified: true });

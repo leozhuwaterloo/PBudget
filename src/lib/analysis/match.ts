@@ -99,19 +99,38 @@ export function matchesCondition(c: VendorCondition, txn: MatchTxn): boolean {
 
 export type MatchVendor = { conditions: VendorCondition[] };
 
-// First matching row by `order` — used by F2 for category resolution (the row's
-// category, then the vendor default). null when the vendor doesn't match.
-export function firstMatchingRow(
-  vendor: MatchVendor,
-  txn: MatchTxn
-): VendorCondition | null {
-  const rows = [...vendor.conditions].sort((a, b) => a.order - b.order);
-  for (const c of rows) if (matchesCondition(c, txn)) return c;
-  return null;
+// Rows that decide vendor IDENTITY: the "match" rows, or — for a catch-all vendor
+// with no match rows — its "category" rows (whose predicates then double as
+// identity). A vendor claims a txn when ANY identity row matches (OR).
+function identityRows(vendor: MatchVendor): VendorCondition[] {
+  const match = vendor.conditions.filter((c) => c.role === "match");
+  return match.length ? match : vendor.conditions.filter((c) => c.role === "category");
 }
 
 export function matchesVendor(vendor: MatchVendor, txn: MatchTxn): boolean {
-  return firstMatchingRow(vendor, txn) !== null;
+  return identityRows(vendor).some((c) => matchesCondition(c, txn));
+}
+
+// True only when the vendor EXPLICITLY claims identity — it has "match" rows and
+// one matches. A catch-all vendor (no match rows, claimed via its category rules)
+// is excluded: it's a designed fallback, so it must not raise a vendor_conflict, or
+// every specific merchant would conflict with the seeded General Spending bucket.
+export function explicitlyMatchesVendor(vendor: MatchVendor, txn: MatchTxn): boolean {
+  const match = vendor.conditions.filter((c) => c.role === "match");
+  return match.length > 0 && match.some((c) => matchesCondition(c, txn));
+}
+
+// First matching CATEGORY row (by `order`) for a txn this vendor claims — F2 uses
+// it, then the vendor default. null when no category row matches.
+export function matchingCategoryRow(
+  vendor: MatchVendor,
+  txn: MatchTxn
+): VendorCondition | null {
+  const rows = vendor.conditions
+    .filter((c) => c.role === "category")
+    .sort((a, b) => a.order - b.order);
+  for (const c of rows) if (matchesCondition(c, txn)) return c;
+  return null;
 }
 
 // --- Rematch: materialize vendorId + maintain queue flags --------------------
@@ -174,7 +193,9 @@ export async function rematchUser(userId: string): Promise<void> {
   for (const t of posted) {
     const matches = vendors.filter((v) => matchesVendor(v, t)); // priority-sorted
     const vendorId = matches[0]?.id ?? null;
-    matchCount.set(t.transactionId, matches.length);
+    // Conflict counts only vendors that EXPLICITLY claim identity — catch-all
+    // buckets overlap everything by design and must not flood the conflict queue.
+    matchCount.set(t.transactionId, matches.filter((v) => explicitlyMatchesVendor(v, t)).length);
     if (t.vendorId !== vendorId) {
       await prisma.plaidTransaction.update({
         where: { transactionId: t.transactionId },

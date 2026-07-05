@@ -36,9 +36,10 @@ export type ConditionInput = {
 };
 export type VendorInput = {
   name?: unknown;
-  icon?: unknown;
-  categoryName?: unknown;
-  conditions?: unknown;
+  link?: unknown;
+  categoryName?: unknown; // default category (fallback)
+  matchConditions?: unknown; // identity rows (role "match")
+  categoryRules?: unknown; // category-refinement rows (role "category")
 };
 
 // Normalized row ready for Prisma create (order is assigned by array index).
@@ -78,19 +79,25 @@ function amount(v: unknown, field: string): number | undefined {
 
 // --- Validation --------------------------------------------------------------
 
-// Validate a raw condition list into Prisma create-data. Enforces: ≥1 matching
-// field per row (categoryName is an outcome, not a field), valid ops/regex,
-// amountMin ≤ amountMax, channel enum. Category/account existence is checked
-// separately (batched across the whole vendor). Returns [rows, referenced names].
-function buildRows(raw: unknown): { rows: RowData[]; categoryNames: Set<string>; accountIds: Set<string> } {
-  if (!Array.isArray(raw) || raw.length === 0)
-    bad("A vendor needs at least one condition row");
+// Validate a raw condition list into Prisma create-data for one ROLE. Enforces:
+// ≥1 matching field per row, valid ops/regex, amountMin ≤ amountMax, channel enum;
+// a "category" row additionally needs a categoryName (its outcome), a "match" row
+// ignores any category. An empty/absent list yields []. Category/account existence
+// is checked separately (batched across the whole vendor). `label` names rows in
+// 400 messages ("match condition 1" / "category rule 2").
+function buildRows(
+  raw: unknown,
+  role: "match" | "category",
+  label: string
+): { rows: RowData[]; categoryNames: Set<string>; accountIds: Set<string> } {
   const rows: RowData[] = [];
   const categoryNames = new Set<string>();
   const accountIds = new Set<string>();
+  if (raw == null) return { rows, categoryNames, accountIds };
+  if (!Array.isArray(raw)) bad(`${label} must be a list`);
 
   (raw as ConditionInput[]).forEach((c, i) => {
-    const where = `row ${i + 1}`;
+    const where = `${label} ${i + 1}`;
     if (c == null || typeof c !== "object") bad(`${where} is not an object`);
 
     const name = textPair(c.nameOp, c.nameValue, `${where} transaction name`);
@@ -120,11 +127,13 @@ function buildRows(raw: unknown): { rows: RowData[]; categoryNames: Set<string>;
     if (fieldCount === 0) bad(`${where} needs at least one matching field`);
 
     const categoryName = str(c.categoryName, `${where} category`);
-    if (categoryName) categoryNames.add(categoryName);
+    if (role === "category" && !categoryName) bad(`${where} needs a category`);
+    if (role === "category" && categoryName) categoryNames.add(categoryName);
 
     rows.push({
+      role,
       order: i,
-      categoryName: categoryName ?? null,
+      categoryName: role === "category" ? categoryName ?? null : null,
       nameOp: name?.op ?? null,
       nameValue: name?.value ?? null,
       merchantOp: merchant?.op ?? null,
@@ -139,6 +148,33 @@ function buildRows(raw: unknown): { rows: RowData[]; categoryNames: Set<string>;
   });
 
   return { rows, categoryNames, accountIds };
+}
+
+// Combine a vendor's match + category rows from raw input, enforcing "not both
+// empty" (a vendor must be able to claim SOME txn). Returns the merged create-data.
+function buildVendorRows(input: VendorInput): {
+  rows: RowData[];
+  categoryNames: Set<string>;
+  accountIds: Set<string>;
+} {
+  const match = buildRows(input.matchConditions, "match", "match condition");
+  const cat = buildRows(input.categoryRules, "category", "category rule");
+  if (match.rows.length === 0 && cat.rows.length === 0)
+    bad("A vendor needs at least one match condition or category rule");
+  return {
+    rows: [...match.rows, ...cat.rows],
+    categoryNames: new Set([...match.categoryNames, ...cat.categoryNames]),
+    accountIds: new Set([...match.accountIds, ...cat.accountIds]),
+  };
+}
+
+// A vendor link: a Google Maps entry (local) or website (online) URL. Must be
+// http(s) so it's safe as an href (rejects javascript:/data: at the boundary).
+function readLink(v: unknown): string | null {
+  const s = str(v, "link");
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) bad("Link must start with http:// or https://");
+  return s;
 }
 
 // Every referenced category must exist for the user; every referenced account
@@ -181,30 +217,37 @@ type VendorWithConditions = Prisma.VendorGetPayload<{ include: { conditions: tru
 
 const numOrNull = (d: Prisma.Decimal | null): number | null => (d == null ? null : Number(d));
 
+type SerializedRow = ReturnType<typeof serializeRow>;
+function serializeRow(c: VendorWithConditions["conditions"][number]) {
+  return {
+    id: c.id,
+    order: c.order,
+    categoryName: c.categoryName,
+    nameOp: c.nameOp,
+    nameValue: c.nameValue,
+    merchantOp: c.merchantOp,
+    merchantValue: c.merchantValue,
+    amountMin: numOrNull(c.amountMin),
+    amountMax: numOrNull(c.amountMax),
+    accountId: c.accountId,
+    paymentChannel: c.paymentChannel,
+    plaidPrimary: c.plaidPrimary,
+    plaidDetailed: c.plaidDetailed,
+  };
+}
+
 export function serializeVendor(v: VendorWithConditions) {
+  const rows = [...v.conditions].sort((a, b) => a.order - b.order);
+  const byRole = (role: string): SerializedRow[] =>
+    rows.filter((c) => c.role === role).map(serializeRow);
   return {
     id: v.id,
     name: v.name,
-    icon: v.icon,
+    link: v.link,
     categoryName: v.categoryName,
     priority: v.priority,
-    conditions: [...v.conditions]
-      .sort((a, b) => a.order - b.order)
-      .map((c) => ({
-        id: c.id,
-        order: c.order,
-        categoryName: c.categoryName,
-        nameOp: c.nameOp,
-        nameValue: c.nameValue,
-        merchantOp: c.merchantOp,
-        merchantValue: c.merchantValue,
-        amountMin: numOrNull(c.amountMin),
-        amountMax: numOrNull(c.amountMax),
-        accountId: c.accountId,
-        paymentChannel: c.paymentChannel,
-        plaidPrimary: c.plaidPrimary,
-        plaidDetailed: c.plaidDetailed,
-      })),
+    matchConditions: byRole("match"),
+    categoryRules: byRole("category"),
   };
 }
 
@@ -235,9 +278,9 @@ function rethrow(e: unknown): never {
 // assumption 1: lowest priority = highest int). Then rematch so its matches land.
 export async function createVendor(userId: string, input: VendorInput) {
   const name = readName(input.name);
-  const icon = str(input.icon, "icon") ?? null;
+  const link = readLink(input.link);
   const categoryName = str(input.categoryName, "default category") ?? null;
-  const { rows, categoryNames, accountIds } = buildRows(input.conditions);
+  const { rows, categoryNames, accountIds } = buildVendorRows(input);
   if (categoryName) categoryNames.add(categoryName);
   await assertReferences(userId, categoryNames, accountIds);
 
@@ -249,7 +292,7 @@ export async function createVendor(userId: string, input: VendorInput) {
   let vendor: VendorWithConditions;
   try {
     vendor = await prisma.vendor.create({
-      data: { userId, name, icon, categoryName, priority, conditions: { create: rows } },
+      data: { userId, name, link, categoryName, priority, conditions: { create: rows } },
       include: { conditions: true },
     });
   } catch (e) {
@@ -259,16 +302,16 @@ export async function createVendor(userId: string, input: VendorInput) {
   return serializeVendor(vendor!);
 }
 
-// Edit name/icon/default category and REPLACE the condition rows wholesale
+// Edit name/link/default category and REPLACE the condition rows wholesale
 // (replace-rows semantics — the row's identity isn't meaningful to the user).
 export async function updateVendor(userId: string, id: string, input: VendorInput) {
   const existing = await prisma.vendor.findFirst({ where: { id, userId } });
   if (!existing) throw new VendorError(404, "Vendor not found");
 
   const name = readName(input.name);
-  const icon = str(input.icon, "icon") ?? null;
+  const link = readLink(input.link);
   const categoryName = str(input.categoryName, "default category") ?? null;
-  const { rows, categoryNames, accountIds } = buildRows(input.conditions);
+  const { rows, categoryNames, accountIds } = buildVendorRows(input);
   if (categoryName) categoryNames.add(categoryName);
   await assertReferences(userId, categoryNames, accountIds);
 
@@ -278,7 +321,7 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
       await tx.vendorCondition.deleteMany({ where: { vendorId: id } });
       return tx.vendor.update({
         where: { id },
-        data: { name, icon, categoryName, conditions: { create: rows } },
+        data: { name, link, categoryName, conditions: { create: rows } },
         include: { conditions: true },
       });
     });

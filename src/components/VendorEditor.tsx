@@ -1,12 +1,14 @@
 "use client";
 import React, { useState } from "react";
 import { useT } from "@/lib/i18n/context";
-import { IconPicker } from "./VendorIcon";
 
 // Shared vendor shapes (the /api/vendors serialization + refs the editor needs).
+// Two-stage model: `matchConditions` decide identity (any match → the vendor claims
+// the txn); `categoryRules` refine the category (first match → its category, else
+// the default). A category rule carries `categoryName`; a match condition doesn't.
 export type Condition = {
   id?: string;
-  categoryName: string | null;
+  categoryName?: string | null;
   nameOp: string | null;
   nameValue: string | null;
   merchantOp: string | null;
@@ -21,10 +23,11 @@ export type Condition = {
 export type Vendor = {
   id: string;
   name: string;
-  icon: string | null;
+  link: string | null;
   categoryName: string | null;
   priority: number | null;
-  conditions: Condition[];
+  matchConditions: Condition[];
+  categoryRules: Condition[];
 };
 export type Account = { accountId: string; name: string; subtype: string | null };
 export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaileds: string[] };
@@ -75,10 +78,11 @@ const emptyRow = (): RowForm => toRowForm({
 
 // Serialize a row to the API body. Text pairs are only sent when a value is
 // present (so an untouched default op never trips the "needs both" validator).
-function rowBody(r: RowForm) {
+// `withCategory` includes the row's category outcome (category rules only).
+function rowBody(r: RowForm, withCategory: boolean) {
   const num = (s: string) => (s.trim() === "" ? null : Number(s));
   return {
-    categoryName: r.categoryName || null,
+    ...(withCategory ? { categoryName: r.categoryName || null } : {}),
     nameOp: r.nameValue.trim() ? r.nameOp : null,
     nameValue: r.nameValue.trim() || null,
     merchantOp: r.merchantValue.trim() ? r.merchantOp : null,
@@ -111,17 +115,16 @@ export default function VendorEditor({
 }) {
   const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
-  const [icon, setIcon] = useState<string | null>(initial?.icon ?? null);
+  const [link, setLink] = useState(initial?.link ?? "");
   const [defaultCat, setDefaultCat] = useState(initial?.categoryName ?? "");
-  const [rows, setRows] = useState<RowForm[]>(
-    initial && initial.conditions.length ? initial.conditions.map(toRowForm) : [emptyRow()]
+  const [matchRows, setMatchRows] = useState<RowForm[]>(
+    initial && initial.matchConditions.length ? initial.matchConditions.map(toRowForm) : [emptyRow()]
+  );
+  const [catRows, setCatRows] = useState<RowForm[]>(
+    initial && initial.categoryRules.length ? initial.categoryRules.map(toRowForm) : []
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const setRow = (key: string, patch: Partial<RowForm>) =>
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const removeRow = (key: string) => setRows((rs) => rs.filter((r) => r.key !== key));
 
   async function save() {
     setError(null);
@@ -129,9 +132,10 @@ export default function VendorEditor({
     const body = {
       ...(initial?.id ? { id: initial.id } : {}),
       name,
-      icon,
+      link: link.trim() || null,
       categoryName: defaultCat || null,
-      conditions: rows.map(rowBody),
+      matchConditions: matchRows.map((r) => rowBody(r, false)),
+      categoryRules: catRows.map((r) => rowBody(r, true)),
     };
     const res = await fetch("/api/vendors", {
       method: initial?.id ? "PATCH" : "POST",
@@ -152,40 +156,44 @@ export default function VendorEditor({
 
       {/* Vendor-level fields */}
       <div className="row wrap" style={{ gap: 16, alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 220px" }}>
+        <div style={{ flex: "1 1 200px" }}>
           <label>{t("cust.vendors.name")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("cust.vendors.namePlaceholder")} />
         </div>
-        <div style={{ flex: "1 1 220px" }}>
+        <div style={{ flex: "1 1 200px" }}>
           <label>{t("cust.vendors.defaultCategory")}</label>
           <CategorySelect value={defaultCat} categories={categories} onChange={setDefaultCat} noneLabel={t("cust.vendors.noDefault")} />
         </div>
-        <div>
-          <label>{t("cust.vendors.icon")}</label>
-          <IconPicker value={icon} name={name} onChange={setIcon} />
+        <div style={{ flex: "1 1 240px" }}>
+          <label>{t("cust.vendors.link")}</label>
+          <input type="url" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("cust.vendors.linkPlaceholder")} />
         </div>
       </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>{t("cust.vendors.linkHelp")}</p>
 
-      {/* Condition rows */}
-      <div style={{ marginTop: 20 }}>
-        <label style={{ marginBottom: 8 }}>{t("cust.vendors.conditions")}</label>
-        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>{t("cust.vendors.conditionsHelp")}</p>
-        {rows.map((r, i) => (
-          <RowEditor
-            key={r.key}
-            row={r}
-            index={i}
-            canRemove={rows.length > 1}
-            categories={categories}
-            refs={refs}
-            onChange={(patch) => setRow(r.key, patch)}
-            onRemove={() => removeRow(r.key)}
-          />
-        ))}
-        <button type="button" className="btn btn-sm" onClick={() => setRows((rs) => [...rs, emptyRow()])}>
-          + {t("cust.vendors.addRow")}
-        </button>
-      </div>
+      {/* Match conditions — identity */}
+      <RowSection
+        title={t("cust.vendors.matchTitle")}
+        help={t("cust.vendors.matchHelp")}
+        rows={matchRows}
+        setRows={setMatchRows}
+        showCategory={false}
+        categories={categories}
+        refs={refs}
+        minRows={0}
+      />
+
+      {/* Category rules — refinement */}
+      <RowSection
+        title={t("cust.vendors.rulesTitle")}
+        help={t("cust.vendors.rulesHelp")}
+        rows={catRows}
+        setRows={setCatRows}
+        showCategory
+        categories={categories}
+        refs={refs}
+        minRows={0}
+      />
 
       <datalist id="plaid-primaries">{refs.plaidPrimaries.map((p) => <option key={p} value={p} />)}</datalist>
       <datalist id="plaid-detaileds">{refs.plaidDetaileds.map((p) => <option key={p} value={p} />)}</datalist>
@@ -204,10 +212,61 @@ export default function VendorEditor({
   );
 }
 
-// One condition row: every FR1 field. `order` is implicit (array position).
+// One editable list of condition rows (Match or Category-rules). `showCategory`
+// renders each row's category select (category rules) or hides it (match rows).
+function RowSection({
+  title,
+  help,
+  rows,
+  setRows,
+  showCategory,
+  categories,
+  refs,
+  minRows,
+}: {
+  title: string;
+  help: string;
+  rows: RowForm[];
+  setRows: React.Dispatch<React.SetStateAction<RowForm[]>>;
+  showCategory: boolean;
+  categories: string[];
+  refs: Refs;
+  minRows: number;
+}) {
+  const t = useT();
+  const setRow = (key: string, patch: Partial<RowForm>) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const removeRow = (key: string) => setRows((rs) => rs.filter((r) => r.key !== key));
+  return (
+    <div style={{ marginTop: 20 }}>
+      <label style={{ marginBottom: 4 }}>{title}</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>{help}</p>
+      {rows.map((r, i) => (
+        <RowEditor
+          key={r.key}
+          row={r}
+          index={i}
+          showCategory={showCategory}
+          canRemove={rows.length > minRows}
+          categories={categories}
+          refs={refs}
+          onChange={(patch) => setRow(r.key, patch)}
+          onRemove={() => removeRow(r.key)}
+        />
+      ))}
+      <button type="button" className="btn btn-sm" onClick={() => setRows((rs) => [...rs, emptyRow()])}>
+        + {showCategory ? t("cust.vendors.addRule") : t("cust.vendors.addMatch")}
+      </button>
+    </div>
+  );
+}
+
+// One condition row (FR1 fields). `order` is implicit (array position). The
+// category select shows only for category rules (showCategory).
 function RowEditor({
   row,
   index,
+  showCategory,
   canRemove,
   categories,
   refs,
@@ -216,6 +275,7 @@ function RowEditor({
 }: {
   row: RowForm;
   index: number;
+  showCategory: boolean;
   canRemove: boolean;
   categories: string[];
   refs: Refs;
@@ -290,11 +350,13 @@ function RowEditor({
           <label>{t("cust.vendors.plaidDetailed")}</label>
           <input list="plaid-detaileds" value={row.plaidDetailed} onChange={(e) => onChange({ plaidDetailed: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
         </div>
-        {/* per-row category (outcome) */}
-        <div style={cell}>
-          <label>{t("cust.vendors.rowCategory")}</label>
-          <CategorySelect value={row.categoryName} categories={categories} onChange={(categoryName) => onChange({ categoryName })} noneLabel={t("cust.vendors.rowNoCategory")} />
-        </div>
+        {/* per-row category (outcome) — category rules only */}
+        {showCategory && (
+          <div style={cell}>
+            <label>{t("cust.vendors.rowCategory")}</label>
+            <CategorySelect value={row.categoryName} categories={categories} onChange={(categoryName) => onChange({ categoryName })} noneLabel={t("cust.vendors.rowNoCategory")} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -40,12 +40,11 @@ export async function GET(req: Request) {
   });
 
   // The read-model inputs, loaded once (mirrors effectiveTransactions): the user's
-  // vendors (for name/icon + waterfall), category mappings, and — scoped to this
-  // page's rows — their split parts and merge-leg membership.
+  // vendors (for name/link + waterfall) and — scoped to this page's rows — their
+  // split parts and merge-leg membership.
   const ids = rows.map((r) => r.transactionId);
-  const [vendors, mappings, splits, legs] = await Promise.all([
+  const [vendors, splits, legs] = await Promise.all([
     prisma.vendor.findMany({ where: { userId }, include: { conditions: true } }),
-    prisma.categoryMapping.findMany({ where: { userId } }),
     prisma.transactionSplit.findMany({
       where: { userId, parentTransactionId: { in: ids } },
       include: { parts: { orderBy: { id: "asc" } } },
@@ -71,8 +70,8 @@ export async function GET(req: Request) {
       plaidPrimary: plaidPrimary(t.category),
       plaidDetailed: plaidDetailed(t.category),
       vendorName: vendor?.name ?? normalizeVendor(t.merchantName, t.name),
-      vendorIcon: vendor?.icon ?? null,
-      category: resolveCategory(mappings, vendor, t, null),
+      vendorLink: vendor?.link ?? null,
+      category: resolveCategory(vendor, t, null),
       isMergeLeg: legIds.has(t.transactionId),
       split: split ? { parts: split.parts.map((p) => ({ id: p.id, amount: Number(p.amount), label: p.label, categoryName: p.categoryName })) } : null,
       // FR5 eligibility: posted, ungrouped, and not already split.

@@ -1,6 +1,6 @@
 import type { MergeGroup } from "@prisma/client";
 import { prisma } from "../db";
-import { categoryFor } from "../categories";
+import { humanize } from "../categories";
 import { normalizeVendor, plaidPrimary } from "./vendor";
 import { primaryLeg, netAmount } from "./groups";
 import { analyzeUser } from "./analyze";
@@ -33,7 +33,6 @@ export async function createMergeGroup(
 
   const primary = primaryLeg(legs);
   const pp = plaidPrimary(primary.category);
-  const mappings = await prisma.categoryMapping.findMany({ where: { userId } });
 
   const group = await prisma.mergeGroup.create({
     data: {
@@ -41,7 +40,7 @@ export async function createMergeGroup(
       status: opts.status,
       title: primary.name,
       vendorName: normalizeVendor(primary.merchantName, primary.name),
-      categoryName: pp ? categoryFor(mappings, pp) : null,
+      categoryName: pp ? humanize(pp) : null,
       date: primary.datetime,
       netAmount: netAmount(legs),
       currency: primary.isoCurrencyCode,
