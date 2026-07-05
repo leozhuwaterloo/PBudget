@@ -8,7 +8,9 @@ type Row = { plaidPrimary: string; default: string; category: string; overridden
 // remap any to a free-text category (existing categories suggested via datalist).
 // Saving PUTs the override and updates in place; "Reset" clears it. Mapping is
 // applied at read time, so /report and /budget move retroactively — no rewrite.
-export default function CategoryMappings() {
+// `embedded` (F9 customizations page) drops the standalone <h1> so the enclosing
+// section can supply its own heading; behavior is otherwise unchanged.
+export default function CategoryMappings({ embedded = false }: { embedded?: boolean }) {
   const t = useT();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -49,7 +51,7 @@ export default function CategoryMappings() {
 
   return (
     <div>
-      <h1>{t("catmap.title")}</h1>
+      {!embedded && <h1>{t("catmap.title")}</h1>}
       <p className="muted" style={{ marginBottom: 16 }}>
         {t("catmap.help")}
       </p>

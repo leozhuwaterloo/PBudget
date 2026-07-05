@@ -30,7 +30,27 @@ const zh: Messages = {
 
   // --- customizations page (F9–F11) — add customizations.* strings within this region ---
   "customizations.title": "自定义",
-  "customizations.stub": "分类、映射、商户和账单将显示在这里。",
+  // section nav / headings
+  "cust.nav.categories": "分类与预算",
+  "cust.nav.mappings": "分类映射",
+  "cust.nav.vendors": "商户",
+  "cust.nav.billing": "账单",
+  // categories & budgets (F9)
+  "cust.cat.help": "创建您自己的分类，为每个分类设置月度预算，并将收入和转账从支出总额中排除。",
+  "cust.cat.loadFailed": "加载分类失败。",
+  "cust.cat.colName": "分类",
+  "cust.cat.colBudget": "月度预算",
+  "cust.cat.colExclude": "从总额中排除",
+  "cust.cat.newPlaceholder": "新分类名称",
+  "cust.cat.add": "添加分类",
+  "cust.cat.createFailed": "无法创建分类。",
+  "cust.cat.deleteFailed": "无法删除分类。",
+  "cust.cat.delete": "删除",
+  "cust.cat.confirmDelete": "删除分类“{name}”？其月度预算将丢失。",
+  "cust.cat.empty": "暂无分类。",
+  // placeholders filled by later cards (F10 vendors, F11 billing)
+  "cust.vendors.placeholder": "商户规则将显示在这里。",
+  "cust.billing.placeholder": "您的套餐和账单将显示在这里。",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
 
