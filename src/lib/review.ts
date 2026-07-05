@@ -91,6 +91,25 @@ export type ReviewPayload = {
   splits: SplitRow[];
 };
 
+// Permanently dismiss a flag (FR4) — the write side the dismiss route calls.
+// unmatched_vendor items have NO dismiss: they clear ONLY by matching a vendor
+// (PRD). Dismissing one would silently drop the txn from the queue and break the
+// match-or-queue invariant (setQueueFlag never reopens a dismissed flag), so it's
+// rejected. All other rules (vendor_conflict + suspicion) dismiss permanently.
+export async function dismissFlag(
+  userId: string,
+  flagId: string
+): Promise<"ok" | "not_found" | "forbidden"> {
+  const flag = await prisma.transactionFlag.findFirst({ where: { id: flagId, userId } });
+  if (!flag) return "not_found";
+  if (flag.rule === RULES.unmatchedVendor) return "forbidden";
+  await prisma.transactionFlag.update({
+    where: { id: flag.id },
+    data: { status: "dismissed", resolvedAt: new Date() },
+  });
+  return "ok";
+}
+
 export async function reviewData(userId: string): Promise<ReviewPayload> {
   const [openFlags, allGroups, splits, posted, vendorRows] = await Promise.all([
     prisma.transactionFlag.findMany({ where: { userId, status: "open" } }),
