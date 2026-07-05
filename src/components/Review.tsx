@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import ReviewMergePicker from "./ReviewMergePicker";
 import CatalogBrowser from "./CatalogBrowser";
 import VendorEditor, { type Vendor, type Condition, type Refs } from "./VendorEditor";
+import SplitDialog, { type SplitParent } from "./SplitDialog";
 import { useT } from "@/lib/i18n/context";
 
 // Review v2 — the funnel's human hub (F12, FR6). One sectioned page over
@@ -22,6 +23,7 @@ type UnmatchedRow = {
   amount: number | null;
   currency: string | null;
   date: string;
+  eligibleForSplit: boolean;
 };
 type ConflictRow = {
   flagId: string;
@@ -45,6 +47,7 @@ type SuspicionEntry = {
   amount: number | null;
   currency: string | null;
   date: string;
+  eligibleForSplit: boolean;
 };
 type Leg = { transactionId: string; name: string | null; amount: number | null };
 type GroupRow = {
@@ -146,7 +149,28 @@ type Modal =
   | { kind: "create"; row: UnmatchedRow }
   | { kind: "pick"; row: UnmatchedRow }
   | { kind: "extend"; row: UnmatchedRow; vendor: Vendor }
-  | { kind: "merge"; seedId?: string };
+  | { kind: "merge"; seedId?: string }
+  | { kind: "split"; parent: SplitParent };
+
+// Build the split dialog's parent from an eligible transaction row. `amount` is
+// non-null for transaction rows (Plaid-convention, as stored). `category` is only
+// the dialog's default-option label; Review doesn't resolve the live waterfall, so
+// it renders "—" — the part category still defaults to null (resolves live).
+// ponytail: pass category null; add a resolved label only if the "—" default reads confusing.
+const splitParentFromUnmatched = (r: UnmatchedRow): SplitParent => ({
+  transactionId: r.id,
+  name: r.name,
+  amount: r.amount ?? 0,
+  currency: r.currency,
+  category: null,
+});
+const splitParentFromSuspicion = (e: SuspicionEntry): SplitParent => ({
+  transactionId: e.transactionId!,
+  name: e.name ?? e.vendor ?? "",
+  amount: e.amount ?? 0,
+  currency: e.currency,
+  category: null,
+});
 
 export default function Review() {
   const t = useT();
@@ -259,6 +283,7 @@ export default function Review() {
             onCreate={(row) => setModal({ kind: "create", row })}
             onExtend={(row) => setModal({ kind: "pick", row })}
             onCatalog={() => setModal({ kind: "catalog" })}
+            onSplit={(row) => setModal({ kind: "split", parent: splitParentFromUnmatched(row) })}
           />
 
           <ConflictSection rows={data.conflicts} busy={busy} act={act} />
@@ -268,6 +293,7 @@ export default function Review() {
             busy={busy}
             act={act}
             onMerge={(id) => setModal({ kind: "merge", seedId: id })}
+            onSplit={(entry) => setModal({ kind: "split", parent: splitParentFromSuspicion(entry) })}
           />
 
           <MergeSplitSection data={data} busy={busy} act={act} />
@@ -277,6 +303,9 @@ export default function Review() {
       {/* --- Modals --- */}
       {modal?.kind === "merge" && (
         <ReviewMergePicker seedId={modal.seedId} onClose={() => setModal(null)} onMerged={afterSave} />
+      )}
+      {modal?.kind === "split" && (
+        <SplitDialog parent={modal.parent} onClose={() => setModal(null)} onDone={afterSave} />
       )}
       {modal?.kind === "catalog" && (
         <Overlay onClose={() => setModal(null)}>
@@ -328,6 +357,7 @@ function UnmatchedSection({
   onCreate,
   onExtend,
   onCatalog,
+  onSplit,
 }: {
   rows: UnmatchedRow[];
   page: number;
@@ -336,6 +366,7 @@ function UnmatchedSection({
   onCreate: (row: UnmatchedRow) => void;
   onExtend: (row: UnmatchedRow) => void;
   onCatalog: () => void;
+  onSplit: (row: UnmatchedRow) => void;
 }) {
   const t = useT();
   if (rows.length === 0) return null;
@@ -376,6 +407,11 @@ function UnmatchedSection({
                     <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onCatalog}>
                       {t("review.fromCatalog")}
                     </button>
+                    {r.level === "transaction" && r.eligibleForSplit && (
+                      <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => onSplit(r)}>
+                        {t("review.split")}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -484,11 +520,13 @@ function SuspicionSection({
   busy,
   act,
   onMerge,
+  onSplit,
 }: {
   suspicion: Record<string, SuspicionEntry[]>;
   busy: boolean;
   act: (fn: () => Promise<unknown>) => void;
   onMerge: (transactionId: string) => void;
+  onSplit: (entry: SuspicionEntry) => void;
 }) {
   const t = useT();
   const anything = SUSPICION_RULES.some((rule) => (suspicion[rule] ?? []).length > 0);
@@ -529,6 +567,11 @@ function SuspicionSection({
                           {e.level === "transaction" && e.transactionId && (
                             <button className="btn btn-sm" disabled={busy} onClick={() => onMerge(e.transactionId!)}>
                               {t("review.merge")}
+                            </button>
+                          )}
+                          {e.level === "transaction" && e.eligibleForSplit && (
+                            <button className="btn btn-sm" disabled={busy} onClick={() => onSplit(e)}>
+                              {t("review.split")}
                             </button>
                           )}
                           <button

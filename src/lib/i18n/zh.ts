@@ -190,6 +190,7 @@ const zh: Messages = {
   "review.mergesSplitsHelp": "等待确认的自动匹配组，以及所有已确认的合并与拆分——可随时解散或取消拆分。",
   "review.allMerges": "所有合并组（{n}）",
   "review.allSplits": "所有拆分（{n}）",
+  "review.split": "拆分",
   "review.unsplit": "取消拆分",
   "review.part": "部分",
   "review.prev": "上一页",

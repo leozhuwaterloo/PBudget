@@ -193,6 +193,7 @@ const en = {
     "Auto-matched groups awaiting confirmation, plus every confirmed merge and split — dissolve or unsplit anytime.",
   "review.allMerges": "All merged groups ({n})",
   "review.allSplits": "All splits ({n})",
+  "review.split": "Split",
   "review.unsplit": "Unsplit",
   "review.part": "part",
   "review.prev": "Previous",

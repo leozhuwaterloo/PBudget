@@ -39,6 +39,9 @@ export type UnmatchedRow = {
   amount: number | null;
   currency: string | null;
   date: Date;
+  // FR5: transaction rows can initiate a split when posted, ungrouped, unsplit.
+  // Group-backed rows are never eligible (split/merge mutual exclusion).
+  eligibleForSplit: boolean;
 };
 export type ConflictRow = {
   flagId: string;
@@ -63,6 +66,8 @@ export type SuspicionEntry = {
   amount: number | null;
   currency: string | null;
   date: Date;
+  // FR5: same split eligibility as UnmatchedRow (false for group rows).
+  eligibleForSplit: boolean;
 };
 export type GroupRow = {
   id: string;
@@ -131,6 +136,12 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
   // Match order = ascending priority; legacy/condition-less vendors never match.
   const vendors = vendorRows.filter((v) => v.conditions.length > 0);
 
+  // FR5 split eligibility for a transaction row (same rule as api/accounts/transactions):
+  // posted (all `posted` rows are) + ungrouped + not already a split parent.
+  const splitParents = new Set(splits.map((s) => s.parentTransactionId));
+  const mergeLegs = new Set(allGroups.flatMap((gr) => gr.legs.map((l) => l.transactionId)));
+  const eligibleTxn = (transactionId: string) => !splitParents.has(transactionId) && !mergeLegs.has(transactionId);
+
   // The representative txn behind a flag: the txn itself, or a group's primary leg.
   const legsOf = (grp: (typeof allGroups)[number]) =>
     grp.legs.map((l) => txnById.get(l.transactionId)).filter((t): t is (typeof posted)[number] => !!t);
@@ -160,6 +171,7 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
         amount: isGroup ? num(grp!.netAmount) : num(t.amount),
         currency: isGroup ? grp!.currency : t.isoCurrencyCode,
         date: isGroup ? grp!.date : t.datetime,
+        eligibleForSplit: !isGroup && eligibleTxn(t.transactionId),
       }];
     })
     .sort(byDateDesc);
@@ -200,6 +212,7 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
         flagId: f.id, level: "transaction", transactionId: t.transactionId,
         vendor: normalizeVendor(t.merchantName, t.name), name: t.name,
         amount: num(t.amount), currency: t.isoCurrencyCode, date: t.datetime,
+        eligibleForSplit: eligibleTxn(t.transactionId),
       });
     } else {
       const grp = groupById.get(f.mergeGroupId!);
@@ -208,6 +221,7 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
         flagId: f.id, level: "group", mergeGroupId: grp.id,
         vendor: grp.vendorName, title: grp.title,
         amount: num(grp.netAmount), currency: grp.currency, date: grp.date,
+        eligibleForSplit: false,
       });
     }
   }
