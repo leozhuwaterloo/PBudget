@@ -54,7 +54,9 @@ function fieldChips(c: AnyCondition, t: (k: string, p?: Record<string, string | 
   return out;
 }
 
-// One condition row rendered as field chips + its category chip.
+// One condition row as field chips. A category rule (has categoryName) also shows
+// its "→ category" outcome; a match condition (no categoryName) shows just the
+// fields — it decides identity, not category.
 export function RowSummary({ condition, accountName }: { condition: AnyCondition; accountName?: (id: string) => string }) {
   const t = useT();
   const chips = fieldChips(condition, t, accountName ?? ((id) => id));
@@ -64,8 +66,12 @@ export function RowSummary({ condition, accountName }: { condition: AnyCondition
       {chips.map((c, i) => (
         <Chip key={i}>{c}</Chip>
       ))}
-      <span style={{ color: "var(--muted)" }}>→</span>
-      <Chip tone="cat">{condition.categoryName || t("cust.vendors.rowNoCategory")}</Chip>
+      {condition.categoryName && (
+        <>
+          <span style={{ color: "var(--muted)" }}>→</span>
+          <Chip tone="cat">{condition.categoryName}</Chip>
+        </>
+      )}
     </div>
   );
 }

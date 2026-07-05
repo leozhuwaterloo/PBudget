@@ -42,7 +42,7 @@ function InstitutionLogo({ logo, name }: { logo: string | null; name: string }) 
     const src = logo.startsWith("http") || logo.startsWith("data:") ? logo : `data:image/png;base64,${logo}`;
     return <img src={src} alt="" width={28} height={28} style={{ borderRadius: 6, objectFit: "contain" }} />;
   }
-  return <VendorIcon icon={null} name={name} size={28} />;
+  return <VendorIcon name={name} size={28} />;
 }
 
 export default function Accounts({

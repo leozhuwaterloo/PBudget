@@ -133,15 +133,17 @@ const prefillName = (row: UnmatchedRow) => (row.merchantName?.trim() || row.name
 const createInitial = (row: UnmatchedRow): Vendor => ({
   id: "",
   name: prefillName(row),
-  icon: null,
+  link: null,
   categoryName: null,
   priority: null,
-  conditions: [prefillCondition(row)],
+  matchConditions: [prefillCondition(row)],
+  categoryRules: [],
 });
-// Existing vendor + the new row → VendorEditor PATCHes (replace-rows), extending it.
+// Existing vendor + the new row → VendorEditor PATCHes (replace-rows), extending its
+// identity (match conditions) so the vendor also claims this row.
 const extendInitial = (vendor: Vendor, row: UnmatchedRow): Vendor => ({
   ...vendor,
-  conditions: [...vendor.conditions, prefillCondition(row)],
+  matchConditions: [...vendor.matchConditions, prefillCondition(row)],
 });
 
 type Modal =
@@ -856,7 +858,7 @@ function VendorPicker({
             >
               <strong style={{ flex: 1 }}>{v.name}</strong>
               <span className="muted" style={{ fontSize: 12 }}>
-                {t("review.condCount", { n: v.conditions.length })}
+                {t("review.condCount", { n: v.matchConditions.length + v.categoryRules.length })}
               </span>
             </button>
           ))}

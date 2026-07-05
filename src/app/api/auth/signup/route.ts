@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword, createSession, createVerificationToken } from "@/lib/auth";
 import { normalizeEmail, validatePassword } from "@/lib/validate";
 import { sendVerificationEmail } from "@/lib/email";
-import { ensureDefaultCategories } from "@/lib/categories";
+import { seedNewUserVendors } from "@/lib/catalog/instantiate";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const user = await prisma.user.create({
     data: { email, passwordHash: await hashPassword(password) },
   });
-  await ensureDefaultCategories(user.id);
+  await seedNewUserVendors(user.id); // seeds default categories + the 3 catch-all vendors
   const token = await createVerificationToken(user.id);
   await sendVerificationEmail(email, token);
   await createSession(user.id);

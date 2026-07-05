@@ -1,6 +1,6 @@
-import type { CategoryMapping, Prisma, TransactionCategory } from "@prisma/client";
+import type { Prisma, TransactionCategory } from "@prisma/client";
 import { prisma } from "./db";
-import { firstMatchingRow, type MatchTxn, type MatchVendor } from "./analysis/match";
+import { matchingCategoryRow, type MatchTxn, type MatchVendor } from "./analysis/match";
 import { plaidPrimary } from "./analysis/vendor";
 
 // "FOOD_AND_DRINK" -> "Food And Drink"
@@ -12,42 +12,31 @@ export function humanize(pfcPrimary: string): string {
     .join(" ");
 }
 
-// Effective user category for a Plaid primary: a user-set CategoryMapping
-// override if one exists, else the humanized Plaid primary. Applied at READ
-// time everywhere so remaps retroactively move spend (SPEC "Categories").
-export function categoryFor(
-  mappings: CategoryMapping[],
-  plaidPrimary: string
-): string {
-  const override = mappings.find((m) => m.plaidPrimary === plaidPrimary);
-  return override ? override.categoryName : humanize(plaidPrimary);
-}
-
 // The materialized winning vendor with the fields the waterfall reads: its ordered
-// condition rows (delegated to F1's firstMatchingRow) plus its default category.
+// condition rows (delegated to F1's matcher) plus its default category.
 export type WaterfallVendor = MatchVendor & { categoryName: string | null };
 
 // The full read-time category waterfall (SPEC funnel step 3 / FR3). In order:
-//   split-part override → winning vendor's FIRST matching row's category →
-//   vendor default category → CategoryMapping on Plaid primary → humanized primary.
-// Runs live on every read so any config change retroactively moves spend (never
-// snapshotted). `vendor` is the txn's materialized winning vendor (null = unmatched);
-// `partOverride` is a split part's own categoryName (null for a whole txn). Row
-// matching is F1's firstMatchingRow — never forked here.
+//   split-part override → winning vendor's first matching CATEGORY row →
+//   vendor default category → humanized Plaid primary (raw last-resort fallback).
+// The old CategoryMapping override layer was removed — vendors solely determine
+// category (a seeded catch-all vendor covers the Plaid-category cases). Runs live
+// on every read so any config change retroactively moves spend (never snapshotted).
+// `vendor` is the txn's materialized winning vendor (null = unmatched); `partOverride`
+// is a split part's own categoryName (null for a whole txn).
 export function resolveCategory(
-  mappings: CategoryMapping[],
   vendor: WaterfallVendor | null,
   txn: MatchTxn,
   partOverride: string | null = null
 ): string | null {
   if (partOverride) return partOverride;
   if (vendor) {
-    const row = firstMatchingRow(vendor, txn); // a matching row w/o a category falls through
+    const row = matchingCategoryRow(vendor, txn);
     if (row?.categoryName) return row.categoryName;
     if (vendor.categoryName) return vendor.categoryName; // vendor default
   }
   const pp = plaidPrimary(txn.category);
-  return pp ? categoryFor(mappings, pp) : null;
+  return pp ? humanize(pp) : null;
 }
 
 // ---- Custom categories & budgets (FR4) ------------------------------------
@@ -92,9 +81,9 @@ export class CategoryError extends Error {
 }
 
 // Cascade a category rename to every row that references the name by string
-// (there is no FK): CategoryMapping, Vendor default category, VendorCondition row
-// category, SplitPart override. updateMany can't filter across relations, so the
-// user's vendor/split ids are gathered and matched by scalar `in`.
+// (there is no FK): Vendor default category, VendorCondition row category,
+// SplitPart override. updateMany can't filter across relations, so the user's
+// vendor/split ids are gathered and matched by scalar `in`.
 async function cascadeRename(
   tx: Prisma.TransactionClient,
   userId: string,
@@ -108,7 +97,6 @@ async function cascadeRename(
   const vendorIds = vendors.map((v) => v.id);
   const splitIds = splits.map((s) => s.id);
   await Promise.all([
-    tx.categoryMapping.updateMany({ where: { userId, categoryName: oldName }, data: { categoryName: newName } }),
     tx.vendor.updateMany({ where: { userId, categoryName: oldName }, data: { categoryName: newName } }),
     tx.vendorCondition.updateMany({ where: { vendorId: { in: vendorIds }, categoryName: oldName }, data: { categoryName: newName } }),
     tx.splitPart.updateMany({ where: { splitId: { in: splitIds }, categoryName: oldName }, data: { categoryName: newName } }),
@@ -141,16 +129,15 @@ export async function updateCategory(
   });
 }
 
-// How many rows reference a category name across the four cascade sites. Used to
+// How many rows reference a category name across the cascade sites. Used to
 // reject deletes while the category is still in use.
 export async function categoryRefCount(userId: string, name: string): Promise<number> {
-  const [mapping, vendor, cond, part] = await Promise.all([
-    prisma.categoryMapping.count({ where: { userId, categoryName: name } }),
+  const [vendor, cond, part] = await Promise.all([
     prisma.vendor.count({ where: { userId, categoryName: name } }),
     prisma.vendorCondition.count({ where: { categoryName: name, vendor: { userId } } }),
     prisma.splitPart.count({ where: { categoryName: name, split: { userId } } }),
   ]);
-  return mapping + vendor + cond + part;
+  return vendor + cond + part;
 }
 
 // Delete a category, rejected (409) while any row still references its name.

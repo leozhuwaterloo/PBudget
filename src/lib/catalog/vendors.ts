@@ -22,13 +22,11 @@
 // PFC category rules) so every historical transaction has a catalog path and the
 // unmatched queue can reach zero (PRD assumption 4).
 
-import { ICON_SLUGS } from "./icons";
-
 // ---- Public shape (what the API + instantiate consume) ----------------------
 
 export type CatalogCondition = {
   order: number;
-  categoryName: string; // seeded category name (the row's outcome)
+  categoryName?: string; // outcome (category rules only; omitted for match rows)
   nameOp?: string;
   nameValue?: string;
   merchantOp?: string;
@@ -40,12 +38,17 @@ export type CatalogCondition = {
   amountMax?: number;
 };
 
+// Two-stage vendor: `matchConditions` decide identity (any → the vendor claims the
+// txn); `categoryRules` refine the category (first match → its categoryName, else
+// the default). A single-category entry folds to match rows + a default; a
+// multi-category entry (e.g. Walmart online vs in-store) folds to category rules.
 export type CatalogEntry = {
   slug: string; // stable id (kebab of name); used by search + instantiate
   name: string; // display name
-  icon: string | null; // bundled icon slug | null → letter avatar
-  categoryName: string | null; // optional vendor DEFAULT category (FR3 fallback)
-  conditions: CatalogCondition[]; // ≥1, ordered; first match decides category
+  link: string | null; // Google Maps / website URL | null (seeded entries have none)
+  categoryName: string | null; // vendor DEFAULT category (FR3 fallback)
+  matchConditions: CatalogCondition[]; // identity rows
+  categoryRules: CatalogCondition[]; // refinement rows (each has a categoryName)
 };
 
 // ---- Authoring helpers (compact internal row builders) ----------------------
@@ -396,8 +399,10 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function toCondition(r: Row, order: number): CatalogCondition {
-  const c: CatalogCondition = { order, categoryName: r.category };
+// `withCategory=false` emits a match row (identity, no outcome); true emits a
+// category rule (carries its category).
+function toCondition(r: Row, order: number, withCategory: boolean): CatalogCondition {
+  const c: CatalogCondition = withCategory ? { order, categoryName: r.category } : { order };
   if (r.merchant) { c.merchantOp = "contains"; c.merchantValue = r.merchant; }
   if (r.name) { c.nameOp = "contains"; c.nameValue = r.name; }
   if (r.nameEquals) { c.nameOp = "equals"; c.nameValue = r.nameEquals; }
@@ -409,18 +414,30 @@ function toCondition(r: Row, order: number): CatalogCondition {
   return c;
 }
 
+// Fold an authored entry into the two-stage shape. All rows share one category
+// (the common case: one merchant → one category) → the rows become IDENTITY match
+// conditions and that category is the default. Rows disagree on category (e.g.
+// Walmart online vs in-store, or the General Spending PFC bucket) → each row
+// becomes a CATEGORY rule; identity falls back to "any category rule matches".
 function build(defs: EntryDef[]): CatalogEntry[] {
-  return defs.map((d) => ({
-    slug: slugify(d.name),
-    name: d.name,
-    icon: d.icon ?? null,
-    // Vendor DEFAULT category (FR3 fallback) = explicit, else the first row's.
-    categoryName: d.category ?? d.rows[0]?.category ?? null,
-    conditions: d.rows.map((r, i) => toCondition(r, i)),
-  }));
+  return defs.map((d) => {
+    const singleCategory = new Set(d.rows.map((r) => r.category)).size <= 1;
+    return {
+      slug: slugify(d.name),
+      name: d.name,
+      link: null,
+      categoryName: d.category ?? d.rows[0]?.category ?? null,
+      matchConditions: singleCategory ? d.rows.map((r, i) => toCondition(r, i, false)) : [],
+      categoryRules: singleCategory ? [] : d.rows.map((r, i) => toCondition(r, i, true)),
+    };
+  });
 }
 
 export const CATALOG: CatalogEntry[] = build([...MERCHANTS, ...BUCKETS]);
+
+// Slugs of the 3 generic catch-all buckets (Self / General Bank / General
+// Spending) — new signups seed only these; the rest is opt-in per merchant.
+export const CATALOG_BUCKET_SLUGS: Set<string> = new Set(BUCKETS.map((b) => slugify(b.name)));
 
 // Slugs must be unique (they identify entries for instantiate). Fail loudly at
 // module load if an authoring collision ever slips in.
@@ -443,6 +460,3 @@ export function searchCatalog(query: string): CatalogEntry[] {
   if (!q) return CATALOG;
   return CATALOG.filter((e) => e.name.toLowerCase().includes(q));
 }
-
-// Re-export so callers (F10 icon picker) get the icon list from one import.
-export { ICON_SLUGS };

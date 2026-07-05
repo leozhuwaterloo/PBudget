@@ -7,9 +7,10 @@ import { RowSummary, Chip, type AnyCondition } from "./vendorSummary";
 type CatalogEntry = {
   slug: string;
   name: string;
-  icon: string | null;
+  link: string | null;
   categoryName: string | null;
-  conditions: AnyCondition[];
+  matchConditions: AnyCondition[];
+  categoryRules: AnyCondition[];
 };
 
 // Catalog browser (F10, FR2): search F4's catalog, preview an entry's rows /
@@ -88,7 +89,7 @@ export default function CatalogBrowser({
             }}
             onClick={() => setSelected(e)}
           >
-            <VendorIcon icon={e.icon} name={e.name} size={30} />
+            <VendorIcon name={e.name} size={30} />
             <span style={{ fontWeight: 600 }}>{e.name}</span>
           </button>
         ))}
@@ -100,12 +101,12 @@ export default function CatalogBrowser({
       {selected && (
         <div className="card" style={{ marginTop: 16, background: "var(--bg-3)" }}>
           <div className="row" style={{ gap: 10, marginBottom: 6 }}>
-            <VendorIcon icon={selected.icon} name={selected.name} size={34} />
+            <VendorIcon name={selected.name} size={34} />
             <strong style={{ fontSize: 16 }}>{selected.name}</strong>
             {selected.categoryName && <Chip tone="cat">{selected.categoryName}</Chip>}
           </div>
           <p className="muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>{t("cust.catalog.previewRows")}</p>
-          {selected.conditions.map((c, i) => (
+          {[...selected.matchConditions, ...selected.categoryRules].map((c, i) => (
             <RowSummary key={i} condition={c} />
           ))}
           <div className="row" style={{ gap: 8, marginTop: 12 }}>

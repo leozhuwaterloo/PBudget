@@ -2,7 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useT, useLocale } from "@/lib/i18n/context";
-import { getBrandIcon, letterAvatar } from "@/lib/catalog/icons";
+import { letterAvatar } from "@/lib/catalog/icons";
+import { VendorLink } from "./VendorIcon";
 import type { DashboardData } from "@/lib/dashboard";
 
 // Graphs-only Dashboard (FR7): four hand-rolled inline-SVG widgets in the
@@ -129,9 +130,9 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
                 const scale = Math.max(1, ...data.vendors.map((v) => v.spend));
                 return data.vendors.map((v) => (
                   <div key={v.key} className="row" style={{ alignItems: "center", gap: 8 }}>
-                    <VendorGlyph name={v.name} icon={v.icon} />
+                    <VendorGlyph name={v.name} />
                     <span style={{ flex: "0 0 90px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {v.name}
+                      {v.name} <VendorLink link={v.link} />
                     </span>
                     <div style={{ flex: 1 }}>
                       <BarRow frac={v.spend / scale} color="var(--primary)" markerFrac={null} />
@@ -230,16 +231,8 @@ function ReviewTile({ n, label, anchor, tone }: { n: number; label: string; anch
   );
 }
 
-// (d) Vendor icon: bundled brand SVG (monochrome) or a deterministic letter avatar.
-function VendorGlyph({ name, icon }: { name: string; icon: string | null }) {
-  const brand = getBrandIcon(icon);
-  if (brand) {
-    return (
-      <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden style={{ flex: "0 0 auto" }}>
-        <path d={brand.path} fill="var(--primary)" />
-      </svg>
-    );
-  }
+// (d) Vendor glyph: a deterministic letter avatar (brand SVGs retired with icons).
+function VendorGlyph({ name }: { name: string }) {
   const { letter, hue } = letterAvatar(name);
   return (
     <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden style={{ flex: "0 0 auto" }}>

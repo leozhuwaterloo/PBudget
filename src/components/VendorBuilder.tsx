@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n/context";
-import { VendorIcon } from "./VendorIcon";
+import { VendorIcon, VendorLink } from "./VendorIcon";
 import VendorEditor, { type Vendor, type Refs } from "./VendorEditor";
 import CatalogBrowser from "./CatalogBrowser";
 import { RowSummary, Chip } from "./vendorSummary";
@@ -144,14 +144,18 @@ export default function VendorBuilder() {
                   <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === ordered.length - 1} onClick={() => move(idx, 1)} title={t("cust.vendors.moveDown")}>▼</button>
                 </div>
               )}
-              <VendorIcon icon={v.icon} name={v.name} size={34} />
+              <VendorIcon name={v.name} size={34} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row wrap" style={{ gap: 10 }}>
                   <strong style={{ fontSize: 15 }}>{v.name}</strong>
+                  <VendorLink link={v.link} size={15} />
                   {v.categoryName && <Chip tone="cat">{t("cust.vendors.defaultChip", { name: v.categoryName })}</Chip>}
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  {v.conditions.map((c) => (
+                  {v.matchConditions.map((c) => (
+                    <RowSummary key={c.id} condition={c} accountName={accountName} />
+                  ))}
+                  {v.categoryRules.map((c) => (
                     <RowSummary key={c.id} condition={c} accountName={accountName} />
                   ))}
                 </div>

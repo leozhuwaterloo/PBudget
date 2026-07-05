@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gate, num } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { categoryFor } from "@/lib/categories";
+import { humanize } from "@/lib/categories";
 import { normalizeVendor, plaidPrimary } from "@/lib/analysis/vendor";
 import { splitParentIds } from "@/lib/splits";
 
@@ -26,13 +26,10 @@ export async function GET(req: Request) {
   );
   // Split parents can never be merged (FR5) — drop them from the picker.
   const splitParents = await splitParentIds(userId);
-  const [txns, mappings] = await Promise.all([
-    prisma.plaidTransaction.findMany({
-      where: { pending: false, account: { item: { userId } } },
-      orderBy: { datetime: "desc" },
-    }),
-    prisma.categoryMapping.findMany({ where: { userId } }),
-  ]);
+  const txns = await prisma.plaidTransaction.findMany({
+    where: { pending: false, account: { item: { userId } } },
+    orderBy: { datetime: "desc" },
+  });
 
   const candidates = txns
     .filter(
@@ -49,7 +46,7 @@ export async function GET(req: Request) {
         currency: t.isoCurrencyCode,
         date: t.datetime,
         accountId: t.accountId,
-        categoryName: pp ? categoryFor(mappings, pp) : null,
+        categoryName: pp ? humanize(pp) : null,
       };
     });
 

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { VendorIcon } from "./VendorIcon";
+import { VendorIcon, VendorLink } from "./VendorIcon";
 import SplitDialog from "./SplitDialog";
 import { useT } from "@/lib/i18n/context";
 import type { Locale } from "@/lib/i18n";
@@ -23,7 +23,7 @@ type BrowserTxn = {
   plaidPrimary: string | null;
   plaidDetailed: string | null;
   vendorName: string;
-  vendorIcon: string | null;
+  vendorLink: string | null;
   category: string | null;
   isMergeLeg: boolean;
   split: { parts: Part[] } | null;
@@ -113,8 +113,9 @@ export default function TransactionBrowser({ accountId, locale }: { accountId: s
                 </td>
                 <td>
                   <span className="row" style={{ gap: 6 }}>
-                    <VendorIcon icon={r.vendorIcon} name={r.vendorName} size={20} />
+                    <VendorIcon name={r.vendorName} size={20} />
                     {r.vendorName}
+                    <VendorLink link={r.vendorLink} />
                   </span>
                 </td>
                 <td>{r.category ?? "—"}</td>
