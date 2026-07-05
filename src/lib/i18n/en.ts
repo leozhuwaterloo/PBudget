@@ -307,7 +307,6 @@ const en = {
   "review.dismiss": "Dismiss",
 
   // review — rule labels
-  "rule.unknown_vendor": "Unknown vendor",
   "rule.unmatched_transfer": "Unmatched transfer",
   "rule.unusual_amount": "Unusual amount",
   "rule.duplicate_charge": "Duplicate charge",
@@ -366,7 +365,7 @@ const en = {
     "A purchase and its refund, or a charge split across cards, collapse into one reconciled line — so your totals tell the truth.",
   "landing.feat.audit.title": "An auditor for your books",
   "landing.feat.audit.body":
-    "Unknown vendors, duplicate charges, and unusual amounts get flagged. You approve or reject each one — the final say is yours.",
+    "Anything that matches none of your vendor rules — along with duplicate charges and unusual amounts — lands in a review queue. Write a rule once and every matching charge sorts itself from then on.",
   "landing.feat.report.title": "Monthly report",
   "landing.feat.report.body":
     "Money in, money out, net. A clean cash-flow summary for every month, with any open flags surfaced up top.",

@@ -302,7 +302,6 @@ const zh: Messages = {
   "review.dismiss": "忽略",
 
   // review — rule labels
-  "rule.unknown_vendor": "未知商户",
   "rule.unmatched_transfer": "未匹配转账",
   "rule.unusual_amount": "异常金额",
   "rule.duplicate_charge": "重复扣款",
@@ -356,7 +355,7 @@ const zh: Messages = {
   "landing.feat.merge.title": "合并分组",
   "landing.feat.merge.body": "一笔消费与它的退款，或跨卡的拆分，会合并成单独一行对账——让合计如实反映。",
   "landing.feat.audit.title": "为你的账目把关",
-  "landing.feat.audit.body": "未知商家、重复扣款和异常金额都会被标记。逐笔批准或拒绝——最终由你说了算。",
+  "landing.feat.audit.body": "任何未命中你的商户规则的交易——连同重复扣款与异常金额——都会进入待审队列。规则只需写一次，此后每一笔匹配的交易都会自动归位。",
   "landing.feat.report.title": "月度报告",
   "landing.feat.report.body": "收入、支出、净额。每个月一份清晰的现金流摘要，未处理的标记置于顶部。",
 
