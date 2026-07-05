@@ -28,7 +28,28 @@ const en = {
 
   // --- customizations page (F9–F11) — add customizations.* strings within this region ---
   "customizations.title": "Customizations",
-  "customizations.stub": "Categories, mappings, vendors, and billing will live here.",
+  // section nav / headings
+  "cust.nav.categories": "Categories & budgets",
+  "cust.nav.mappings": "Category mappings",
+  "cust.nav.vendors": "Vendors",
+  "cust.nav.billing": "Billing",
+  // categories & budgets (F9)
+  "cust.cat.help":
+    "Create your own categories, set a monthly budget for each, and exclude income and transfers from your spend totals.",
+  "cust.cat.loadFailed": "Failed to load categories.",
+  "cust.cat.colName": "Category",
+  "cust.cat.colBudget": "Monthly budget",
+  "cust.cat.colExclude": "Exclude from totals",
+  "cust.cat.newPlaceholder": "New category name",
+  "cust.cat.add": "Add category",
+  "cust.cat.createFailed": "Could not create category.",
+  "cust.cat.deleteFailed": "Could not delete category.",
+  "cust.cat.delete": "Delete",
+  "cust.cat.confirmDelete": "Delete category “{name}”? Its monthly budget will be lost.",
+  "cust.cat.empty": "No categories yet.",
+  // placeholders filled by later cards (F10 vendors, F11 billing)
+  "cust.vendors.placeholder": "Vendor rules will live here.",
+  "cust.billing.placeholder": "Your plan and billing will live here.",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
 
