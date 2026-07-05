@@ -19,7 +19,7 @@ export class CatalogError extends Error {
 export async function instantiateCatalogEntry(
   userId: string,
   slug: string
-): Promise<{ id: string; name: string }> {
+): Promise<{ id: string; name: string; claimed: number }> {
   const entry = findCatalogEntry(slug);
   if (!entry) throw new CatalogError(404, `No catalog entry "${slug}"`);
 
@@ -28,7 +28,9 @@ export async function instantiateCatalogEntry(
 
   const vendor = await createVendorFromEntry(userId, entry);
   await rematchUser(userId);
-  return vendor;
+  // How many posted txns the new vendor now claims — F10 surfaces this as feedback.
+  const claimed = await prisma.plaidTransaction.count({ where: { vendorId: vendor.id } });
+  return { ...vendor, claimed };
 }
 
 async function createVendorFromEntry(

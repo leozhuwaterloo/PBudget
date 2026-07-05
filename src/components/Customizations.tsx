@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useT } from "@/lib/i18n/context";
 import CategoriesEditor from "./CategoriesEditor";
 import CategoryMappings from "./CategoryMappings";
+import VendorBuilder from "./VendorBuilder";
 
 // F9 customizations shell: sectioned page with anchor nav. Sections are disjoint
 // slots — F10 replaces the Vendors placeholder with its builder, F11 the Billing
@@ -41,8 +42,7 @@ export default function Customizations() {
       </Section>
 
       <Section id="vendors" title={t("cust.nav.vendors")}>
-        {/* F10: replace this placeholder with the vendor builder section. */}
-        <p className="muted">{t("cust.vendors.placeholder")}</p>
+        <VendorBuilder />
       </Section>
 
       <Section id="billing" title={t("cust.nav.billing")}>
