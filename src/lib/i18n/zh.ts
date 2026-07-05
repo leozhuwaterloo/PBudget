@@ -159,6 +159,21 @@ const zh: Messages = {
   // --- review v2 (F12) — add review-v2 strings within this region ---
 
   // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
+  "dash.title": "仪表板",
+  "dash.month": "月份",
+  "dash.empty": "请在“账户”页面连接银行，即可在此查看您的消费。",
+  "dash.trend.title": "每月消费",
+  "dash.trend.sub": "最近 12 个月",
+  "dash.trend.empty": "暂无可绘制的消费。",
+  "dash.review.title": "待审核项",
+  "dash.review.unmatched": "未匹配",
+  "dash.review.conflicts": "冲突",
+  "dash.review.suspicion": "可疑标记",
+  "dash.review.pending": "待合并",
+  "dash.budget.title": "预算与实际",
+  "dash.budget.empty": "本月暂无预算或消费。",
+  "dash.vendors.title": "热门商户",
+  "dash.vendors.empty": "本月暂无商户消费。",
   // (end V2 page regions)
 
   // common
