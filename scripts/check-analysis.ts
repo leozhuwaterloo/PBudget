@@ -9,6 +9,7 @@ import { prisma } from "../src/lib/db";
 import { analyzeUser } from "../src/lib/analysis/analyze";
 import { rematchUser } from "../src/lib/analysis/match";
 import { effectiveTransactions } from "../src/lib/analysis/effective";
+import { limitFor, canAddConnection, canSyncItem } from "../src/lib/stripe";
 
 const USER_ID = "demo-user";
 // A flag we dismiss at the end of phase 1 so phase-2 re-analysis can prove
@@ -113,6 +114,8 @@ async function phase1(): Promise<void> {
   await vendorMatching();
 
   await f2Categorization();
+
+  await tierLimit();
 
   await idempotency();
 
@@ -292,6 +295,28 @@ async function f2Categorization(): Promise<void> {
   // 1 day apart both fire duplicate_charge (parts 100/200 would never match).
   check(!!(await openFlag("f2-split-parent", "duplicate_charge")), "point 4: analyzer flags the split parent WHOLE (duplicate_charge)");
   check(!!(await openFlag("f2-split-dup", "duplicate_charge")), "point 4: the split parent's same-amount twin is also flagged");
+}
+
+// FR10 tier connection limit (AC14). The demo user is on Free (limit 1) with TWO
+// seeded connections, so it is over the limit: the oldest keeps syncing, the newer is
+// read-only, and no new connection can be added until an upgrade lifts the gate.
+async function tierLimit(): Promise<void> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: USER_ID } });
+  check(user.plan === "free" && limitFor("free") === 1, "tier: demo user is Free (limit 1 connection)");
+
+  const add = await canAddConnection(user);
+  check(!add.ok && add.used === 2, "tier: Free at its limit blocks a new connection");
+  const oldest = await canSyncItem(user, "demo-item");
+  check(oldest.ok, "tier: the oldest connection keeps syncing");
+  const excess = await canSyncItem(user, "demo-item-2");
+  check(!excess.ok && excess.used === 2, "tier: the over-limit 2nd connection is read-only");
+
+  // Upgrade to Pro (limit 5) lifts the gate; restore Free so the check is re-runnable.
+  await prisma.user.update({ where: { id: USER_ID }, data: { plan: "pro" } });
+  const pro = await prisma.user.findUniqueOrThrow({ where: { id: USER_ID } });
+  check((await canSyncItem(pro, "demo-item-2")).ok, "tier: Pro lifts read-only on the 2nd connection");
+  check((await canAddConnection(pro)).ok, "tier: Pro (limit 5) may add more connections");
+  await prisma.user.update({ where: { id: USER_ID }, data: { plan: "free" } });
 }
 
 // Re-running analyzeUser over unchanged data must create no new flags/groups/legs.

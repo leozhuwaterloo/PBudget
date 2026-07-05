@@ -7,11 +7,6 @@ const en = {
   "nav.review": "Review",
   "nav.accounts": "Accounts",
   "nav.customizations": "Customizations",
-  // report/budget/categories/billing pages stay reachable-by-URL until F14 deletes them
-  "nav.report": "Report",
-  "nav.budget": "Budget",
-  "nav.categories": "Categories",
-  "nav.billing": "Billing",
   "nav.login": "Log in",
   "nav.signup": "Sign up",
   "nav.logout": "Log out",
@@ -232,8 +227,6 @@ const en = {
   "common.save": "Save",
   "common.saving": "Saving…",
   "common.reset": "Reset",
-  "common.subscribe": "Subscribe",
-  "common.requestFailed": "Request failed",
   "common.genericError": "Something went wrong",
 
   // auth
@@ -281,89 +274,25 @@ const en = {
   "resend.sent": "Verification email sent.",
   "resend.failed": "Could not send — are you logged in?",
 
-  // dashboard
-  "dashboard.title": "Your banks",
-  "dashboard.bannerTitle": "Start your subscription",
-  "dashboard.bannerBody":
-    "— $1 per managed account / month. You need an active subscription to connect and sync accounts.",
-  "dashboard.noBanks": "No banks connected yet.",
-  "dashboard.colBank": "Bank",
-  "dashboard.colAccounts": "Accounts",
-  "dashboard.colLastUpdated": "Last updated",
-  "dashboard.colActions": "Actions",
-  "dashboard.sync": "Sync",
-  "dashboard.reauth": "Re-auth",
-  "dashboard.connect": "Connect a bank account",
-  "dashboard.viewBudget": "View Budget Planning",
 
-  // billing
-  "billing.title": "Billing",
-  "billing.subtitle": "$1 per managed account, per month.",
-  "billing.status": "Status",
-  "billing.statusNone": "none",
-  "billing.managedAccounts": "Managed accounts",
-  "billing.estimatedMonthly": "Estimated monthly",
-  "billing.manage": "Manage billing",
 
-  // item detail
-  "item.updated": "Updated",
-  "item.colAccount": "Account",
-  "item.colCurrent": "Current",
-  "item.colTransactions": "Transactions",
-  "item.colLastUpdated": "Last updated",
 
   // transaction table fields + group badge
-  "field.name": "Transaction Name",
-  "field.merchant": "Merchant Name",
-  "field.category": "Category",
-  "field.amount": "Amount",
-  "field.date": "Date",
-  "field.lastUpdated": "Last Updated",
-  "field.bank": "Bank",
-  "field.account": "Account",
   "txn.groupBadge": "group · {n}",
-  "txn.groupTooltip": "Merged group of {n} transactions",
 
-  // budget
-  "budget.title": "Budget Planning",
-  "budget.empty": "No transactions yet — connect and sync a bank on the dashboard.",
-  "budget.colMonth": "Month",
-  "budget.colTotal": "Total (excl. income & transfers)",
-  "budget.colCategory": "Category",
-  "budget.colSpent": "Spent",
-  "budget.colBudget": "Budget",
-  "budget.colUsage": "Usage",
-  "budget.colTransactions": "Transactions",
-  "budget.na": "N/A",
 
   // report
-  "report.title": "Monthly Report",
-  "report.month": "Month",
-  "report.noActivity": "No activity in this month.",
-  "report.cashFlow": "Cash flow",
   "report.moneyIn": "Money in",
   "report.moneyOut": "Money out",
   "report.net": "Net",
-  "report.flagsThisMonth": "Flags this month",
-  "report.open": "Open",
-  "report.resolved": "Resolved",
-  "report.category": "Category",
-  "report.spend": "Spend",
-  "report.noSpend": "No categorized spend this month.",
 
   // review
   "review.title": "Review",
-  "review.suspiciousToday": "Suspicious today",
   "review.thisMonth": "This month",
   "review.totalOpen": "Total open",
-  "review.filter": "Filter",
-  "review.allDates": "All dates",
-  "review.byDay": "By day",
-  "review.byMonth": "By month",
   "review.mergeTransactions": "Merge transactions…",
   "review.allClear": "All clear",
   "review.allClearBody": "No open flags and no groups awaiting confirmation.",
-  "review.noMatch": "No flags match this filter.",
   "review.pendingGroups": "Auto-matched groups — pending confirmation ({n})",
   "review.colGroup": "Group",
   "review.colNet": "Net",
@@ -374,8 +303,6 @@ const en = {
   "review.confirm": "Confirm",
   "review.dissolve": "Dissolve",
   "review.mergedGroup": "Merged group",
-  "review.approveVendor": "Approve vendor",
-  "review.reject": "Reject",
   "review.merge": "Merge…",
   "review.dismiss": "Dismiss",
 
@@ -384,11 +311,6 @@ const en = {
   "rule.unmatched_transfer": "Unmatched transfer",
   "rule.unusual_amount": "Unusual amount",
   "rule.duplicate_charge": "Duplicate charge",
-
-  // review — vendor status (rendered uppercased via CSS; Chinese unaffected)
-  "status.approved": "approved",
-  "status.rejected": "rejected",
-  "status.pending": "pending",
 
   // merge picker
   "merge.title": "Merge transactions",

@@ -16,8 +16,10 @@ const EMAIL = "demo@pbudget.local";
 const PASSWORD = "demo-pbudget-2026";
 const INST_ID = "demo-inst";
 const ITEM_ID = "demo-item";
+const ITEM_ID_2 = "demo-item-2"; // 2nd connection: over the Free limit → read-only (FR10 tier demo)
 const CHEQUING = "demo-acct-chequing";
 const SAVINGS = "demo-acct-savings";
+const ACCT_2 = "demo-acct-2"; // lone account under the over-limit 2nd connection
 const CURRENCY = "CAD";
 
 const now = new Date();
@@ -315,10 +317,12 @@ async function upsertTxn(f: Fx): Promise<void> {
 
 async function seedBase(): Promise<void> {
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
+  // plan "free" (limit 1 connection) is explicit so the FR10 tier check is deterministic
+  // regardless of any prior mutation.
   await prisma.user.upsert({
     where: { id: USER_ID },
-    create: { id: USER_ID, email: EMAIL, passwordHash, emailVerified: now, subscriptionStatus: "active" },
-    update: { email: EMAIL, passwordHash, emailVerified: now, subscriptionStatus: "active" },
+    create: { id: USER_ID, email: EMAIL, passwordHash, emailVerified: now, subscriptionStatus: "active", plan: "free" },
+    update: { email: EMAIL, passwordHash, emailVerified: now, subscriptionStatus: "active", plan: "free" },
   });
 
   await prisma.plaidInstitution.upsert({
@@ -328,20 +332,29 @@ async function seedBase(): Promise<void> {
   });
 
   // ponytail: accessToken is a placeholder — the demo never calls Plaid.
+  // Two connections on the Free plan (limit 1): item 1 is the oldest (keeps syncing),
+  // item 2 is over the limit (read-only) — exercises the FR10 tier gate. createdAt is
+  // set explicitly on both so the oldest-first ordering is deterministic across seeds.
   await prisma.plaidItem.upsert({
     where: { itemId: ITEM_ID },
-    create: { itemId: ITEM_ID, userId: USER_ID, institutionId: INST_ID, accessToken: "demo-no-plaid", lastForceRefreshed: now },
-    update: { userId: USER_ID, institutionId: INST_ID },
+    create: { itemId: ITEM_ID, userId: USER_ID, institutionId: INST_ID, accessToken: "demo-no-plaid", createdAt: daysAgo(60), lastForceRefreshed: now },
+    update: { userId: USER_ID, institutionId: INST_ID, createdAt: daysAgo(60) },
+  });
+  await prisma.plaidItem.upsert({
+    where: { itemId: ITEM_ID_2 },
+    create: { itemId: ITEM_ID_2, userId: USER_ID, institutionId: INST_ID, accessToken: "demo-no-plaid", createdAt: daysAgo(1), lastForceRefreshed: now },
+    update: { userId: USER_ID, institutionId: INST_ID, createdAt: daysAgo(1) },
   });
 
-  for (const [accountId, name, subtype] of [
-    [CHEQUING, "Demo Chequing", "checking"],
-    [SAVINGS, "Demo Savings", "savings"],
+  for (const [accountId, itemId, name, subtype] of [
+    [CHEQUING, ITEM_ID, "Demo Chequing", "checking"],
+    [SAVINGS, ITEM_ID, "Demo Savings", "savings"],
+    [ACCT_2, ITEM_ID_2, "Demo Second Bank", "checking"],
   ] as const) {
     await prisma.plaidAccount.upsert({
       where: { accountId },
-      create: { accountId, itemId: ITEM_ID, name, accountType: "depository", accountSubtype: subtype, isoCurrencyCode: CURRENCY, current: 2500 },
-      update: { name, itemId: ITEM_ID, isoCurrencyCode: CURRENCY },
+      create: { accountId, itemId, name, accountType: "depository", accountSubtype: subtype, isoCurrencyCode: CURRENCY, current: 2500 },
+      update: { name, itemId, isoCurrencyCode: CURRENCY },
     });
   }
   // V2 retired the approval model: the analyzer no longer upserts Vendor rows and
