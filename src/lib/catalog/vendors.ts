@@ -393,6 +393,111 @@ const BUCKETS: EntryDef[] = [
   },
 ];
 
+// ---- Confident vendor links -------------------------------------------------
+
+// Canonical website for the well-known chains in the catalog (🌐). Keyed by the
+// entry's `name`. Only brands with an unambiguous official site are here; local
+// one-off restaurants/merchants are left null on purpose. Canadian domain where
+// the brand runs a distinct .ca; global domain otherwise. A load-time guard below
+// asserts every key matches a real entry, so a typo fails loudly instead of no-op.
+const LINKS: Record<string, string> = {
+  // Food delivery / coffee / restaurant chains
+  "Uber Eats": "https://www.ubereats.com",
+  "Domino's": "https://www.dominos.ca",
+  "Fantuan": "https://www.fantuanorder.com",
+  "Starbucks": "https://www.starbucks.ca",
+  "McDonald's": "https://www.mcdonalds.ca",
+  "Subway": "https://www.subway.com/en-ca",
+  "Tim Hortons": "https://www.timhortons.ca",
+  "Red Lobster": "https://www.redlobster.ca",
+  "The Keg": "https://kegsteakhouse.com",
+  "Booster Juice": "https://www.boosterjuice.com",
+  "Second Cup": "https://secondcup.com",
+  "Thai Express": "https://www.thaiexpress.ca",
+  "Cobs Bread": "https://www.cobsbread.com",
+  // Grocery
+  "T&T Supermarket": "https://www.tntsupermarket.com",
+  "FreshCo": "https://www.freshco.com",
+  "Sobeys": "https://www.sobeys.com",
+  "Food Basics": "https://www.foodbasics.ca",
+  "Costco": "https://www.costco.ca",
+  // Games / digital
+  "Steam": "https://store.steampowered.com",
+  "Apple": "https://www.apple.com/ca/",
+  "401 Games": "https://store.401games.ca",
+  "Eneba": "https://www.eneba.com",
+  "Mind Games": "https://www.mindgames.ca",
+  // Utility
+  "City of Kitchener": "https://www.kitchener.ca",
+  "Kitchener-Wilmot Hydro": "https://www.kwhydro.ca",
+  // Entertainment
+  "African Lion Safari": "https://lionsafari.com",
+  "Mirvish Productions": "https://www.mirvish.com",
+  "Cirque du Soleil": "https://www.cirquedusoleil.com",
+  "Cambridge Butterfly Conservatory": "https://www.cambridgebutterfly.com",
+  // Online shopping
+  "Walmart": "https://www.walmart.ca",
+  "Groupon": "https://www.groupon.com",
+  "Adidas": "https://www.adidas.ca",
+  "Temu": "https://www.temu.com",
+  "Zenni Optical": "https://www.zennioptical.com",
+  "Best Buy": "https://www.bestbuy.ca",
+  "Uniqlo": "https://www.uniqlo.com/ca/en/",
+  "Lululemon": "https://shop.lululemon.com",
+  "Taobao": "https://www.taobao.com",
+  "Amazon": "https://www.amazon.ca",
+  "Shein": "https://www.shein.com",
+  "Herman Miller": "https://www.hermanmiller.com",
+  "Alipay": "https://www.alipay.com",
+  "Silver Gold Bull": "https://silvergoldbull.ca",
+  // In-store shopping
+  "Sheridan Nurseries": "https://www.sheridannurseries.com",
+  "The Home Depot": "https://www.homedepot.ca",
+  "Dollarama": "https://www.dollarama.com",
+  "IKEA": "https://www.ikea.com/ca/en/",
+  "Lids": "https://www.lids.ca",
+  "Toys R Us": "https://www.toysrus.ca",
+  "Old Navy": "https://oldnavy.gapcanada.ca",
+  "Canada Computers": "https://www.canadacomputers.com",
+  "La Vie En Rose": "https://www.lavieenrose.com",
+  "Staples": "https://www.staples.ca",
+  "La Senza": "https://www.lasenza.com",
+  "LCBO": "https://www.lcbo.com",
+  "Shoppers Drug Mart": "https://www.shoppersdrugmart.ca",
+  "Zwilling": "https://www.zwilling.com",
+  "Marshalls": "https://www.marshalls.ca",
+  "Hudson's Bay": "https://www.thebay.com",
+  "Canadian Tire": "https://www.canadiantire.ca",
+  "The Brick": "https://www.thebrick.com",
+  "Canada Post": "https://www.canadapost-postescanada.ca",
+  "Winners": "https://www.winners.ca",
+  "Casper": "https://casper.com",
+  "Coach": "https://www.coach.com",
+  "Jysk": "https://www.jysk.ca",
+  // Pet
+  "Global Pet Foods": "https://www.globalpetfoods.com",
+  "Pet Valu": "https://www.petvalu.ca",
+  "Ren's Pets": "https://www.renspets.com",
+  // Travel
+  "Air Canada": "https://www.aircanada.com",
+  "Air China": "https://www.airchina.com",
+  "Ctrip": "https://www.trip.com",
+  "Royal Caribbean": "https://www.royalcaribbean.com",
+  "Shanghai Disney": "https://www.shanghaidisneyresort.com",
+  // Recurring / services
+  "Rogers": "https://www.rogers.com",
+  "Bell Canada": "https://www.bell.ca",
+  "Fido": "https://www.fido.ca",
+  "Virgin Plus": "https://www.virginplus.ca",
+  "Reliance Home Comfort": "https://reliancehomecomfort.com",
+  "Gore Mutual Insurance": "https://www.goremutual.ca",
+  "Avis": "https://www.avis.ca",
+  "Plaid Inc.": "https://plaid.com",
+  "Clearly": "https://www.clearly.ca",
+  "Navan": "https://navan.com",
+  "League Inc.": "https://league.com",
+};
+
 // ---- Build the public catalog -----------------------------------------------
 
 function slugify(name: string): string {
@@ -425,7 +530,7 @@ function build(defs: EntryDef[]): CatalogEntry[] {
     return {
       slug: slugify(d.name),
       name: d.name,
-      link: null,
+      link: LINKS[d.name] ?? null,
       categoryName: d.category ?? d.rows[0]?.category ?? null,
       matchConditions: singleCategory ? d.rows.map((r, i) => toCondition(r, i, false)) : [],
       categoryRules: singleCategory ? [] : d.rows.map((r, i) => toCondition(r, i, true)),
@@ -446,6 +551,12 @@ export const CATALOG_BUCKET_SLUGS: Set<string> = new Set(BUCKETS.map((b) => slug
   for (const e of CATALOG) {
     if (seen.has(e.slug)) throw new Error(`Duplicate catalog slug: ${e.slug} (${e.name})`);
     seen.add(e.slug);
+  }
+  // A LINKS key that matches no entry name is a typo (would silently attach to
+  // nothing) — fail loudly, same as the slug guard.
+  const names = new Set(CATALOG.map((e) => e.name));
+  for (const name of Object.keys(LINKS)) {
+    if (!names.has(name)) throw new Error(`LINKS key matches no catalog entry: "${name}"`);
   }
 }
 
