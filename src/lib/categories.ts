@@ -1,5 +1,7 @@
 import type { CategoryMapping, Prisma, TransactionCategory } from "@prisma/client";
 import { prisma } from "./db";
+import { firstMatchingRow, type MatchTxn, type MatchVendor } from "./analysis/match";
+import { plaidPrimary } from "./analysis/vendor";
 
 // "FOOD_AND_DRINK" -> "Food And Drink"
 export function humanize(pfcPrimary: string): string {
@@ -19,6 +21,33 @@ export function categoryFor(
 ): string {
   const override = mappings.find((m) => m.plaidPrimary === plaidPrimary);
   return override ? override.categoryName : humanize(plaidPrimary);
+}
+
+// The materialized winning vendor with the fields the waterfall reads: its ordered
+// condition rows (delegated to F1's firstMatchingRow) plus its default category.
+export type WaterfallVendor = MatchVendor & { categoryName: string | null };
+
+// The full read-time category waterfall (SPEC funnel step 3 / FR3). In order:
+//   split-part override → winning vendor's FIRST matching row's category →
+//   vendor default category → CategoryMapping on Plaid primary → humanized primary.
+// Runs live on every read so any config change retroactively moves spend (never
+// snapshotted). `vendor` is the txn's materialized winning vendor (null = unmatched);
+// `partOverride` is a split part's own categoryName (null for a whole txn). Row
+// matching is F1's firstMatchingRow — never forked here.
+export function resolveCategory(
+  mappings: CategoryMapping[],
+  vendor: WaterfallVendor | null,
+  txn: MatchTxn,
+  partOverride: string | null = null
+): string | null {
+  if (partOverride) return partOverride;
+  if (vendor) {
+    const row = firstMatchingRow(vendor, txn); // a matching row w/o a category falls through
+    if (row?.categoryName) return row.categoryName;
+    if (vendor.categoryName) return vendor.categoryName; // vendor default
+  }
+  const pp = plaidPrimary(txn.category);
+  return pp ? categoryFor(mappings, pp) : null;
 }
 
 // ---- Custom categories & budgets (FR4) ------------------------------------

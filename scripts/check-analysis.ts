@@ -8,6 +8,7 @@
 import { prisma } from "../src/lib/db";
 import { analyzeUser } from "../src/lib/analysis/analyze";
 import { rematchUser } from "../src/lib/analysis/match";
+import { effectiveTransactions } from "../src/lib/analysis/effective";
 
 const USER_ID = "demo-user";
 // A flag we dismiss at the end of phase 1 so phase-2 re-analysis can prove
@@ -110,6 +111,8 @@ async function phase1(): Promise<void> {
   check(!!(await openFlag("demo-txn-b-prior-1", "duplicate_charge")), "Vendor B identical priors flagged duplicate_charge");
 
   await vendorMatching();
+
+  await f2Categorization();
 
   await idempotency();
 
@@ -238,6 +241,57 @@ async function vendorMatching(): Promise<void> {
   const before = await snap();
   await rematchUser(USER_ID);
   check(before === (await snap()), "idempotent: re-running rematchUser changes no vendorId/queue flag");
+}
+
+// F2 read-time category waterfall + split-/vendor-aware effective model (point 4).
+// Reads through effectiveTransactions (the shared read contract) so this asserts the
+// real integration, not the resolver in isolation.
+async function f2Categorization(): Promise<void> {
+  const eff = await effectiveTransactions(USER_ID);
+  const byId = new Map(eff.map((e) => [e.id, e]));
+  const cat = (id: string) => byId.get(id)?.categoryName ?? null;
+
+  // Per-row routing: ONE vendor, two rows, two categories; first matching row wins
+  // (a txn matching both rows takes row 0; later rows are never consulted).
+  check(cat("f2-router-alpha") === "Grocery", "point 4: vendor row 0 routes alpha → Grocery");
+  check(cat("f2-router-beta") === "Restaurant", "point 4: vendor row 1 routes beta → Restaurant");
+  check(cat("f2-router-both") === "Grocery", "point 4: first matching row wins (later rows never consulted)");
+
+  // Fallback chain: matching row w/o a category → vendor default → CategoryMapping →
+  // humanized Plaid primary, each level exercised when the ones above are unset.
+  check(cat("f2-vdefault-hit") === "Pet", "point 4: matching row w/o category → vendor default");
+  check(cat("f2-mapping-hit") === "Utility", "point 4: no row/vendor category → CategoryMapping");
+  check(cat("f2-humanized-hit") === "Bank Fees", "point 4: nothing set → humanized Plaid primary");
+
+  // Vendor identity: matched → display name + id; unmatched → normalized-string fallback.
+  const alpha = byId.get("f2-router-alpha");
+  check(!!alpha && alpha.vendorName === "f2-router" && alpha.vendorId != null,
+    "point 4: matched txn exposes vendor display name + id");
+  const books = byId.get("demo-txn-unknown-books");
+  check(!!books && books.vendorId === null && books.vendorName === "book nook",
+    "point 4: unmatched txn falls back to the normalized string");
+
+  // Split: parent is REPLACED by its parts (parent absent); the override is honored;
+  // the un-overridden part follows the parent's LIVE waterfall (vendor category
+  // Travel); both parts inherit the parent's vendor (name + icon).
+  check(!byId.has("f2-split-parent"), "point 4: split parent is absent from effective output");
+  const parts = eff.filter((e) => e.parentId === "f2-split-parent");
+  check(parts.length === 2, "point 4: split parent replaced by its 2 parts");
+  const overridden = parts.find((p) => p.amount === 100);
+  const inherited = parts.find((p) => p.amount === 200);
+  check(!!overridden && overridden.categoryName === "Grocery", "point 4: split part override honored (Grocery)");
+  check(!!inherited && inherited.categoryName === "Travel", "point 4: un-overridden part follows parent's live resolution (Travel)");
+  const splitVendor = (await vendorByName("f2-split-vendor"))!;
+  check(
+    parts.length === 2 && parts.every((p) => p.vendorId === splitVendor.id && p.vendorName === "f2-split-vendor" && p.vendorIcon === "airplane"),
+    "point 4: split parts inherit the parent's vendor (name + icon)"
+  );
+  check(!!overridden && overridden.title.includes("groceries"), "point 4: split part title = parent title + label");
+
+  // Suspicion rules evaluate the split parent WHOLE: parent(300) + same-vendor twin(300)
+  // 1 day apart both fire duplicate_charge (parts 100/200 would never match).
+  check(!!(await openFlag("f2-split-parent", "duplicate_charge")), "point 4: analyzer flags the split parent WHOLE (duplicate_charge)");
+  check(!!(await openFlag("f2-split-dup", "duplicate_charge")), "point 4: the split parent's same-amount twin is also flagged");
 }
 
 // Re-running analyzeUser over unchanged data must create no new flags/groups/legs.
