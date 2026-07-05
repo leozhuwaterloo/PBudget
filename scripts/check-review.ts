@@ -124,6 +124,19 @@ async function main(): Promise<void> {
   check(data.mergeGroups.length === 1 && data.mergeGroups[0].legs.length === 2, "merges & splits: the confirmed group is browsable (AC7)");
   check(data.splits.length === 1 && data.splits[0].parts.length === 2, "merges & splits: the split is browsable (AC7)");
 
+  // --- G5: split eligibility on Review rows (FR5) --------------------------
+  // A Split action is offered only on transaction rows whose txn is posted,
+  // ungrouped and unsplit; group-backed and already-split rows are not eligible.
+  check(findUn(UN_OTHER)?.eligibleForSplit === true, "G5: an ungrouped, unsplit unmatched row is split-eligible");
+  check(findUn(SPLIT)?.eligibleForSplit === false, "G5: an already-split parent row is NOT split-eligible");
+  const unGroupRow = data.unmatched.find((r) => r.level === "group");
+  check(!!unGroupRow && unGroupRow.eligibleForSplit === false, "G5: a merge-group-backed row is NOT split-eligible");
+  check(
+    (data.suspicion["duplicate_charge"] ?? []).length > 0 &&
+      (data.suspicion["duplicate_charge"] ?? []).every((e) => e.eligibleForSplit === true),
+    "G5: ungrouped suspicion (duplicate_charge) rows are split-eligible"
+  );
+
   const openTotal =
     data.unmatched.length + data.conflicts.length +
     Object.values(data.suspicion).reduce((n, xs) => n + xs.length, 0) + data.pendingGroups.length;
