@@ -4,6 +4,7 @@ import { useT } from "@/lib/i18n/context";
 import CategoriesEditor from "./CategoriesEditor";
 import CategoryMappings from "./CategoryMappings";
 import VendorBuilder from "./VendorBuilder";
+import BillingSection from "./BillingSection";
 
 // F9 customizations shell: sectioned page with anchor nav. Sections are disjoint
 // slots — F10 replaces the Vendors placeholder with its builder, F11 the Billing
@@ -46,8 +47,7 @@ export default function Customizations() {
       </Section>
 
       <Section id="billing" title={t("cust.nav.billing")}>
-        {/* F11: replace this placeholder with the billing section. */}
-        <p className="muted">{t("cust.billing.placeholder")}</p>
+        <BillingSection />
       </Section>
     </div>
   );

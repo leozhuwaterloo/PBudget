@@ -153,8 +153,28 @@ const en = {
   "cust.catalog.previewRows": "Condition rows",
   "cust.catalog.instantiate": "Instantiate",
   "cust.catalog.instantiating": "Instantiating…",
-  // placeholder filled by a later card (F11 billing)
-  "cust.billing.placeholder": "Your plan and billing will live here.",
+  // billing section (F11)
+  "cust.billing.help":
+    "Your plan sets how many bank connections you can sync. Upgrade any time.",
+  "cust.billing.loadFailed": "Failed to load billing.",
+  "cust.billing.currentPlan": "Current plan",
+  "cust.billing.usage": "{used} of {limit} connections",
+  "cust.billing.plan.free": "Free",
+  "cust.billing.plan.pro": "Pro",
+  "cust.billing.plan.max": "Max",
+  "cust.billing.colPlan": "Plan",
+  "cust.billing.colPrice": "Price",
+  "cust.billing.colConnections": "Connections",
+  "cust.billing.priceFree": "Free",
+  "cust.billing.perMonth": "${price}/mo",
+  "cust.billing.current": "Current",
+  "cust.billing.subscribe": "Subscribe",
+  "cust.billing.manage": "Manage billing",
+  "cust.billing.manageHelp":
+    "Switch tiers, update payment, or cancel in the Stripe billing portal.",
+  "cust.billing.success": "Subscription updated — welcome aboard!",
+  "cust.billing.cancelled": "Checkout cancelled; no changes were made.",
+  "cust.billing.error": "Something went wrong. Please try again.",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
 
