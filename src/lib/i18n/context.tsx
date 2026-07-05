@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext } from "react";
 import { t as translate, type Locale } from "./index";
 
 // Client-side locale plumbing. layout.tsx resolves the locale server-side and
@@ -16,5 +16,10 @@ export function useLocale(): Locale {
 
 export function useT() {
   const locale = useContext(LocaleContext);
-  return (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
+  // Memoize so the returned fn is stable across renders — callers put `t` in
+  // useEffect/useCallback deps, and a fresh closure each render loops them.
+  return useCallback(
+    (key: string, params?: Record<string, string | number>) => translate(locale, key, params),
+    [locale],
+  );
 }
