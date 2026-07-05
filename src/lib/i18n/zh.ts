@@ -153,8 +153,26 @@ const zh: Messages = {
   "cust.catalog.previewRows": "条件行",
   "cust.catalog.instantiate": "实例化",
   "cust.catalog.instantiating": "实例化中…",
-  // placeholder filled by a later card (F11 billing)
-  "cust.billing.placeholder": "您的套餐和账单将显示在这里。",
+  // billing section (F11)
+  "cust.billing.help": "您的套餐决定可同步的银行连接数量。可随时升级。",
+  "cust.billing.loadFailed": "加载账单失败。",
+  "cust.billing.currentPlan": "当前套餐",
+  "cust.billing.usage": "{used} / {limit} 个连接",
+  "cust.billing.plan.free": "免费版",
+  "cust.billing.plan.pro": "Pro",
+  "cust.billing.plan.max": "Max",
+  "cust.billing.colPlan": "套餐",
+  "cust.billing.colPrice": "价格",
+  "cust.billing.colConnections": "连接数",
+  "cust.billing.priceFree": "免费",
+  "cust.billing.perMonth": "${price}/月",
+  "cust.billing.current": "当前",
+  "cust.billing.subscribe": "订阅",
+  "cust.billing.manage": "管理账单",
+  "cust.billing.manageHelp": "在 Stripe 账单门户中切换套餐、更新支付方式或取消订阅。",
+  "cust.billing.success": "订阅已更新——欢迎加入！",
+  "cust.billing.cancelled": "结账已取消，未做任何更改。",
+  "cust.billing.error": "出了点问题，请重试。",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
 

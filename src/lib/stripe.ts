@@ -14,6 +14,9 @@ export type Tier = "pro" | "max";
 
 export const TIER_LIMITS: Record<Plan, number> = { free: 1, pro: 5, max: 20 };
 
+// Display-only monthly USD price per tier (the actual charge is the Stripe price).
+export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 5, max: 15 };
+
 // Connection limit for a plan string (unknown/legacy -> free).
 export function limitFor(plan: string): number {
   return TIER_LIMITS[plan as Plan] ?? TIER_LIMITS.free;
@@ -121,6 +124,34 @@ export async function canSyncItem(
   return ok ? { ok: true } : { ok: false, used: items.length };
 }
 
+// ---- Billing summary (F11) ------------------------------------------------
+
+// What the /customizations billing section renders: current tier, live
+// connection usage (PlaidItem count), subscription state, and the tier table.
+export interface BillingSummary {
+  plan: Plan;
+  used: number;
+  limit: number;
+  active: boolean;
+  hasCustomer: boolean;
+  tiers: { id: Plan; price: number; limit: number }[];
+}
+export async function billingSummary(user: User): Promise<BillingSummary> {
+  const plan = (user.plan as Plan) in TIER_LIMITS ? (user.plan as Plan) : "free";
+  return {
+    plan,
+    used: await countConnections(user.id),
+    limit: limitFor(plan),
+    active: isSubscriptionActive(user),
+    hasCustomer: !!user.stripeCustomerId,
+    tiers: (["free", "pro", "max"] as Plan[]).map((id) => ({
+      id,
+      price: TIER_PRICES[id],
+      limit: TIER_LIMITS[id],
+    })),
+  };
+}
+
 // ---- Stripe plumbing -----------------------------------------------------
 
 async function getOrCreateCustomer(user: User): Promise<string> {
@@ -147,8 +178,8 @@ export async function createCheckoutSession(user: User, tier: Tier): Promise<str
     customer,
     client_reference_id: user.id,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${base}/customizations?billing=success`,
-    cancel_url: `${base}/customizations?billing=cancelled`,
+    success_url: `${base}/customizations?billing=success#billing`,
+    cancel_url: `${base}/customizations?billing=cancelled#billing`,
   });
   if (!session.url) throw new Error("Stripe did not return a checkout URL");
   return session.url;
@@ -159,7 +190,7 @@ export async function createPortalSession(user: User): Promise<string> {
   const base = process.env.APP_URL || "http://localhost:5300";
   const session = await stripe().billingPortal.sessions.create({
     customer: user.stripeCustomerId,
-    return_url: `${base}/customizations`,
+    return_url: `${base}/customizations#billing`,
   });
   return session.url;
 }
