@@ -175,6 +175,35 @@ const zh: Messages = {
   "cust.billing.error": "出了点问题，请重试。",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
+  "review.countToday": "今日",
+  "review.unmatchedTitle": "未匹配交易（{n}）",
+  "review.unmatchedHelp":
+    "每一笔尚无商户的已入账交易。匹配其一，队列即会缩小——新建或修改的商户所匹配的每一行都会消失，无需重新同步。",
+  "review.createVendor": "新建商户",
+  "review.addToVendor": "加入某商户",
+  "review.fromCatalog": "从目录添加",
+  "review.conflictsTitle": "冲突（{n}）",
+  "review.conflictsHelp":
+    "有多个商户同时匹配。★ 为按优先级选定的胜出者——可在“自定义”中收紧条件或重新排序，或忽略以对该交易保留胜出者。",
+  "review.colMatches": "匹配的商户",
+  "review.winner": "优先级胜出者",
+  "review.editVendors": "在自定义中编辑",
+  "review.suspicionTitle": "可疑标记",
+  "review.suspicionHelp": "转账、异常金额和可能的重复扣款——漏斗希望你再看一眼。",
+  "review.mergesSplitsTitle": "合并与拆分",
+  "review.mergesSplitsHelp": "等待确认的自动匹配组，以及所有已确认的合并与拆分——可随时解散或取消拆分。",
+  "review.allMerges": "所有合并组（{n}）",
+  "review.allSplits": "所有拆分（{n}）",
+  "review.unsplit": "取消拆分",
+  "review.part": "部分",
+  "review.prev": "上一页",
+  "review.next": "下一页",
+  "review.pageOf": "第 {page} / {pages} 页",
+  "review.pickVendor": "将此条件加入哪个商户？",
+  "review.noVendors": "你还没有任何商户——请改用“新建商户”。",
+  "review.condCount": "{n} 个条件",
+  "rule.unmatched_vendor": "未匹配商户",
+  "rule.vendor_conflict": "商户冲突",
 
   // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
   "dash.title": "仪表板",

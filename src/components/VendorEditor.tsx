@@ -92,7 +92,9 @@ function rowBody(r: RowForm) {
   };
 }
 
-// Create (initial=null) or edit a vendor. Posts/patches /api/vendors and calls
+// Create or edit a vendor. Edit vs create keys off initial?.id (not initial's
+// truthiness) so callers can pass a PREFILLED create (id-less initial, e.g. F12's
+// "create vendor from an unmatched row"). Posts/patches /api/vendors and calls
 // onSaved with the returned vendor; surfaces the API's save-time error inline.
 export default function VendorEditor({
   initial,
@@ -125,14 +127,14 @@ export default function VendorEditor({
     setError(null);
     setSaving(true);
     const body = {
-      ...(initial ? { id: initial.id } : {}),
+      ...(initial?.id ? { id: initial.id } : {}),
       name,
       icon,
       categoryName: defaultCat || null,
       conditions: rows.map(rowBody),
     };
     const res = await fetch("/api/vendors", {
-      method: initial ? "PATCH" : "POST",
+      method: initial?.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -145,7 +147,7 @@ export default function VendorEditor({
   return (
     <div className="card" style={{ borderColor: "var(--primary)" }}>
       <div className="card-header">
-        {initial ? t("cust.vendors.editTitle") : t("cust.vendors.createTitle")}
+        {initial?.id ? t("cust.vendors.editTitle") : t("cust.vendors.createTitle")}
       </div>
 
       {/* Vendor-level fields */}
