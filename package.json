@@ -13,6 +13,7 @@
     "check:analysis": "tsx scripts/check-analysis.ts",
     "check:categories": "tsx scripts/check-categories.ts",
     "check:tiers": "tsx scripts/check-tiers.ts",
+    "check:catalog": "tsx scripts/check-catalog.ts",
     "migrate:portfolio": "tsx scripts/migrate-portfolio.ts"
   },
   "prisma": {
