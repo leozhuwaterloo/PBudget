@@ -17,8 +17,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const vendor = await instantiateCatalogEntry(g.user!.id, slug);
-    return NextResponse.json({ vendor });
+    const { claimed, ...vendor } = await instantiateCatalogEntry(g.user!.id, slug);
+    return NextResponse.json({ vendor, claimed });
   } catch (e) {
     if (e instanceof CatalogError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;

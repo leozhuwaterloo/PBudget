@@ -1,0 +1,349 @@
+"use client";
+import React, { useState } from "react";
+import { useT } from "@/lib/i18n/context";
+import { IconPicker } from "./VendorIcon";
+
+// Shared vendor shapes (the /api/vendors serialization + refs the editor needs).
+export type Condition = {
+  id?: string;
+  categoryName: string | null;
+  nameOp: string | null;
+  nameValue: string | null;
+  merchantOp: string | null;
+  merchantValue: string | null;
+  amountMin: number | null;
+  amountMax: number | null;
+  accountId: string | null;
+  paymentChannel: string | null;
+  plaidPrimary: string | null;
+  plaidDetailed: string | null;
+};
+export type Vendor = {
+  id: string;
+  name: string;
+  icon: string | null;
+  categoryName: string | null;
+  priority: number | null;
+  conditions: Condition[];
+};
+export type Account = { accountId: string; name: string; subtype: string | null };
+export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaileds: string[] };
+
+const TEXT_OPS = ["contains", "equals", "starts_with", "regex"];
+const CHANNELS = ["online", "in store", "other"];
+
+// Row form state: everything a string (inputs), converted at save.
+type RowForm = {
+  key: string;
+  categoryName: string;
+  nameOp: string;
+  nameValue: string;
+  merchantOp: string;
+  merchantValue: string;
+  amountMin: string;
+  amountMax: string;
+  accountId: string;
+  paymentChannel: string;
+  plaidPrimary: string;
+  plaidDetailed: string;
+};
+
+let rowSeq = 0;
+const newKey = () => `r${rowSeq++}`;
+
+function toRowForm(c: Condition): RowForm {
+  return {
+    key: newKey(),
+    categoryName: c.categoryName ?? "",
+    nameOp: c.nameOp ?? "contains",
+    nameValue: c.nameValue ?? "",
+    merchantOp: c.merchantOp ?? "contains",
+    merchantValue: c.merchantValue ?? "",
+    amountMin: c.amountMin == null ? "" : String(c.amountMin),
+    amountMax: c.amountMax == null ? "" : String(c.amountMax),
+    accountId: c.accountId ?? "",
+    paymentChannel: c.paymentChannel ?? "",
+    plaidPrimary: c.plaidPrimary ?? "",
+    plaidDetailed: c.plaidDetailed ?? "",
+  };
+}
+
+const emptyRow = (): RowForm => toRowForm({
+  categoryName: null, nameOp: null, nameValue: null, merchantOp: null, merchantValue: null,
+  amountMin: null, amountMax: null, accountId: null, paymentChannel: null, plaidPrimary: null, plaidDetailed: null,
+});
+
+// Serialize a row to the API body. Text pairs are only sent when a value is
+// present (so an untouched default op never trips the "needs both" validator).
+function rowBody(r: RowForm) {
+  const num = (s: string) => (s.trim() === "" ? null : Number(s));
+  return {
+    categoryName: r.categoryName || null,
+    nameOp: r.nameValue.trim() ? r.nameOp : null,
+    nameValue: r.nameValue.trim() || null,
+    merchantOp: r.merchantValue.trim() ? r.merchantOp : null,
+    merchantValue: r.merchantValue.trim() || null,
+    amountMin: num(r.amountMin),
+    amountMax: num(r.amountMax),
+    accountId: r.accountId || null,
+    paymentChannel: r.paymentChannel || null,
+    plaidPrimary: r.plaidPrimary.trim() || null,
+    plaidDetailed: r.plaidDetailed.trim() || null,
+  };
+}
+
+// Create (initial=null) or edit a vendor. Posts/patches /api/vendors and calls
+// onSaved with the returned vendor; surfaces the API's save-time error inline.
+export default function VendorEditor({
+  initial,
+  categories,
+  refs,
+  onSaved,
+  onCancel,
+}: {
+  initial: Vendor | null;
+  categories: string[];
+  refs: Refs;
+  onSaved: (v: Vendor) => void;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  const [name, setName] = useState(initial?.name ?? "");
+  const [icon, setIcon] = useState<string | null>(initial?.icon ?? null);
+  const [defaultCat, setDefaultCat] = useState(initial?.categoryName ?? "");
+  const [rows, setRows] = useState<RowForm[]>(
+    initial && initial.conditions.length ? initial.conditions.map(toRowForm) : [emptyRow()]
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const setRow = (key: string, patch: Partial<RowForm>) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const removeRow = (key: string) => setRows((rs) => rs.filter((r) => r.key !== key));
+
+  async function save() {
+    setError(null);
+    setSaving(true);
+    const body = {
+      ...(initial ? { id: initial.id } : {}),
+      name,
+      icon,
+      categoryName: defaultCat || null,
+      conditions: rows.map(rowBody),
+    };
+    const res = await fetch("/api/vendors", {
+      method: initial ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setSaving(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return setError(data.error ?? t("common.genericError"));
+    onSaved(data as Vendor);
+  }
+
+  return (
+    <div className="card" style={{ borderColor: "var(--primary)" }}>
+      <div className="card-header">
+        {initial ? t("cust.vendors.editTitle") : t("cust.vendors.createTitle")}
+      </div>
+
+      {/* Vendor-level fields */}
+      <div className="row wrap" style={{ gap: 16, alignItems: "flex-end" }}>
+        <div style={{ flex: "1 1 220px" }}>
+          <label>{t("cust.vendors.name")}</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("cust.vendors.namePlaceholder")} />
+        </div>
+        <div style={{ flex: "1 1 220px" }}>
+          <label>{t("cust.vendors.defaultCategory")}</label>
+          <CategorySelect value={defaultCat} categories={categories} onChange={setDefaultCat} noneLabel={t("cust.vendors.noDefault")} />
+        </div>
+        <div>
+          <label>{t("cust.vendors.icon")}</label>
+          <IconPicker value={icon} name={name} onChange={setIcon} />
+        </div>
+      </div>
+
+      {/* Condition rows */}
+      <div style={{ marginTop: 20 }}>
+        <label style={{ marginBottom: 8 }}>{t("cust.vendors.conditions")}</label>
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>{t("cust.vendors.conditionsHelp")}</p>
+        {rows.map((r, i) => (
+          <RowEditor
+            key={r.key}
+            row={r}
+            index={i}
+            canRemove={rows.length > 1}
+            categories={categories}
+            refs={refs}
+            onChange={(patch) => setRow(r.key, patch)}
+            onRemove={() => removeRow(r.key)}
+          />
+        ))}
+        <button type="button" className="btn btn-sm" onClick={() => setRows((rs) => [...rs, emptyRow()])}>
+          + {t("cust.vendors.addRow")}
+        </button>
+      </div>
+
+      <datalist id="plaid-primaries">{refs.plaidPrimaries.map((p) => <option key={p} value={p} />)}</datalist>
+      <datalist id="plaid-detaileds">{refs.plaidDetaileds.map((p) => <option key={p} value={p} />)}</datalist>
+
+      {error && <div className="error">{error}</div>}
+
+      <div className="row" style={{ gap: 8, marginTop: 18 }}>
+        <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={save}>
+          {saving ? t("common.saving") : t("common.save")}
+        </button>
+        <button className="btn btn-ghost" disabled={saving} onClick={onCancel}>
+          {t("common.cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// One condition row: every FR1 field. `order` is implicit (array position).
+function RowEditor({
+  row,
+  index,
+  canRemove,
+  categories,
+  refs,
+  onChange,
+  onRemove,
+}: {
+  row: RowForm;
+  index: number;
+  canRemove: boolean;
+  categories: string[];
+  refs: Refs;
+  onChange: (patch: Partial<RowForm>) => void;
+  onRemove: () => void;
+}) {
+  const t = useT();
+  const cell: React.CSSProperties = { flex: "1 1 200px" };
+  return (
+    <div className="card" style={{ background: "var(--bg-3)", padding: 14, marginBottom: 12 }}>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+        <strong style={{ fontSize: 13 }}>{t("cust.vendors.rowN", { n: index + 1 })}</strong>
+        {canRemove && (
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onRemove}>
+            {t("cust.vendors.removeRow")}
+          </button>
+        )}
+      </div>
+      <div className="row wrap" style={{ gap: 12, alignItems: "flex-end" }}>
+        {/* transaction name */}
+        <TextField
+          label={t("cust.vendors.txnName")}
+          op={row.nameOp}
+          value={row.nameValue}
+          onOp={(nameOp) => onChange({ nameOp })}
+          onValue={(nameValue) => onChange({ nameValue })}
+        />
+        {/* merchant name */}
+        <TextField
+          label={t("cust.vendors.merchantName")}
+          op={row.merchantOp}
+          value={row.merchantValue}
+          onOp={(merchantOp) => onChange({ merchantOp })}
+          onValue={(merchantValue) => onChange({ merchantValue })}
+        />
+        {/* amount min/max (signed) */}
+        <div style={cell}>
+          <label>{t("cust.vendors.amount")}</label>
+          <div className="row" style={{ gap: 6 }}>
+            <input type="number" step="0.01" placeholder={t("cust.vendors.min")} value={row.amountMin} onChange={(e) => onChange({ amountMin: e.target.value })} />
+            <input type="number" step="0.01" placeholder={t("cust.vendors.max")} value={row.amountMax} onChange={(e) => onChange({ amountMax: e.target.value })} />
+          </div>
+        </div>
+        {/* account */}
+        <div style={cell}>
+          <label>{t("cust.vendors.account")}</label>
+          <select value={row.accountId} onChange={(e) => onChange({ accountId: e.target.value })}>
+            <option value="">{t("cust.vendors.anyOption")}</option>
+            {refs.accounts.map((a) => (
+              <option key={a.accountId} value={a.accountId}>
+                {a.name}{a.subtype ? ` (${a.subtype})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* payment channel */}
+        <div style={cell}>
+          <label>{t("cust.vendors.channel")}</label>
+          <select value={row.paymentChannel} onChange={(e) => onChange({ paymentChannel: e.target.value })}>
+            <option value="">{t("cust.vendors.anyOption")}</option>
+            {CHANNELS.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        {/* plaid primary/detailed (datalists defined once at editor level) */}
+        <div style={cell}>
+          <label>{t("cust.vendors.plaidPrimary")}</label>
+          <input list="plaid-primaries" value={row.plaidPrimary} onChange={(e) => onChange({ plaidPrimary: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
+        </div>
+        <div style={cell}>
+          <label>{t("cust.vendors.plaidDetailed")}</label>
+          <input list="plaid-detaileds" value={row.plaidDetailed} onChange={(e) => onChange({ plaidDetailed: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
+        </div>
+        {/* per-row category (outcome) */}
+        <div style={cell}>
+          <label>{t("cust.vendors.rowCategory")}</label>
+          <CategorySelect value={row.categoryName} categories={categories} onChange={(categoryName) => onChange({ categoryName })} noneLabel={t("cust.vendors.rowNoCategory")} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  op,
+  value,
+  onOp,
+  onValue,
+}: {
+  label: string;
+  op: string;
+  value: string;
+  onOp: (op: string) => void;
+  onValue: (v: string) => void;
+}) {
+  const t = useT();
+  return (
+    <div style={{ flex: "1 1 260px" }}>
+      <label>{label}</label>
+      <div className="row" style={{ gap: 6 }}>
+        <select style={{ flex: "0 0 130px" }} value={op} onChange={(e) => onOp(e.target.value)}>
+          {TEXT_OPS.map((o) => (
+            <option key={o} value={o}>{t(`cust.vendors.op.${o}`)}</option>
+          ))}
+        </select>
+        <input value={value} onChange={(e) => onValue(e.target.value)} placeholder={t("cust.vendors.valuePlaceholder")} />
+      </div>
+    </div>
+  );
+}
+
+function CategorySelect({
+  value,
+  categories,
+  onChange,
+  noneLabel,
+}: {
+  value: string;
+  categories: string[];
+  onChange: (v: string) => void;
+  noneLabel: string;
+}) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{noneLabel}</option>
+      {categories.map((c) => (
+        <option key={c} value={c}>{c}</option>
+      ))}
+    </select>
+  );
+}
