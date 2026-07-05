@@ -510,7 +510,7 @@ function ConflictSection({
                 <td>{money(r.amount, r.currency)}</td>
                 <td>
                   <div className="row wrap">
-                    <a className="btn btn-sm" href="/customizations#vendors">
+                    <a className="btn btn-sm" href="/vendors">
                       {t("review.editVendors")}
                     </a>
                     <button
