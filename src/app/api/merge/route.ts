@@ -3,6 +3,7 @@ import { gate, num } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { createMergeGroup } from "@/lib/analysis/merge";
 import { analyzeUser } from "@/lib/analysis/analyze";
+import { splitParentIds } from "@/lib/splits";
 
 // POST /api/merge — manual N-way merge (FR3). Body: { transactionIds: string[] }.
 // Validate N≥2, all posted, single currency (a mixed-currency sum is undefined),
@@ -37,6 +38,11 @@ export async function POST(req: Request) {
   const grouped = await prisma.mergeGroupLeg.findMany({ where: { transactionId: { in: ids } } });
   if (grouped.length > 0) {
     return NextResponse.json({ error: "Some transactions are already in a group" }, { status: 400 });
+  }
+  // Merge/split mutual exclusion (FR5): a split parent can't be merged — unsplit first.
+  const splitParents = await splitParentIds(userId);
+  if (ids.some((id) => splitParents.has(id))) {
+    return NextResponse.json({ error: "A split transaction cannot be merged; unsplit it first" }, { status: 400 });
   }
 
   const group = await createMergeGroup(userId, ids, { status: "confirmed" });
