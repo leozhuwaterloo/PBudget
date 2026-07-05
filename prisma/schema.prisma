@@ -159,6 +159,10 @@ model Vendor {
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String // display name
   link         String? // Google Maps entry (local vendor) or website (online) | null
+  // DEPRECATED: vendors moved from bundled icons to links. Column KEPT (unread,
+  // unwritten) so prod's db-push diff stays additive — the deploy guard refuses a
+  // DROP COLUMN. Drop it in a later dedicated migration if ever worth it.
+  icon         String?
   categoryName String? // optional DEFAULT category (FR3 fallback)
   priority     Int? // ascending = match order; NULL = legacy row, never matches
   // DEPRECATED (legacy approval model): read ONLY by F14's data migration. Do not
