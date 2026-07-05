@@ -171,6 +171,11 @@ const MATCH_VENDORS: VendorSpec[] = [
 
 // Upsert vendors + rows idempotently (delete/recreate rows so re-seed converges).
 async function seedVendors(): Promise<void> {
+  // Drop the closer vendor that check-analysis creates at runtime (priority 300):
+  // it isn't in MATCH_VENDORS, so without this a re-seed leaves it matching
+  // f1-unmatch (breaking "unmatched initially") and its re-create collides on
+  // @@unique([userId, priority]). Rows cascade; rematch clears any dangling vendorId.
+  await prisma.vendor.deleteMany({ where: { userId: USER_ID, name: "unmatch-closer" } });
   // Clear priorities first so a re-seed over a reordered DB (check-analysis flips
   // conf-high/conf-low) can reassign the target ints without a @@unique collision.
   await prisma.vendor.updateMany({
