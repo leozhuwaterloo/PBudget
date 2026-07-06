@@ -3,7 +3,7 @@
 // third party on render. Best-effort: any failure yields null and the UI falls back
 // to a letter avatar.
 //
-// - Website link → the site's favicon (Google's s2 service, no key).
+// - Website link → the site's favicon (Google's faviconV2 service, no key).
 // - Google Maps link → the place/contributor's real profile photo IF Google exposes
 //   one (via the page's og:image). A bare place whose og:image is only a static-map
 //   tile gets nothing (a map tile isn't a profile icon) → letter avatar.
@@ -92,7 +92,13 @@ export async function iconForLink(link: string | null): Promise<string | null> {
   if (isMapLink(link)) {
     result = await mapIconDataUri(link);
   } else {
-    result = await imageDataUri(`https://www.google.com/s2/favicons?domain=${hostOf(link)}&sz=64`);
+    // Google's faviconV2, queried with the site's full https origin — returns a real
+    // 200 favicon when Google has one, 404 (→ null → letter avatar) when it doesn't.
+    // The older s2/favicons?domain= path resolves some sites (e.g. perfectmeatbowl.com)
+    // via an http:// redirect that 404s even when faviconV2 has the icon.
+    const origin = new URL(link).origin;
+    const fav = `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(origin)}&size=64`;
+    result = await imageDataUri(fav);
   }
   cache.set(key, result);
   return result;

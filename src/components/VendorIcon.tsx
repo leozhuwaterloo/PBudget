@@ -2,11 +2,17 @@
 import React from "react";
 import { letterAvatar } from "@/lib/catalog/icons";
 
-// A vendor's icon. When we have a cached favicon (a data URI stored on the vendor;
-// see lib/favicon), it renders bare — no background circle. Otherwise a deterministic
-// letter avatar (first letter + a hue from the name). With a link the whole icon is a
-// clickable anchor that opens the site/map in a new tab; pass clickable={false} when
-// it sits inside another button (e.g. the catalog picker), where a nested <a> is invalid.
+// Local copy of favicon.ts's map-link test — kept inline so this client component
+// doesn't pull the server-only favicon module (Buffer/fetch) into the browser bundle.
+const isMapLink = (url: string) => /google\.[^/]*\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/i.test(url);
+
+// A vendor's icon. With a cached favicon (a data URI stored on the vendor; see
+// lib/favicon) it renders bare — no circle — and the favicon itself is the clickable
+// link. Without one, a deterministic letter avatar (first letter + a hue from the
+// name); if the vendor still has a link, it's shown as a SEPARATE 📍/🌐 button next
+// to the avatar (like before favicons), since a plain letter doesn't read as a link.
+// Pass clickable={false} when it sits inside another button (catalog picker), where a
+// nested <a> is invalid — then no link is rendered.
 export function VendorIcon({
   name,
   link = null,
@@ -22,7 +28,7 @@ export function VendorIcon({
 }) {
   const { letter, hue } = letterAvatar(name || "?");
 
-  const glyph = icon ? (
+  const avatar = icon ? (
     <img
       src={icon}
       alt=""
@@ -51,7 +57,8 @@ export function VendorIcon({
     </span>
   );
 
-  if (link && clickable) {
+  // Favicon present → the icon is the link.
+  if (icon && link && clickable) {
     return (
       <a
         href={link}
@@ -61,9 +68,29 @@ export function VendorIcon({
         onClick={(e) => e.stopPropagation()}
         style={{ display: "inline-flex", flex: `0 0 ${size}px`, lineHeight: 0, textDecoration: "none" }}
       >
-        {glyph}
+        {avatar}
       </a>
     );
   }
-  return glyph;
+
+  // No favicon but a link → decorative avatar + a separate 📍/🌐 link button.
+  if (!icon && link && clickable) {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {avatar}
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={link}
+          onClick={(e) => e.stopPropagation()}
+          style={{ fontSize: Math.max(12, Math.round(size * 0.5)), lineHeight: 1, textDecoration: "none" }}
+        >
+          {isMapLink(link) ? "📍" : "🌐"}
+        </a>
+      </span>
+    );
+  }
+
+  return avatar;
 }
