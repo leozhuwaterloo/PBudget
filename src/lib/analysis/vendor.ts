@@ -36,6 +36,19 @@ export function plaidConfidence(category: string | null | undefined): string | n
   }
 }
 
+// A match condition's confidence is a MINIMUM (a floor), not an exact value: a txn
+// qualifies when it's at least as confident as the target. LOW is the floor, so
+// target LOW matches everything; UNKNOWN/absent/unrecognized confidence is treated
+// as the floor, so it clears a LOW target but nothing higher.
+const CONFIDENCE_ORDER = ["LOW", "MEDIUM", "HIGH", "VERY_HIGH"];
+function confidenceRank(level: string | null): number {
+  const i = CONFIDENCE_ORDER.indexOf((level ?? "").toUpperCase());
+  return i < 0 ? 0 : i;
+}
+export function meetsConfidence(txnCategory: string | null | undefined, target: string): boolean {
+  return confidenceRank(plaidConfidence(txnCategory)) >= confidenceRank(target);
+}
+
 // Lower-cased, whitespace-folded. The one string normalization the funnel uses:
 // vendor identity, and case-insensitive name/merchant condition matching (F1) both
 // go through this so they agree byte-for-byte.

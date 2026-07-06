@@ -9,7 +9,7 @@
 // effective items. Deterministic + idempotent.
 import type { Prisma, VendorCondition } from "@prisma/client";
 import { prisma } from "../db";
-import { normalizeStr, plaidPrimary, plaidDetailed, plaidConfidence } from "./vendor";
+import { normalizeStr, plaidPrimary, plaidDetailed, meetsConfidence } from "./vendor";
 import { primaryLeg } from "./groups";
 import { RULES } from "./constants";
 
@@ -95,7 +95,7 @@ export function matchesCondition(c: VendorCondition, txn: MatchTxn): boolean {
     preds.push(normalizeStr(txn.paymentChannel) === normalizeStr(c.paymentChannel));
   if (c.plaidPrimary) preds.push(plaidPrimary(txn.category) === c.plaidPrimary);
   if (c.plaidDetailed) preds.push(plaidDetailed(txn.category) === c.plaidDetailed);
-  if (c.plaidConfidence) preds.push(plaidConfidence(txn.category) === c.plaidConfidence);
+  if (c.plaidConfidence) preds.push(meetsConfidence(txn.category, c.plaidConfidence));
 
   return preds.length > 0 && preds.every(Boolean);
 }
