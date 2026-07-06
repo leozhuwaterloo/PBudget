@@ -4,7 +4,7 @@
 // evaluators and the regex validator all come from F1's match.ts.
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
-import { validateRegex, rematchUser } from "./analysis/match";
+import { validateRegex, rematchUser, rematchAfterVendorChange } from "./analysis/match";
 import { faviconDataUri } from "./favicon";
 import { normalizeStr } from "./analysis/vendor";
 
@@ -301,7 +301,7 @@ export async function createVendor(userId: string, input: VendorInput) {
   } catch (e) {
     rethrow(e);
   }
-  await rematchUser(userId);
+  await rematchAfterVendorChange(userId, vendor!.id); // incremental: only unmatched txns can newly match
   return serializeVendor(vendor!);
 }
 
@@ -335,7 +335,8 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
   } catch (e) {
     rethrow(e);
   }
-  await rematchUser(userId);
+  // Incremental: re-evaluate only this vendor's own txns + the currently-unmatched.
+  await rematchAfterVendorChange(userId, id);
   return serializeVendor(vendor!);
 }
 
@@ -345,7 +346,9 @@ export async function deleteVendor(userId: string, id: string): Promise<void> {
   const existing = await prisma.vendor.findFirst({ where: { id, userId } });
   if (!existing) throw new VendorError(404, "Vendor not found");
   await prisma.vendor.delete({ where: { id } });
-  await rematchUser(userId);
+  // The deleted vendor's txns still carry its id (vendorId is a bare scalar) — the
+  // incremental pass re-homes exactly them + the unmatched, nothing else.
+  await rematchAfterVendorChange(userId, id);
 }
 
 // Reassign priorities from an ordered id list (index 0 = highest priority). The

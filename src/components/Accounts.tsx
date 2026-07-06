@@ -65,6 +65,7 @@ export default function Accounts({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [openAccount, setOpenAccount] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   // A limit hit surfaced from a live 402 (defensive — the server pre-computes the
   // CTA, so the button is already replaced when at the limit).
   const [limitHit, setLimitHit] = useState<UpgradeCTA | null>(connect.cta);
@@ -102,6 +103,16 @@ export default function Accounts({
       router.refresh();
     });
 
+  // Full vendor re-match across every transaction. Vendor edits only touch the
+  // edited vendor's + unmatched txns (fast); this re-resolves everything.
+  const rematchAll = () =>
+    run(async () => {
+      setNote("");
+      await postJson("/api/vendors/rematch", {});
+      router.refresh();
+      setNote(t("accounts.rematchDone"));
+    });
+
   const cta = limitHit && (
     <div className="banner">
       <strong>{t("accounts.limitTitle")}</strong>{" "}
@@ -118,6 +129,13 @@ export default function Accounts({
     <div>
       <h1>{t("accounts.title")}</h1>
       <p className="muted">{t("accounts.subtitle")}</p>
+
+      <div className="row" style={{ gap: 10, alignItems: "center", marginBottom: 12 }}>
+        <button className="btn btn-sm" disabled={busy} onClick={rematchAll}>
+          {t("accounts.rematchAll")}
+        </button>
+        <span className="muted" style={{ fontSize: 12 }}>{note || t("accounts.rematchHint")}</span>
+      </div>
 
       {error && <div className="error">{error}</div>}
       {cta}

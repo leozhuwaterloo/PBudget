@@ -21,6 +21,9 @@ const en = {
   // --- accounts page (F8) — add accounts.* strings within this region ---
   "accounts.title": "Accounts",
   "accounts.subtitle": "Your bank connections and the raw transactions behind them.",
+  "accounts.rematchAll": "Re-match all transactions",
+  "accounts.rematchHint": "Re-run vendor matching across every transaction — use after broadening a vendor so it reclaims ones held by a catch-all.",
+  "accounts.rematchDone": "Re-matched every transaction.",
   "accounts.noBanks": "No banks connected yet.",
   "accounts.connect": "Connect a bank account",
   "accounts.lastUpdated": "Updated",
