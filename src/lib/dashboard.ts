@@ -28,7 +28,7 @@ export type DashboardData = {
   trend: { month: string; spend: number }[]; // (a) last 12 months, oldest → newest
   budget: { name: string; budget: number; actual: number }[]; // (b) selected month
   review: { unmatched: number; conflicts: number; suspicion: number; pending: number }; // (c)
-  vendors: { key: string; name: string; link: string | null; spend: number }[]; // (d) selected month
+  vendors: { key: string; name: string; link: string | null; icon: string | null; spend: number }[]; // (d) selected month
 };
 
 export async function dashboardData(userId: string, month?: string): Promise<DashboardData> {
@@ -89,11 +89,11 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   // (d) top vendors for the selected month — same exclusion as (a) so bucket
   // vendors (Self / General Bank) don't dominate (assumption 7). Keyed by matched
   // vendorId, else the normalized-string vendor name.
-  const vAgg = new Map<string, { name: string; link: string | null; spend: number }>();
+  const vAgg = new Map<string, { name: string; link: string | null; icon: string | null; spend: number }>();
   for (const e of effective) {
     if (!inSelMonth(e.date) || isExcluded(e.categoryName)) continue;
     const key = e.vendorId ?? e.vendorName;
-    const cur = vAgg.get(key) ?? { name: e.vendorName, link: e.vendorLink, spend: 0 };
+    const cur = vAgg.get(key) ?? { name: e.vendorName, link: e.vendorLink, icon: e.vendorIcon, spend: 0 };
     cur.spend += e.amount;
     vAgg.set(key, cur);
   }

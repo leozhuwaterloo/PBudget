@@ -134,6 +134,7 @@ const createInitial = (row: UnmatchedRow): Vendor => ({
   id: "",
   name: prefillName(row),
   link: null,
+  icon: null,
   categoryName: null,
   priority: null,
   matchConditions: [prefillCondition(row)],

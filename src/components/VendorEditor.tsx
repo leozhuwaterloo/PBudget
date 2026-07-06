@@ -24,6 +24,7 @@ export type Vendor = {
   id: string;
   name: string;
   link: string | null;
+  icon: string | null;
   categoryName: string | null;
   priority: number | null;
   matchConditions: Condition[];

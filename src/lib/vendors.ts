@@ -5,6 +5,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { validateRegex, rematchUser } from "./analysis/match";
+import { faviconDataUri } from "./favicon";
 import { normalizeStr } from "./analysis/vendor";
 
 const TEXT_OPS = new Set(["contains", "equals", "starts_with", "regex"]);
@@ -244,6 +245,7 @@ export function serializeVendor(v: VendorWithConditions) {
     id: v.id,
     name: v.name,
     link: v.link,
+    icon: v.icon,
     categoryName: v.categoryName,
     priority: v.priority,
     matchConditions: byRole("match"),
@@ -288,11 +290,12 @@ export async function createVendor(userId: string, input: VendorInput) {
   // creates is ignored; a collision surfaces as P2002. Add a retry if it matters.
   const max = await prisma.vendor.aggregate({ where: { userId }, _max: { priority: true } });
   const priority = (max._max.priority ?? -1) + 1;
+  const icon = await faviconDataUri(link); // cache the favicon once; null for map/no link
 
   let vendor: VendorWithConditions;
   try {
     vendor = await prisma.vendor.create({
-      data: { userId, name, link, categoryName, priority, conditions: { create: rows } },
+      data: { userId, name, link, icon, categoryName, priority, conditions: { create: rows } },
       include: { conditions: true },
     });
   } catch (e) {
@@ -315,13 +318,17 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
   if (categoryName) categoryNames.add(categoryName);
   await assertReferences(userId, categoryNames, accountIds);
 
+  // Only re-fetch the favicon when the link actually changed — keeps ordinary edits
+  // (renames, rule tweaks) a pure DB write with no outbound request.
+  const icon = link === existing.link ? existing.icon : await faviconDataUri(link);
+
   let vendor: VendorWithConditions;
   try {
     vendor = await prisma.$transaction(async (tx) => {
       await tx.vendorCondition.deleteMany({ where: { vendorId: id } });
       return tx.vendor.update({
         where: { id },
-        data: { name, link, categoryName, conditions: { create: rows } },
+        data: { name, link, icon, categoryName, conditions: { create: rows } },
         include: { conditions: true },
       });
     });

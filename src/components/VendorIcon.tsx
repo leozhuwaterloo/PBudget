@@ -1,15 +1,36 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import { letterAvatar } from "@/lib/catalog/icons";
 
-// A deterministic letter avatar for a vendor (first letter + a hue from the name).
-// When the vendor has a website link, its favicon fills the circle instead (falls
-// back to the letter on load error or a map/no-host link).
-export function VendorIcon({ name, link = null, size = 28 }: { name: string; link?: string | null; size?: number }) {
+// A vendor's icon. When we have a cached favicon (a data URI stored on the vendor;
+// see lib/favicon), it renders bare — no background circle. Otherwise a deterministic
+// letter avatar (first letter + a hue from the name). With a link the whole icon is a
+// clickable anchor that opens the site/map in a new tab; pass clickable={false} when
+// it sits inside another button (e.g. the catalog picker), where a nested <a> is invalid.
+export function VendorIcon({
+  name,
+  link = null,
+  icon = null,
+  size = 28,
+  clickable = true,
+}: {
+  name: string;
+  link?: string | null;
+  icon?: string | null;
+  size?: number;
+  clickable?: boolean;
+}) {
   const { letter, hue } = letterAvatar(name || "?");
-  const host = link && !isMapLink(link) ? hostOf(link) : null;
-  const [ok, setOk] = useState(true);
-  return (
+
+  const glyph = icon ? (
+    <img
+      src={icon}
+      alt=""
+      width={size}
+      height={size}
+      style={{ display: "block", flex: `0 0 ${size}px`, borderRadius: 4, objectFit: "contain" }}
+    />
+  ) : (
     <span
       aria-hidden="true"
       style={{
@@ -20,78 +41,29 @@ export function VendorIcon({ name, link = null, size = 28 }: { name: string; lin
         alignItems: "center",
         justifyContent: "center",
         borderRadius: "50%",
-        overflow: "hidden",
         background: `hsl(${hue} 42% 88%)`,
         color: `hsl(${hue} 50% 32%)`,
         fontWeight: 600,
         fontSize: size * 0.44,
       }}
     >
-      {host && ok ? (
-        <img
-          src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
-          alt=""
-          width={Math.round(size * 0.62)}
-          height={Math.round(size * 0.62)}
-          onError={() => setOk(false)}
-          style={{ display: "block" }}
-        />
-      ) : (
-        letter
-      )}
+      {letter}
     </span>
   );
-}
 
-// True for Google-Maps-style URLs (📍); everything else is treated as a website (🌐).
-function isMapLink(url: string): boolean {
-  return /google\.[^/]*\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/i.test(url);
-}
-
-function hostOf(url: string): string | null {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
+  if (link && clickable) {
+    return (
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={name}
+        onClick={(e) => e.stopPropagation()}
+        style={{ display: "inline-flex", flex: `0 0 ${size}px`, lineHeight: 0, textDecoration: "none" }}
+      >
+        {glyph}
+      </a>
+    );
   }
-}
-
-// The site's favicon for a website link; falls back to 🌐 if it fails to load or
-// the URL has no host.
-// ponytail: Google's favicon service (no key, auto default). Ceiling: leaks vendor
-// domains to Google client-side — proxy through our own /api if that matters.
-function Favicon({ url, size }: { url: string; size: number }) {
-  const [ok, setOk] = useState(true);
-  const host = hostOf(url);
-  if (!ok || !host) return <>🌐</>;
-  return (
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
-      alt=""
-      width={size + 2}
-      height={size + 2}
-      onError={() => setOk(false)}
-      style={{ borderRadius: 3, display: "block" }}
-    />
-  );
-}
-
-// A vendor's link affordance: 📍 for a Google Maps entry (local vendor), the site
-// favicon for a website (online). Renders nothing when the vendor has no link.
-// stopPropagation so clicking it inside a clickable card/row doesn't also trigger
-// the card.
-export function VendorLink({ link, size = 14 }: { link: string | null; size?: number }) {
-  if (!link) return null;
-  return (
-    <a
-      href={link}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={link}
-      onClick={(e) => e.stopPropagation()}
-      style={{ fontSize: size, textDecoration: "none", lineHeight: 1, display: "inline-flex", alignItems: "center" }}
-    >
-      {isMapLink(link) ? "📍" : <Favicon url={link} size={size} />}
-    </a>
-  );
+  return glyph;
 }

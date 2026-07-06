@@ -71,6 +71,7 @@ export async function GET(req: Request) {
       plaidDetailed: plaidDetailed(t.category),
       vendorName: vendor?.name ?? normalizeVendor(t.merchantName, t.name),
       vendorLink: vendor?.link ?? null,
+      vendorIcon: vendor?.icon ?? null,
       category: resolveCategory(vendor, t, null),
       isMergeLeg: legIds.has(t.transactionId),
       split: split ? { parts: split.parts.map((p) => ({ id: p.id, amount: Number(p.amount), label: p.label, categoryName: p.categoryName })) } : null,
