@@ -127,6 +127,7 @@ model PlaidTransaction {
   datetime             DateTime
   name                 String
   merchantName         String?
+  website              String? // Plaid merchant website (bare domain); enrichment, often null
   paymentChannel       String
   pending              Boolean
   pendingTransactionId String?
