@@ -102,6 +102,8 @@ const en = {
   "cust.vendors.add": "New vendor",
   "cust.vendors.browseCatalog": "Browse catalog",
   "cust.vendors.empty": "No vendors yet. Create one, or instantiate from the catalog.",
+  "cust.vendors.viewTxns": "Transactions",
+  "cust.vendors.hideTxns": "Hide",
   "cust.vendors.edit": "Edit",
   "cust.vendors.delete": "Delete",
   "cust.vendors.confirmDelete": "Delete vendor “{name}”? Its matched transactions return to the unmatched queue.",
