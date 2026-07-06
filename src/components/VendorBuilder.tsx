@@ -144,7 +144,7 @@ export default function VendorBuilder() {
                   <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === ordered.length - 1} onClick={() => move(idx, 1)} title={t("cust.vendors.moveDown")}>▼</button>
                 </div>
               )}
-              <VendorIcon name={v.name} size={34} />
+              <VendorIcon name={v.name} link={v.link} size={34} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row wrap" style={{ gap: 10 }}>
                   <strong style={{ fontSize: 15 }}>{v.name}</strong>
