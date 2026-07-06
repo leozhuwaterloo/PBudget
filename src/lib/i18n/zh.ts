@@ -23,6 +23,9 @@ const zh: Messages = {
   // --- accounts page (F8) — add accounts.* strings within this region ---
   "accounts.title": "账户",
   "accounts.subtitle": "您的银行连接及其背后的原始交易。",
+  "accounts.rematchAll": "重新匹配所有交易",
+  "accounts.rematchHint": "对所有交易重新运行商家匹配 — 在放宽某商家规则后使用，以收回被通用类目占用的交易。",
+  "accounts.rematchDone": "已重新匹配所有交易。",
   "accounts.noBanks": "尚未连接任何银行。",
   "accounts.connect": "连接银行账户",
   "accounts.lastUpdated": "更新于",

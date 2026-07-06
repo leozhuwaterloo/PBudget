@@ -135,37 +135,44 @@ export function matchingCategoryRow(
 
 // --- Rematch: materialize vendorId + maintain queue flags --------------------
 
-type FlagTarget = { transactionId: string } | { mergeGroupId: string };
+// Batch-drive a whole set of queue flags to their desired open/closed state,
+// preserving setQueueFlag's exact semantics: create a missing open flag, reopen a
+// resolved one, resolve an open one that should close — and NEVER touch a dismissed
+// flag (its suppression is permanent), leaving already-correct flags alone. One
+// findMany + up to three bulk writes replaces the old per-flag findUnique+write,
+// which was thousands of sequential round-trips on a multi-thousand-txn account.
+type FlagWant = { rule: string; transactionId?: string; mergeGroupId?: string; open: boolean };
 
-// Drive one queue flag to open/closed. Auto-close resolves an OPEN flag; a
-// DISMISSED flag is never touched (vendor_conflict dismissal is permanent, and
-// unmatched_vendor is never dismissable) so a dismissed conflict never reopens.
-async function setQueueFlag(
-  userId: string,
-  rule: string,
-  target: FlagTarget,
-  open: boolean
-): Promise<void> {
-  const where =
-    "transactionId" in target
-      ? { rule_transactionId: { rule, transactionId: target.transactionId } }
-      : { rule_mergeGroupId: { rule, mergeGroupId: target.mergeGroupId } };
-  const existing = await prisma.transactionFlag.findUnique({ where });
-  if (open) {
-    if (!existing)
-      await prisma.transactionFlag.create({ data: { userId, rule, ...target, status: "open" } });
-    else if (existing.status === "resolved")
-      await prisma.transactionFlag.update({
-        where: { id: existing.id },
-        data: { status: "open", resolvedAt: null },
-      });
-    // open stays open; dismissed stays dismissed (permanent suppression).
-  } else if (existing && existing.status === "open") {
-    await prisma.transactionFlag.update({
-      where: { id: existing.id },
-      data: { status: "resolved", resolvedAt: new Date() },
-    });
+const flagKey = (rule: string, txnId: string | null, grpId: string | null) =>
+  txnId ? `${rule}|t|${txnId}` : `${rule}|g|${grpId}`;
+
+async function applyFlags(userId: string, wants: FlagWant[]): Promise<void> {
+  if (wants.length === 0) return;
+  const rules = [...new Set(wants.map((w) => w.rule))];
+  const existing = await prisma.transactionFlag.findMany({ where: { userId, rule: { in: rules } } });
+  const byKey = new Map(existing.map((f) => [flagKey(f.rule, f.transactionId, f.mergeGroupId), f]));
+
+  const toCreate: Prisma.TransactionFlagCreateManyInput[] = [];
+  const toReopen: string[] = [];
+  const toResolve: string[] = [];
+  for (const w of wants) {
+    const cur = byKey.get(flagKey(w.rule, w.transactionId ?? null, w.mergeGroupId ?? null));
+    if (w.open) {
+      if (!cur)
+        toCreate.push({ userId, rule: w.rule, transactionId: w.transactionId ?? null, mergeGroupId: w.mergeGroupId ?? null, status: "open" });
+      else if (cur.status === "resolved") toReopen.push(cur.id);
+      // open stays open; dismissed stays dismissed (permanent suppression).
+    } else if (cur && cur.status === "open") {
+      toResolve.push(cur.id);
+    }
   }
+
+  const now = new Date();
+  await Promise.all([
+    toCreate.length ? prisma.transactionFlag.createMany({ data: toCreate }) : Promise.resolve(),
+    toReopen.length ? prisma.transactionFlag.updateMany({ where: { id: { in: toReopen } }, data: { status: "open", resolvedAt: null } }) : Promise.resolve(),
+    toResolve.length ? prisma.transactionFlag.updateMany({ where: { id: { in: toResolve } }, data: { status: "resolved", resolvedAt: now } }) : Promise.resolve(),
+  ]);
 }
 
 // Re-evaluate every vendor over every posted transaction, materialize the winning
@@ -187,9 +194,10 @@ export async function rematchUser(userId: string): Promise<void> {
     where: { pending: false, account: { item: { userId } } },
   });
 
-  // 1. Materialize vendorId per posted txn; remember how many vendors matched (for
-  //    the conflict flag). Split parents are matched like any txn (parts inherit).
+  // 1. Materialize the winning vendorId per posted txn IN MEMORY; collect the
+  //    changes grouped by target vendorId so each becomes one bulk updateMany.
   const matchCount = new Map<string, number>();
+  const changedByVendor = new Map<string | null, string[]>();
   for (const t of posted) {
     const matches = vendors.filter((v) => matchesVendor(v, t)); // priority-sorted
     const vendorId = matches[0]?.id ?? null;
@@ -197,18 +205,22 @@ export async function rematchUser(userId: string): Promise<void> {
     // buckets overlap everything by design and must not flood the conflict queue.
     matchCount.set(t.transactionId, matches.filter((v) => explicitlyMatchesVendor(v, t)).length);
     if (t.vendorId !== vendorId) {
-      await prisma.plaidTransaction.update({
-        where: { transactionId: t.transactionId },
-        data: { vendorId },
-      });
+      const arr = changedByVendor.get(vendorId);
+      if (arr) arr.push(t.transactionId);
+      else changedByVendor.set(vendorId, [t.transactionId]);
       t.vendorId = vendorId; // keep local copy current for the group lookup below
     }
   }
+  await Promise.all(
+    [...changedByVendor.entries()].map(([vendorId, ids]) =>
+      prisma.plaidTransaction.updateMany({ where: { transactionId: { in: ids } }, data: { vendorId } })
+    )
+  );
 
-  // 2. Queue flags over effective items: ungrouped posted txns + net-≠0 groups.
-  //    Grouped legs and net-0 groups never queue. A group's vendor/conflict is its
-  //    primary leg's. One queue row per split parent falls out for free (the parent
-  //    is a single ungrouped txn).
+  // 2. Recompute queue flags over effective items (ungrouped posted txns + net-≠0
+  //    groups) and apply them in bulk. Grouped legs and net-0 groups never queue; a
+  //    group's vendor/conflict is its primary leg's. One queue row per split parent
+  //    falls out for free (the parent is a single ungrouped txn).
   const groups = await prisma.mergeGroup.findMany({
     where: { userId },
     include: { legs: true },
@@ -216,11 +228,11 @@ export async function rematchUser(userId: string): Promise<void> {
   const legIds = new Set(groups.flatMap((g) => g.legs.map((l) => l.transactionId)));
   const postedById = new Map(posted.map((t) => [t.transactionId, t]));
 
+  const wants: FlagWant[] = [];
   for (const t of posted) {
     if (legIds.has(t.transactionId)) continue; // represented by its group
-    const target = { transactionId: t.transactionId };
-    await setQueueFlag(userId, RULES.unmatchedVendor, target, t.vendorId == null);
-    await setQueueFlag(userId, RULES.vendorConflict, target, (matchCount.get(t.transactionId) ?? 0) >= 2);
+    wants.push({ rule: RULES.unmatchedVendor, transactionId: t.transactionId, open: t.vendorId == null });
+    wants.push({ rule: RULES.vendorConflict, transactionId: t.transactionId, open: (matchCount.get(t.transactionId) ?? 0) >= 2 });
   }
   for (const g of groups) {
     if (cents(g.netAmount) === 0) continue; // net-0 self-transfer never queues
@@ -228,13 +240,89 @@ export async function rematchUser(userId: string): Promise<void> {
       .map((l) => postedById.get(l.transactionId))
       .filter((t): t is (typeof posted)[number] => !!t);
     const primary = legs.length ? primaryLeg(legs) : null;
-    const target = { mergeGroupId: g.id };
-    await setQueueFlag(userId, RULES.unmatchedVendor, target, (primary?.vendorId ?? null) == null);
-    await setQueueFlag(
-      userId,
-      RULES.vendorConflict,
-      target,
-      (primary ? matchCount.get(primary.transactionId) ?? 0 : 0) >= 2
-    );
+    wants.push({ rule: RULES.unmatchedVendor, mergeGroupId: g.id, open: (primary?.vendorId ?? null) == null });
+    wants.push({ rule: RULES.vendorConflict, mergeGroupId: g.id, open: (primary ? matchCount.get(primary.transactionId) ?? 0 : 0) >= 2 });
   }
+
+  await applyFlags(userId, wants);
+}
+
+// Incremental rematch after a SINGLE vendor create/edit/delete — the fast path the
+// vendor Save button uses. Only re-evaluates transactions that could flip: those
+// currently materialized to this vendor (incl. a just-deleted vendor's dangling ids)
+// plus the currently-UNMATCHED ones a broadened rule might now claim. Transactions
+// owned by ANOTHER vendor (including catch-all buckets) are deliberately left alone —
+// a full rematchUser (Accounts → "Re-match all") re-resolves everything. Match/flag
+// semantics are identical to rematchUser, just restricted to the candidate set plus
+// any merge group that owns one of those candidates. O(candidates), not O(all txns).
+export async function rematchAfterVendorChange(userId: string, vendorId: string): Promise<void> {
+  const vendors = (
+    await prisma.vendor.findMany({
+      where: { userId, priority: { not: null } },
+      include: { conditions: true },
+      orderBy: { priority: "asc" },
+    })
+  ).filter((v) => v.conditions.length > 0);
+
+  const candidates = await prisma.plaidTransaction.findMany({
+    where: { pending: false, account: { item: { userId } }, OR: [{ vendorId }, { vendorId: null }] },
+  });
+  if (candidates.length === 0) return;
+
+  // Materialize the winning vendor over the candidates (one bulk write per target).
+  const matchCount = new Map<string, number>();
+  const changedByVendor = new Map<string | null, string[]>();
+  for (const t of candidates) {
+    const matches = vendors.filter((v) => matchesVendor(v, t)); // priority-sorted
+    const winner = matches[0]?.id ?? null;
+    matchCount.set(t.transactionId, matches.filter((v) => explicitlyMatchesVendor(v, t)).length);
+    if (t.vendorId !== winner) {
+      const arr = changedByVendor.get(winner);
+      if (arr) arr.push(t.transactionId);
+      else changedByVendor.set(winner, [t.transactionId]);
+      t.vendorId = winner; // keep local copy current for the group lookup below
+    }
+  }
+  await Promise.all(
+    [...changedByVendor.entries()].map(([v, ids]) =>
+      prisma.plaidTransaction.updateMany({ where: { transactionId: { in: ids } }, data: { vendorId: v } })
+    )
+  );
+
+  // Merge groups that own a candidate leg may see their primary vendor (hence flag) move.
+  const candidateIds = candidates.map((t) => t.transactionId);
+  const groups = await prisma.mergeGroup.findMany({
+    where: { userId, legs: { some: { transactionId: { in: candidateIds } } } },
+    include: { legs: true },
+  });
+  const legIds = new Set(groups.flatMap((g) => g.legs.map((l) => l.transactionId)));
+  // A leg of an affected group can sit outside the candidate set — load those so
+  // primaryLeg sees the whole group (they keep their existing, unchanged vendorId).
+  const byId = new Map(candidates.map((t) => [t.transactionId, t]));
+  const missing = [...legIds].filter((id) => !byId.has(id));
+  if (missing.length) {
+    for (const t of await prisma.plaidTransaction.findMany({ where: { transactionId: { in: missing } } }))
+      byId.set(t.transactionId, t);
+  }
+
+  const wants: FlagWant[] = [];
+  for (const t of candidates) {
+    if (legIds.has(t.transactionId)) continue; // represented by its group
+    wants.push({ rule: RULES.unmatchedVendor, transactionId: t.transactionId, open: t.vendorId == null });
+    wants.push({ rule: RULES.vendorConflict, transactionId: t.transactionId, open: (matchCount.get(t.transactionId) ?? 0) >= 2 });
+  }
+  for (const g of groups) {
+    if (cents(g.netAmount) === 0) continue; // net-0 self-transfer never queues
+    const legs = g.legs
+      .map((l) => byId.get(l.transactionId))
+      .filter((t): t is (typeof candidates)[number] => !!t);
+    const primary = legs.length ? primaryLeg(legs) : null;
+    const pc = primary
+      ? matchCount.get(primary.transactionId) ?? vendors.filter((v) => explicitlyMatchesVendor(v, primary)).length
+      : 0;
+    wants.push({ rule: RULES.unmatchedVendor, mergeGroupId: g.id, open: (primary?.vendorId ?? null) == null });
+    wants.push({ rule: RULES.vendorConflict, mergeGroupId: g.id, open: pc >= 2 });
+  }
+
+  await applyFlags(userId, wants);
 }
