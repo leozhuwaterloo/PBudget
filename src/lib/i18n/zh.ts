@@ -210,6 +210,8 @@ const zh: Messages = {
   "review.next": "下一页",
   "review.pageOf": "第 {page} / {pages} 页",
   "review.pickVendor": "将此条件加入哪个商户？",
+  "review.searchVendors": "搜索商户……",
+  "review.noVendorMatch": "没有匹配“{q}”的商户。",
   "review.noVendors": "你还没有任何商户——请改用“新建商户”。",
   "review.condCount": "{n} 个条件",
   "rule.unmatched_vendor": "未匹配商户",
