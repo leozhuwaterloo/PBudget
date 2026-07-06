@@ -14,6 +14,7 @@ import {
   createVendor,
   deleteVendor,
   reorderVendors,
+  listVendors,
 } from "../src/lib/vendors";
 
 const USER = "vendor-test-user";
@@ -106,9 +107,20 @@ async function main(): Promise<void> {
   // --- Second overlapping vendor opens a conflict --------------------------
   const v2 = await createVendor(USER, {
     name: "Zebra Alt",
+    categoryName: "Grocery",
     matchConditions: [{ merchantOp: "contains", merchantValue: "zebra" }],
   });
   check(v2.priority === 1, "create: second vendor appends at priority 1 (end of order)");
+
+  // --- listVendors pagination + search (opt-in; picker needs the unpaginated full) ---
+  const full = await listVendors(USER); // no page → whole list (Review picker path)
+  check(full.vendors.length === 2 && full.total === 2, "list: unpaginated returns every vendor");
+  check(full.orderedIds.length === 2, "list: orderedIds spans the full priority order (for reorder across pages)");
+  const searched = await listVendors(USER, { q: "alt" }); // case-insensitive name search
+  check(
+    searched.total === 1 && searched.vendors[0]?.name === "Zebra Alt" && searched.orderedIds.length === 2,
+    "list: search narrows results but orderedIds stays the full set"
+  );
   // Incremental rematch leaves a txn already owned by v1 alone; the conflict over a
   // now-overlapping vendor surfaces on a full rematch (Accounts → "Re-match all").
   await rematchUser(USER);
@@ -125,7 +137,7 @@ async function main(): Promise<void> {
 
   // --- Validation: each bad save is a 400 ----------------------------------
   await reject400(
-    () => createVendor(USER, { name: "Zebra", matchConditions: [{ nameOp: "contains", nameValue: "x" }] }),
+    () => createVendor(USER, { name: "Zebra", categoryName: "Grocery", matchConditions: [{ nameOp: "contains", nameValue: "x" }] }),
     "duplicate name"
   );
   await reject400(() => createVendor(USER, { name: "No Rows", matchConditions: [] }), "zero condition rows");

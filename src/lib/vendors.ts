@@ -272,15 +272,36 @@ export function serializeVendor(v: VendorWithConditions) {
 
 // --- Read --------------------------------------------------------------------
 
-// All the user's vendors, priority-ascending (match order), legacy NULL-priority
-// rows last. Conditions come ordered inside each vendor.
-export async function listVendors(userId: string) {
+const VENDOR_PAGE_SIZE = 25;
+
+// The user's vendors, priority-ascending (match order), legacy NULL-priority rows
+// last, conditions ordered inside each. Search + pagination are OPT-IN: with no
+// `page` arg the full list comes back (the Review "add to a vendor" picker needs
+// all of them). Vendor.name isn't encrypted, but we filter/paginate in JS to keep
+// case-insensitive search portable across SQLite (dev) and Postgres (prod) — the
+// set is bounded so this stays a cheap indexed read. `orderedIds` is the FULL
+// priority order (all pages) so the client can still reorder across page bounds.
+export async function listVendors(
+  userId: string,
+  opts: { page?: number; q?: string } = {}
+) {
   const vendors = await prisma.vendor.findMany({
     where: { userId },
     include: { conditions: true },
   });
   vendors.sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity));
-  return vendors.map(serializeVendor);
+  const all = vendors.map(serializeVendor);
+  const orderedIds = all.filter((v) => v.priority != null).map((v) => v.id);
+  const q = (opts.q ?? "").toLowerCase().trim();
+  const filtered = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
+  const total = filtered.length;
+  const lastPage = Math.max(0, Math.ceil(total / VENDOR_PAGE_SIZE) - 1);
+  const page = opts.page === undefined ? 0 : Math.max(0, Math.min(opts.page, lastPage));
+  const view =
+    opts.page === undefined
+      ? filtered
+      : filtered.slice(page * VENDOR_PAGE_SIZE, page * VENDOR_PAGE_SIZE + VENDOR_PAGE_SIZE);
+  return { vendors: view, total, page, pageSize: VENDOR_PAGE_SIZE, orderedIds };
 }
 
 // --- Mutations (each ends by rematching the user) ----------------------------
