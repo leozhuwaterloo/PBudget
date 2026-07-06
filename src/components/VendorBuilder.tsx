@@ -84,30 +84,32 @@ export default function VendorBuilder() {
 
   if (!vendors) return <p className="muted">{loadError ?? t("common.loading")}</p>;
 
-  // Editing/creating takes over the section.
-  if (editing) {
-    return (
-      <VendorEditor
-        initial={editing === "new" ? null : editing}
-        categories={categories}
-        refs={refs}
-        onCancel={() => setEditing(null)}
-        onSaved={async () => {
-          setEditing(null);
-          await refresh();
-        }}
-      />
-    );
-  }
+  // The editor renders in place: a new vendor at the top (by the Add button), an
+  // existing one inline where its row is — so Save/Cancel returns you to that row
+  // instead of jumping to the top.
+  const editor = (initial: Vendor | null) => (
+    <VendorEditor
+      initial={initial}
+      categories={categories}
+      refs={refs}
+      onCancel={() => setEditing(null)}
+      onSaved={async () => {
+        setEditing(null);
+        await refresh();
+      }}
+    />
+  );
 
   return (
     <div>
       <p className="muted" style={{ marginTop: 0 }}>{t("cust.vendors.help")}</p>
 
       <div className="row" style={{ gap: 8, marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={() => setEditing("new")}>{t("cust.vendors.add")}</button>
+        <button className="btn btn-primary" disabled={editing === "new"} onClick={() => setEditing("new")}>{t("cust.vendors.add")}</button>
         <button className="btn" onClick={() => setShowCatalog((s) => !s)}>{t("cust.vendors.browseCatalog")}</button>
       </div>
+
+      {editing === "new" && <div style={{ marginBottom: 16 }}>{editor(null)}</div>}
 
       {notice && (
         <div className="banner row" style={{ justifyContent: "space-between" }}>
@@ -132,6 +134,10 @@ export default function VendorBuilder() {
       {vendors.length === 0 && <p className="muted">{t("cust.vendors.empty")}</p>}
 
       {vendors.map((v) => {
+        // Editing this vendor? Swap its row for the editor in place.
+        if (editing !== "new" && editing?.id === v.id) {
+          return <div key={v.id}>{editor(editing)}</div>;
+        }
         const idx = ordered.findIndex((o) => o.id === v.id);
         const canReorder = idx !== -1;
         return (
