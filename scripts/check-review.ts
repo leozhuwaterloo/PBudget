@@ -92,9 +92,9 @@ async function reset(): Promise<void> {
   // Conflict vendors: high before low so the append-at-end priority makes the
   // NAME vendor (created first) the winner. dup vendor keeps the dup pair matched
   // (so it shows only as duplicate_charge, not also unmatched).
-  await createVendor(USER, { name: "rt-conf-high", conditions: [{ nameOp: "contains", nameValue: "zconf" }] });
-  await createVendor(USER, { name: "rt-conf-low", conditions: [{ merchantOp: "contains", merchantValue: "zconfm" }] });
-  await createVendor(USER, { name: "rt-dup-vendor", conditions: [{ merchantOp: "equals", merchantValue: "Zdup Mart" }] });
+  await createVendor(USER, { name: "rt-conf-high", matchConditions: [{ nameOp: "contains", nameValue: "zconf" }] });
+  await createVendor(USER, { name: "rt-conf-low", matchConditions: [{ merchantOp: "contains", merchantValue: "zconfm" }] });
+  await createVendor(USER, { name: "rt-dup-vendor", matchConditions: [{ merchantOp: "equals", merchantValue: "Zdup Mart" }] });
 
   await analyzeUser(USER); // fires suspicion + final rematch (builds the queues)
 }
@@ -111,6 +111,10 @@ async function main(): Promise<void> {
   check(
     findUn(UN_1)?.merchantName === "Zqueue Alpha",
     "unmatched row carries the merchant name for pre-fill (merchantName ?? name key)"
+  );
+  check(
+    !!findUn(UN_1)?.accountId && findUn(UN_1)?.paymentChannel === "online",
+    "unmatched row carries account + payment channel for the Review detail card"
   );
 
   const conflict = data.conflicts.find((c) => c.id === CONF);
@@ -158,7 +162,7 @@ async function main(): Promise<void> {
   // --- AC1: create a vendor from an unmatched row --------------------------
   // The UI POSTs /api/vendors with an equals condition on the row's merchant; the
   // create rematches. Both Zqueue rows must leave the queue; Zother must remain.
-  await createVendor(USER, { name: "Zqueue Alpha", conditions: [{ merchantOp: "equals", merchantValue: "Zqueue Alpha" }] });
+  await createVendor(USER, { name: "Zqueue Alpha", matchConditions: [{ merchantOp: "equals", merchantValue: "Zqueue Alpha" }] });
   const newVendor = await prisma.vendor.findFirst({ where: { userId: USER, name: "Zqueue Alpha" } });
   data = await reviewData(USER);
   check(!data.unmatched.find((r) => r.id === UN_1) && !data.unmatched.find((r) => r.id === UN_2), "AC1: BOTH Zqueue rows removed from the queue — it shrank past the acted-on row");
