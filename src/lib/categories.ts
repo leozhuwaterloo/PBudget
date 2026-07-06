@@ -110,7 +110,30 @@ async function cascadeRename(
     tx.vendorCondition.updateMany({ where: { vendorId: { in: vendorIds }, categoryName: oldName }, data: { categoryName: newName } }),
     tx.splitPart.updateMany({ where: { splitId: { in: splitIds }, categoryName: oldName }, data: { categoryName: newName } }),
     tx.mergeGroup.updateMany({ where: { userId, categoryName: oldName }, data: { categoryName: newName } }),
+    // Children point at their parent by name too — keep the tree intact on rename.
+    tx.transactionCategory.updateMany({ where: { userId, parentName: oldName }, data: { parentName: newName } }),
   ]);
+}
+
+// Validate a requested parent for a category. `null` clears the parent (top-level).
+// A parent must be one of the user's OTHER categories, itself top-level (2-level cap),
+// and the child must not already have children (which would push depth to 3).
+// Throws CategoryError(400) on any violation; returns the parentName to store.
+export async function validateParent(
+  userId: string,
+  self: { name: string; parentName?: string | null } | null,
+  parentName: string | null
+): Promise<string | null> {
+  if (parentName == null) return null;
+  if (self && parentName === self.name) throw new CategoryError(400, "A category can't be its own parent");
+  const parent = await prisma.transactionCategory.findFirst({ where: { userId, name: parentName } });
+  if (!parent) throw new CategoryError(400, `No category named "${parentName}" to nest under`);
+  if (parent.parentName) throw new CategoryError(400, `"${parentName}" is already a subcategory — nesting is only two levels deep`);
+  if (self) {
+    const kids = await prisma.transactionCategory.count({ where: { userId, parentName: self.name } });
+    if (kids > 0) throw new CategoryError(400, `"${self.name}" has subcategories, so it can't become one`);
+  }
+  return parentName;
 }
 
 // Apply a create/rename/budget/flag edit. A rename (name changes) cascades the
@@ -119,11 +142,17 @@ async function cascadeRename(
 export async function updateCategory(
   userId: string,
   id: string,
-  patch: { name?: string; budget?: number; excludeFromTotals?: boolean }
+  patch: { name?: string; budget?: number; excludeFromTotals?: boolean; parentName?: string | null }
 ): Promise<TransactionCategory> {
   const cat = await prisma.transactionCategory.findFirst({ where: { id, userId } });
   if (!cat) throw new CategoryError(404, "Category not found");
   const rename = patch.name !== undefined && patch.name !== cat.name;
+  // Validate against the POST-rename name so "rename + reparent" in one call is coherent.
+  const selfName = rename ? patch.name! : cat.name;
+  const parentName =
+    patch.parentName !== undefined
+      ? await validateParent(userId, { name: selfName }, patch.parentName)
+      : undefined;
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.transactionCategory.update({
@@ -132,6 +161,7 @@ export async function updateCategory(
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.budget !== undefined ? { budget: patch.budget } : {}),
         ...(patch.excludeFromTotals !== undefined ? { excludeFromTotals: patch.excludeFromTotals } : {}),
+        ...(parentName !== undefined ? { parentName } : {}),
       },
     });
     if (rename) await cascadeRename(tx, userId, cat.name, patch.name!);
@@ -163,5 +193,9 @@ export async function deleteCategory(userId: string, id: string): Promise<void> 
       `Category "${cat.name}" is still used by ${refs} rule${refs === 1 ? "" : "s"}; reassign or remove them first.`
     );
   }
-  await prisma.transactionCategory.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    // Reparent any children to top-level so no row points at a deleted parent.
+    await tx.transactionCategory.updateMany({ where: { userId, parentName: cat.name }, data: { parentName: null } });
+    await tx.transactionCategory.delete({ where: { id } });
+  });
 }

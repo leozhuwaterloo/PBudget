@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/context";
 
-type Cat = { id: string; name: string; budget: number; excludeFromTotals: boolean };
+type Cat = { id: string; name: string; budget: number; excludeFromTotals: boolean; parentName: string | null };
 
 const byName = (a: Cat, b: Cat) => a.name.localeCompare(b.name, "en", { sensitivity: "base" });
 
@@ -14,6 +14,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
   const [cats, setCats] = useState<Cat[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [newParent, setNewParent] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [rowError, setRowError] = useState<Record<string, string>>({});
@@ -54,14 +55,26 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
     const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, parentName: newParent || null }),
     });
     setCreating(false);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return setCreateError(data.error ?? t("cust.cat.createFailed"));
     setCats((c) => [...(c ?? []), data].sort(byName));
     setNewName("");
+    setNewParent("");
     onChanged?.();
+  }
+
+  async function setParent(id: string, parentName: string | null) {
+    setRowErr(id, null);
+    try {
+      const updated = await patch(id, { parentName } as Partial<Cat>);
+      setCats((c) => c!.map((x) => (x.id === id ? updated : x)));
+      onChanged?.();
+    } catch (e) {
+      setRowErr(id, (e as Error).message);
+    }
   }
 
   async function rename(id: string, raw: string) {
@@ -72,7 +85,12 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
     setRowErr(id, null);
     try {
       const updated = await patch(id, { name });
-      setCats((c) => c!.map((x) => (x.id === id ? updated : x)).sort(byName));
+      // Server cascades the rename to children's parentName; mirror that locally.
+      setCats((c) =>
+        c!
+          .map((x) => (x.id === id ? updated : x.parentName === cur.name ? { ...x, parentName: name } : x))
+          .sort(byName)
+      );
       onChanged?.();
     } catch (e) {
       setRowErr(id, (e as Error).message);
@@ -113,11 +131,24 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
       const data = await res.json().catch(() => ({}));
       return setRowErr(id, data.error ?? t("cust.cat.deleteFailed"));
     }
-    setCats((c) => c!.filter((x) => x.id !== id));
+    // Server reparents this category's children to top level; mirror that locally.
+    setCats((c) => c!.filter((x) => x.id !== id).map((x) => (x.parentName === cur.name ? { ...x, parentName: null } : x)));
     onChanged?.();
   }
 
   if (!cats) return <p className="muted">{loadError ?? t("common.loading")}</p>;
+
+  // Order rows as a 2-level tree: each top-level category followed by its children.
+  const roots = cats.filter((c) => !c.parentName).sort(byName);
+  const childrenOf = (name: string) => cats.filter((c) => c.parentName === name).sort(byName);
+  const hasChildren = (c: Cat) => cats.some((x) => x.parentName === c.name);
+  const ordered: { c: Cat; depth: number }[] = [];
+  for (const r of roots) {
+    ordered.push({ c: r, depth: 0 });
+    for (const ch of childrenOf(r.name)) ordered.push({ c: ch, depth: 1 });
+  }
+  const placed = new Set(ordered.map((o) => o.c.id)); // orphans (missing parent) fall back to top level
+  for (const o of cats.filter((c) => !placed.has(c.id)).sort(byName)) ordered.push({ c: o, depth: 0 });
 
   return (
     <div>
@@ -130,6 +161,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
           <thead>
             <tr>
               <th>{t("cust.cat.colName")}</th>
+              <th>{t("cust.cat.colParent")}</th>
               <th>{t("cust.cat.colBudget")}</th>
               <th>{t("cust.cat.colExclude")}</th>
               <th></th>
@@ -138,22 +170,42 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
           <tbody>
             {cats.length === 0 && (
               <tr>
-                <td colSpan={4} className="muted">
+                <td colSpan={5} className="muted">
                   {t("cust.cat.empty")}
                 </td>
               </tr>
             )}
-            {cats.map((c) => (
+            {ordered.map(({ c, depth }) => (
               <React.Fragment key={c.id}>
                 <tr>
                   <td>
-                    <input
-                      defaultValue={c.name}
-                      onBlur={(e) => rename(c.id, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") e.currentTarget.blur();
-                      }}
-                    />
+                    <div style={{ display: "flex", alignItems: "center", paddingLeft: depth * 20 }}>
+                      {depth > 0 && <span className="muted" style={{ marginRight: 4 }}>↳</span>}
+                      <input
+                        defaultValue={c.name}
+                        onBlur={(e) => rename(c.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td>
+                    {/* A category with its own children can't also be nested (2-level cap). */}
+                    <select
+                      value={c.parentName ?? ""}
+                      disabled={hasChildren(c)}
+                      onChange={(e) => setParent(c.id, e.target.value || null)}
+                    >
+                      <option value="">{t("cust.cat.topLevel")}</option>
+                      {roots
+                        .filter((r) => r.id !== c.id)
+                        .map((r) => (
+                          <option key={r.id} value={r.name}>
+                            {r.name}
+                          </option>
+                        ))}
+                    </select>
                   </td>
                   <td>
                     {/* budget editor interaction ported from Budget.tsx */}
@@ -185,7 +237,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                 </tr>
                 {rowError[c.id] && (
                   <tr>
-                    <td colSpan={4} className="error" style={{ paddingTop: 0 }}>
+                    <td colSpan={5} className="error" style={{ paddingTop: 0 }}>
                       {rowError[c.id]}
                     </td>
                   </tr>
@@ -206,6 +258,14 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
             if (e.key === "Enter") create();
           }}
         />
+        <select style={{ maxWidth: 200 }} value={newParent} onChange={(e) => setNewParent(e.target.value)}>
+          <option value="">{t("cust.cat.topLevel")}</option>
+          {roots.map((r) => (
+            <option key={r.id} value={r.name}>
+              {r.name}
+            </option>
+          ))}
+        </select>
         <button
           className="btn btn-primary"
           disabled={creating || !newName.trim()}
