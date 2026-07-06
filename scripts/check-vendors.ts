@@ -146,7 +146,7 @@ async function main(): Promise<void> {
     "amountMin > amountMax"
   );
   await reject400(
-    () => createVendor(USER, { name: "Ghost Cat", categoryRules: [{ nameOp: "equals", nameValue: "x", categoryName: "Nope" }] }),
+    () => createVendor(USER, { name: "Ghost Cat", categoryRules: [{ nameOp: "contains", nameValue: "x", categoryName: "Nope" }] }),
     "unknown category"
   );
   await reject400(
@@ -155,7 +155,7 @@ async function main(): Promise<void> {
   );
 
   // A no-name save is rejected too.
-  await reject400(() => createVendor(USER, { matchConditions: [{ nameOp: "equals", nameValue: "x" }] }), "missing name");
+  await reject400(() => createVendor(USER, { matchConditions: [{ nameOp: "contains", nameValue: "x" }] }), "missing name");
 
   // Failed saves created no vendors: still exactly v1 + v2.
   check((await prisma.vendor.count({ where: { userId: USER } })) === 2, "rejected saves create no vendors");

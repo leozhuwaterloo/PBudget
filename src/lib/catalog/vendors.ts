@@ -57,7 +57,6 @@ type Row = {
   category: string;
   merchant?: string; // merchant "contains"
   name?: string; // name "contains"
-  nameEquals?: string;
   channel?: string;
   plaidPrimary?: string;
   plaidDetailed?: string;
@@ -510,7 +509,6 @@ function toCondition(r: Row, order: number, withCategory: boolean): CatalogCondi
   const c: CatalogCondition = withCategory ? { order, categoryName: r.category } : { order };
   if (r.merchant) { c.merchantOp = "contains"; c.merchantValue = r.merchant; }
   if (r.name) { c.nameOp = "contains"; c.nameValue = r.name; }
-  if (r.nameEquals) { c.nameOp = "equals"; c.nameValue = r.nameEquals; }
   if (r.channel) c.paymentChannel = r.channel;
   if (r.plaidPrimary) c.plaidPrimary = r.plaidPrimary;
   if (r.plaidDetailed) c.plaidDetailed = r.plaidDetailed;

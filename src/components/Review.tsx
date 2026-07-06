@@ -113,7 +113,7 @@ async function delJson(url: string, body: unknown) {
   return data;
 }
 
-// Pre-fill a vendor condition from an unmatched row: an equals on the merchant
+// Pre-fill a vendor condition from an unmatched row: a contains on the merchant
 // name when the row has one, else on the transaction name — mirroring the
 // merchantName ?? name key the funnel identifies vendors by. Matching normalizes
 // both sides, so the raw value is fine (it re-matches the same rows).
@@ -122,9 +122,9 @@ function prefillCondition(row: UnmatchedRow): Condition {
   const useMerchant = !!merch;
   return {
     categoryName: null,
-    nameOp: useMerchant ? null : "equals",
+    nameOp: useMerchant ? null : "contains",
     nameValue: useMerchant ? null : row.name,
-    merchantOp: useMerchant ? "equals" : null,
+    merchantOp: useMerchant ? "contains" : null,
     merchantValue: useMerchant ? merch! : null,
     amountMin: null,
     amountMax: null,

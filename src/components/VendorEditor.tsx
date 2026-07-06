@@ -35,7 +35,9 @@ export type Vendor = {
 export type Account = { accountId: string; name: string; subtype: string | null };
 export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaileds: string[]; plaidConfidences: string[] };
 
-const TEXT_OPS = ["contains", "equals", "starts_with", "regex"];
+// Text-match operators offered in the editor. Deliberately just contains + regex;
+// equals/starts_with are retired (the matcher still honors any legacy rows).
+const TEXT_OPS = ["contains", "regex"];
 const CHANNELS = ["online", "in store", "other"];
 
 // Row form state: everything a string (inputs), converted at save.
