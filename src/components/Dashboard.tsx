@@ -2,8 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useT, useLocale } from "@/lib/i18n/context";
-import { letterAvatar } from "@/lib/catalog/icons";
-import { VendorLink } from "./VendorIcon";
+import { VendorIcon } from "./VendorIcon";
 import type { DashboardData } from "@/lib/dashboard";
 
 // Graphs-only Dashboard (FR7): four hand-rolled inline-SVG widgets in the
@@ -130,9 +129,9 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
                 const scale = Math.max(1, ...data.vendors.map((v) => v.spend));
                 return data.vendors.map((v) => (
                   <div key={v.key} className="row" style={{ alignItems: "center", gap: 8 }}>
-                    <VendorGlyph name={v.name} />
+                    <VendorIcon name={v.name} link={v.link} icon={v.icon} size={20} />
                     <span style={{ flex: "0 0 90px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {v.name} <VendorLink link={v.link} />
+                      {v.name}
                     </span>
                     <div style={{ flex: 1 }}>
                       <BarRow frac={v.spend / scale} color="var(--primary)" markerFrac={null} />
@@ -228,18 +227,5 @@ function ReviewTile({ n, label, anchor, tone }: { n: number; label: string; anch
       <div style={{ fontFamily: "var(--serif)", fontSize: 30, fontWeight: 600, lineHeight: 1 }}>{n}</div>
       <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{label}</div>
     </Link>
-  );
-}
-
-// (d) Vendor glyph: a deterministic letter avatar (brand SVGs retired with icons).
-function VendorGlyph({ name }: { name: string }) {
-  const { letter, hue } = letterAvatar(name);
-  return (
-    <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden style={{ flex: "0 0 auto" }}>
-      <circle cx={12} cy={12} r={12} fill={`hsl(${hue} 42% 42%)`} />
-      <text x={12} y={16} textAnchor="middle" fontSize={12} fontFamily="var(--serif)" fill="#fff">
-        {letter}
-      </text>
-    </svg>
   );
 }

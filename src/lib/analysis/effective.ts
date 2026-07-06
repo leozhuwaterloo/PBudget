@@ -22,6 +22,7 @@ export type EffectiveTransaction = {
   vendorName: string; // matched vendor's display name, else normalized string
   vendorId: string | null; // materialized winning vendor (null = unmatched/queue)
   vendorLink: string | null; // matched vendor's link (Google Maps or website); null = unmatched/no link
+  vendorIcon: string | null; // matched vendor's cached favicon (data URI); null = none
   categoryName: string | null;
   date: Date;
   amount: number; // signed Plaid convention; netAmount for groups (net-0 → 0)
@@ -71,6 +72,7 @@ export async function effectiveTransactions(
     const vendor = vendorOf(t.vendorId);
     const vendorName = vendor?.name ?? normalizeVendor(t.merchantName, t.name);
     const vendorLink = vendor?.link ?? null;
+    const vendorIcon = vendor?.icon ?? null;
     const split = splitByParent.get(t.transactionId);
 
     if (split) {
@@ -86,6 +88,7 @@ export async function effectiveTransactions(
           vendorName,
           vendorId: t.vendorId,
           vendorLink,
+          vendorIcon,
           categoryName: resolveCategory(vendor, t, part.categoryName),
           date: t.datetime,
           amount: Number(part.amount),
@@ -104,6 +107,7 @@ export async function effectiveTransactions(
       vendorName,
       vendorId: t.vendorId,
       vendorLink,
+      vendorIcon,
       categoryName: resolveCategory(vendor, t, null),
       date: t.datetime,
       amount: Number(t.amount),
@@ -127,6 +131,7 @@ export async function effectiveTransactions(
       vendorName: vendor?.name ?? g.vendorName ?? "",
       vendorId: primary?.vendorId ?? null,
       vendorLink: vendor?.link ?? null,
+      vendorIcon: vendor?.icon ?? null,
       categoryName: primary
         ? resolveCategory(vendor, primary, null)
         : g.categoryName,
