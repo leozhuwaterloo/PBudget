@@ -5,7 +5,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { validateRegex, rematchUser, rematchAfterVendorChange } from "./analysis/match";
-import { faviconDataUri } from "./favicon";
+import { iconForLink, iconForImageUrl } from "./favicon";
 import { normalizeStr } from "./analysis/vendor";
 
 const TEXT_OPS = new Set(["contains", "equals", "starts_with", "regex"]);
@@ -38,6 +38,7 @@ export type ConditionInput = {
 export type VendorInput = {
   name?: unknown;
   link?: unknown;
+  iconLink?: unknown; // optional direct image URL for the icon
   categoryName?: unknown; // default category (fallback)
   matchConditions?: unknown; // identity rows (role "match")
   categoryRules?: unknown; // category-refinement rows (role "category")
@@ -171,10 +172,11 @@ function buildVendorRows(input: VendorInput): {
 
 // A vendor link: a Google Maps entry (local) or website (online) URL. Must be
 // http(s) so it's safe as an href (rejects javascript:/data: at the boundary).
-function readLink(v: unknown): string | null {
-  const s = str(v, "link");
+// Reused for the icon-image URL, which has the same http(s) requirement.
+function readLink(v: unknown, field = "link", label = "Link"): string | null {
+  const s = str(v, field);
   if (!s) return null;
-  if (!/^https?:\/\//i.test(s)) bad("Link must start with http:// or https://");
+  if (!/^https?:\/\//i.test(s)) bad(`${label} must start with http:// or https://`);
   return s;
 }
 
@@ -245,6 +247,7 @@ export function serializeVendor(v: VendorWithConditions) {
     id: v.id,
     name: v.name,
     link: v.link,
+    iconLink: v.iconLink,
     icon: v.icon,
     categoryName: v.categoryName,
     priority: v.priority,
@@ -281,6 +284,7 @@ function rethrow(e: unknown): never {
 export async function createVendor(userId: string, input: VendorInput) {
   const name = readName(input.name);
   const link = readLink(input.link);
+  const iconLink = readLink(input.iconLink, "iconLink", "Icon link");
   const categoryName = str(input.categoryName, "default category") ?? null;
   const { rows, categoryNames, accountIds } = buildVendorRows(input);
   if (categoryName) categoryNames.add(categoryName);
@@ -290,12 +294,13 @@ export async function createVendor(userId: string, input: VendorInput) {
   // creates is ignored; a collision surfaces as P2002. Add a retry if it matters.
   const max = await prisma.vendor.aggregate({ where: { userId }, _max: { priority: true } });
   const priority = (max._max.priority ?? -1) + 1;
-  const icon = await faviconDataUri(link); // cache the favicon once; null for map/no link
+  // Explicit iconLink wins; else derive the favicon/Maps photo from `link`. Cached once.
+  const icon = iconLink ? await iconForImageUrl(iconLink) : await iconForLink(link);
 
   let vendor: VendorWithConditions;
   try {
     vendor = await prisma.vendor.create({
-      data: { userId, name, link, icon, categoryName, priority, conditions: { create: rows } },
+      data: { userId, name, link, iconLink, icon, categoryName, priority, conditions: { create: rows } },
       include: { conditions: true },
     });
   } catch (e) {
@@ -313,14 +318,22 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
 
   const name = readName(input.name);
   const link = readLink(input.link);
+  const iconLink = readLink(input.iconLink, "iconLink", "Icon link");
   const categoryName = str(input.categoryName, "default category") ?? null;
   const { rows, categoryNames, accountIds } = buildVendorRows(input);
   if (categoryName) categoryNames.add(categoryName);
   await assertReferences(userId, categoryNames, accountIds);
 
-  // Only re-fetch the favicon when the link actually changed — keeps ordinary edits
-  // (renames, rule tweaks) a pure DB write with no outbound request.
-  const icon = link === existing.link ? existing.icon : await faviconDataUri(link);
+  // Re-fetch only when the icon SOURCE changed (iconLink if set, else link) — keeps
+  // ordinary edits (renames, rule tweaks) a pure DB write with no outbound request.
+  const source = iconLink ?? link;
+  const prevSource = existing.iconLink ?? existing.link;
+  const icon =
+    source === prevSource
+      ? existing.icon
+      : iconLink
+        ? await iconForImageUrl(iconLink)
+        : await iconForLink(link);
 
   let vendor: VendorWithConditions;
   try {
@@ -328,7 +341,7 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
       await tx.vendorCondition.deleteMany({ where: { vendorId: id } });
       return tx.vendor.update({
         where: { id },
-        data: { name, link, icon, categoryName, conditions: { create: rows } },
+        data: { name, link, iconLink, icon, categoryName, conditions: { create: rows } },
         include: { conditions: true },
       });
     });

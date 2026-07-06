@@ -18,39 +18,54 @@ export type AnyCondition = {
   plaidDetailed?: string | null;
 };
 
-export function Chip({ tone = "field", children }: { tone?: "field" | "cat"; children: React.ReactNode }) {
-  const cat = tone === "cat";
+// Per-field-type chip hue so each filter reads at a glance. Hue-based (translucent
+// bg + saturated text) so both light and dark themes stay legible. "cat"/"field"
+// keep their existing looks (category outcome / neutral fallback).
+const CHIP_HUE: Record<string, number> = {
+  name: 32, // transaction name → orange
+  merchant: 145, // merchant name → green
+  amount: 212, // amount → blue
+  account: 268, // account → purple
+  channel: 190, // payment channel → cyan
+  plaidPrimary: 248, // Plaid primary → indigo
+  plaidDetailed: 322, // Plaid detailed → pink
+};
+
+export function Chip({ tone = "field", children }: { tone?: string; children: React.ReactNode }) {
+  const base: React.CSSProperties = {
+    display: "inline-block",
+    fontSize: 12,
+    padding: "2px 8px",
+    borderRadius: 999,
+    whiteSpace: "nowrap",
+  };
+  if (tone === "cat")
+    return <span style={{ ...base, background: "rgba(21,104,74,0.12)", color: "var(--primary)", border: "1px solid rgba(21,104,74,0.25)" }}>{children}</span>;
+  const h = CHIP_HUE[tone];
+  if (h == null)
+    return <span style={{ ...base, background: "var(--bg-3)", color: "var(--muted)", border: "1px solid var(--border)" }}>{children}</span>;
   return (
-    <span
-      style={{
-        display: "inline-block",
-        fontSize: 12,
-        padding: "2px 8px",
-        borderRadius: 999,
-        background: cat ? "rgba(21,104,74,0.12)" : "var(--bg-3)",
-        color: cat ? "var(--primary)" : "var(--muted)",
-        border: `1px solid ${cat ? "rgba(21,104,74,0.25)" : "var(--border)"}`,
-        whiteSpace: "nowrap",
-      }}
-    >
+    <span style={{ ...base, background: `hsl(${h} 65% 50% / 0.15)`, color: `hsl(${h} 60% 46%)`, border: `1px solid hsl(${h} 55% 48% / 0.35)` }}>
       {children}
     </span>
   );
 }
 
-// Human summary of a row's matching fields (excludes its category outcome).
-function fieldChips(c: AnyCondition, t: (k: string, p?: Record<string, string | number>) => string, accountName: (id: string) => string): string[] {
-  const out: string[] = [];
+// Human summary of a row's matching fields (excludes its category outcome). Each
+// chip carries its field `tone` so Chip can color it by type.
+type FieldChip = { tone: string; text: string };
+function fieldChips(c: AnyCondition, t: (k: string, p?: Record<string, string | number>) => string, accountName: (id: string) => string): FieldChip[] {
+  const out: FieldChip[] = [];
   const opLabel = (op?: string | null) => (op ? t(`cust.vendors.op.${op}`) : "");
-  if (c.nameOp && c.nameValue) out.push(`${t("cust.vendors.txnName")} ${opLabel(c.nameOp)} "${c.nameValue}"`);
-  if (c.merchantOp && c.merchantValue) out.push(`${t("cust.vendors.merchantName")} ${opLabel(c.merchantOp)} "${c.merchantValue}"`);
-  if (c.amountMin != null && c.amountMax != null) out.push(`${t("cust.vendors.amount")} ${c.amountMin}–${c.amountMax}`);
-  else if (c.amountMin != null) out.push(`${t("cust.vendors.amount")} ≥ ${c.amountMin}`);
-  else if (c.amountMax != null) out.push(`${t("cust.vendors.amount")} ≤ ${c.amountMax}`);
-  if (c.accountId) out.push(`${t("cust.vendors.account")}: ${accountName(c.accountId)}`);
-  if (c.paymentChannel) out.push(`${t("cust.vendors.channel")}: ${c.paymentChannel}`);
-  if (c.plaidPrimary) out.push(`${t("cust.vendors.plaidPrimary")}: ${c.plaidPrimary}`);
-  if (c.plaidDetailed) out.push(`${t("cust.vendors.plaidDetailed")}: ${c.plaidDetailed}`);
+  if (c.nameOp && c.nameValue) out.push({ tone: "name", text: `${t("cust.vendors.txnName")} ${opLabel(c.nameOp)} "${c.nameValue}"` });
+  if (c.merchantOp && c.merchantValue) out.push({ tone: "merchant", text: `${t("cust.vendors.merchantName")} ${opLabel(c.merchantOp)} "${c.merchantValue}"` });
+  if (c.amountMin != null && c.amountMax != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ${c.amountMin}–${c.amountMax}` });
+  else if (c.amountMin != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ≥ ${c.amountMin}` });
+  else if (c.amountMax != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ≤ ${c.amountMax}` });
+  if (c.accountId) out.push({ tone: "account", text: `${t("cust.vendors.account")}: ${accountName(c.accountId)}` });
+  if (c.paymentChannel) out.push({ tone: "channel", text: `${t("cust.vendors.channel")}: ${c.paymentChannel}` });
+  if (c.plaidPrimary) out.push({ tone: "plaidPrimary", text: `${t("cust.vendors.plaidPrimary")}: ${c.plaidPrimary}` });
+  if (c.plaidDetailed) out.push({ tone: "plaidDetailed", text: `${t("cust.vendors.plaidDetailed")}: ${c.plaidDetailed}` });
   return out;
 }
 
@@ -64,7 +79,7 @@ export function RowSummary({ condition, accountName }: { condition: AnyCondition
     <div className="row wrap" style={{ gap: 6, margin: "6px 0" }}>
       {chips.length === 0 && <span className="muted" style={{ fontSize: 12 }}>{t("cust.vendors.emptyRow")}</span>}
       {chips.map((c, i) => (
-        <Chip key={i}>{c}</Chip>
+        <Chip key={i} tone={c.tone}>{c.text}</Chip>
       ))}
       {condition.categoryName && (
         <>
