@@ -213,6 +213,8 @@ const en = {
   "review.next": "Next",
   "review.pageOf": "Page {page} of {pages}",
   "review.pickVendor": "Add this condition to which vendor?",
+  "review.searchVendors": "Search vendors…",
+  "review.noVendorMatch": "No vendors match “{q}”.",
   "review.noVendors": "You have no vendors yet — use “New vendor” instead.",
   "review.condCount": "{n} conditions",
   "rule.unmatched_vendor": "Unmatched vendor",

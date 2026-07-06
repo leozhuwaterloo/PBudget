@@ -878,6 +878,11 @@ function VendorPicker({
   onClose: () => void;
 }) {
   const t = useT();
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return needle ? vendors.filter((v) => v.name.toLowerCase().includes(needle)) : vendors;
+  }, [vendors, q]);
   return (
     <div className="card" style={{ margin: 0 }}>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
@@ -887,8 +892,20 @@ function VendorPicker({
       {vendors.length === 0 ? (
         <p className="muted">{t("review.noVendors")}</p>
       ) : (
+        <>
+          <input
+            className="input"
+            style={{ width: "100%", marginBottom: 8 }}
+            placeholder={t("review.searchVendors")}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            autoFocus
+          />
+          {filtered.length === 0 ? (
+            <p className="muted">{t("review.noVendorMatch", { q: q.trim() })}</p>
+          ) : (
         <div style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--border)", borderRadius: 6 }}>
-          {vendors.map((v) => (
+          {filtered.map((v) => (
             <button
               key={v.id}
               type="button"
@@ -912,6 +929,8 @@ function VendorPicker({
             </button>
           ))}
         </div>
+          )}
+        </>
       )}
     </div>
   );
