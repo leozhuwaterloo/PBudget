@@ -295,7 +295,9 @@ export async function createVendor(userId: string, input: VendorInput) {
   const max = await prisma.vendor.aggregate({ where: { userId }, _max: { priority: true } });
   const priority = (max._max.priority ?? -1) + 1;
   // Explicit iconLink wins; else derive the favicon/Maps photo from `link`. Cached once.
-  const icon = iconLink ? await iconForImageUrl(iconLink) : await iconForLink(link);
+  // If the override URL won't fetch (transient CDN failure), fall back to the website
+  // favicon rather than leaving the vendor icon-less.
+  const icon = (iconLink ? await iconForImageUrl(iconLink) : null) ?? (await iconForLink(link));
 
   let vendor: VendorWithConditions;
   try {
@@ -331,9 +333,7 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
   const icon =
     source === prevSource
       ? existing.icon
-      : iconLink
-        ? await iconForImageUrl(iconLink)
-        : await iconForLink(link);
+      : (iconLink ? await iconForImageUrl(iconLink) : null) ?? (await iconForLink(link));
 
   let vendor: VendorWithConditions;
   try {
