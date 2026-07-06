@@ -88,6 +88,9 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
       ) : data && data.transactions.length === 0 ? (
         <p className="muted" style={{ padding: 8 }}>{t("accounts.browser.empty")}</p>
       ) : (
+        // overflow-x so the wide 9-col table scrolls (not clips) inside a narrow
+        // container — e.g. the vendor card, where it's slimmer than the accounts page.
+        <div style={{ overflowX: "auto" }}>
         <table className="nested">
           <thead>
             <tr>
@@ -141,6 +144,7 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {data && data.total > data.pageSize && (
