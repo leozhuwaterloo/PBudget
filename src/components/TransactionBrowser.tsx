@@ -34,7 +34,8 @@ type Page = { transactions: BrowserTxn[]; page: number; pageSize: number; total:
 
 const money = (amount: number, currency: string | null) => `${currency ? currency + " " : ""}${amount.toFixed(2)}`;
 
-export default function TransactionBrowser({ accountId, locale }: { accountId: string; locale: Locale }) {
+// Source: one of accountId (per-account, FR8) or vendorId (a vendor's matched txns).
+export default function TransactionBrowser({ accountId, vendorId }: { accountId?: string; vendorId?: string; locale?: Locale }) {
   const t = useT();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page | null>(null);
@@ -46,7 +47,8 @@ export default function TransactionBrowser({ accountId, locale }: { accountId: s
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/accounts/transactions?account_id=${encodeURIComponent(accountId)}&page=${page}`);
+      const scope = accountId ? `account_id=${encodeURIComponent(accountId)}` : `vendor_id=${encodeURIComponent(vendorId!)}`;
+      const res = await fetch(`/api/accounts/transactions?${scope}&page=${page}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || t("accounts.browser.loadFailed"));
       setData(d);
@@ -55,7 +57,7 @@ export default function TransactionBrowser({ accountId, locale }: { accountId: s
     } finally {
       setLoading(false);
     }
-  }, [accountId, page, t]);
+  }, [accountId, vendorId, page, t]);
 
   useEffect(() => {
     load();

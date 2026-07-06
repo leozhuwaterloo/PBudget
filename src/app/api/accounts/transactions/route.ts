@@ -21,19 +21,30 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const accountId = url.searchParams.get("account_id");
-  if (!accountId) return NextResponse.json({ error: "Missing account_id" }, { status: 400 });
+  const vendorId = url.searchParams.get("vendor_id");
+  if (!accountId && !vendorId) return NextResponse.json({ error: "Missing account_id or vendor_id" }, { status: 400 });
   const page = Math.max(0, Number(url.searchParams.get("page") ?? 0) | 0);
 
-  // Ownership: the account must belong to one of this user's items.
-  const account = await prisma.plaidAccount.findFirst({
-    where: { accountId, item: { userId } },
-    select: { accountId: true },
-  });
-  if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Ownership + scope. By account: the account must belong to one of the user's
+  // items. By vendor: the vendor must be the user's; rows are its matched txns
+  // (vendorId), still scoped to the user's accounts as defense in depth.
+  let where;
+  if (accountId) {
+    const account = await prisma.plaidAccount.findFirst({
+      where: { accountId, item: { userId } },
+      select: { accountId: true },
+    });
+    if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    where = { accountId };
+  } else {
+    const vendor = await prisma.vendor.findFirst({ where: { id: vendorId!, userId }, select: { id: true } });
+    if (!vendor) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    where = { vendorId, account: { item: { userId } } };
+  }
 
-  const total = await prisma.plaidTransaction.count({ where: { accountId } });
+  const total = await prisma.plaidTransaction.count({ where });
   const rows = await prisma.plaidTransaction.findMany({
-    where: { accountId },
+    where,
     orderBy: [{ datetime: "desc" }, { transactionId: "asc" }],
     skip: page * PAGE_SIZE,
     take: PAGE_SIZE,

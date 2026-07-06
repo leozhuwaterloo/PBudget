@@ -102,6 +102,8 @@ const zh: Messages = {
   "cust.vendors.add": "新建商户",
   "cust.vendors.browseCatalog": "浏览目录",
   "cust.vendors.empty": "暂无商户。请创建一个，或从目录中实例化。",
+  "cust.vendors.viewTxns": "交易记录",
+  "cust.vendors.hideTxns": "隐藏",
   "cust.vendors.edit": "编辑",
   "cust.vendors.delete": "删除",
   "cust.vendors.confirmDelete": "删除商户“{name}”？其已匹配的交易将返回未匹配队列。",

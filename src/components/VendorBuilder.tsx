@@ -4,6 +4,7 @@ import { useT } from "@/lib/i18n/context";
 import { VendorIcon } from "./VendorIcon";
 import VendorEditor, { type Vendor, type Refs } from "./VendorEditor";
 import CatalogBrowser from "./CatalogBrowser";
+import TransactionBrowser from "./TransactionBrowser";
 import { RowSummary, Chip } from "./vendorSummary";
 
 // F10 vendor builder + catalog browser. Fills the Vendors slot F9 left in
@@ -19,6 +20,7 @@ export default function VendorBuilder() {
   const [showCatalog, setShowCatalog] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  const [openTxns, setOpenTxns] = useState<string | null>(null); // vendor id whose txns are shown
 
   async function refresh() {
     const res = await fetch("/api/vendors");
@@ -166,10 +168,18 @@ export default function VendorBuilder() {
                 </div>
               </div>
               <div className="row" style={{ gap: 6 }}>
+                <button className="btn btn-sm" onClick={() => setOpenTxns((id) => (id === v.id ? null : v.id))}>
+                  {openTxns === v.id ? t("cust.vendors.hideTxns") : t("cust.vendors.viewTxns")}
+                </button>
                 <button className="btn btn-sm" onClick={() => setEditing(v)}>{t("cust.vendors.edit")}</button>
                 <button className="btn btn-sm btn-ghost" onClick={() => del(v)}>{t("cust.vendors.delete")}</button>
               </div>
             </div>
+            {openTxns === v.id && (
+              <div style={{ marginTop: 10, borderTop: "1px solid var(--border)" }}>
+                <TransactionBrowser vendorId={v.id} />
+              </div>
+            )}
           </div>
         );
       })}
