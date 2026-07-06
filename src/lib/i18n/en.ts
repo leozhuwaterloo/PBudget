@@ -165,6 +165,7 @@ const en = {
   "cust.billing.loadFailed": "Failed to load billing.",
   "cust.billing.currentPlan": "Current plan",
   "cust.billing.usage": "{used} of {limit} connections",
+  "cust.billing.admin": "Admin access — unlimited connections, no subscription needed.",
   "cust.billing.plan.free": "Free",
   "cust.billing.plan.pro": "Pro",
   "cust.billing.plan.max": "Max",

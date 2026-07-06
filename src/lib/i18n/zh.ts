@@ -164,6 +164,7 @@ const zh: Messages = {
   "cust.billing.loadFailed": "加载账单失败。",
   "cust.billing.currentPlan": "当前套餐",
   "cust.billing.usage": "{used} / {limit} 个连接",
+  "cust.billing.admin": "管理员权限 — 无限连接，无需订阅。",
   "cust.billing.plan.free": "免费版",
   "cust.billing.plan.pro": "Pro",
   "cust.billing.plan.max": "Max",

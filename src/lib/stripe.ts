@@ -22,6 +22,11 @@ export function limitFor(plan: string): number {
   return TIER_LIMITS[plan as Plan] ?? TIER_LIMITS.free;
 }
 
+// A user's connection limit — admins are uncapped (no subscription needed).
+export function limitForUser(user: Pick<User, "plan" | "isAdmin">): number {
+  return user.isAdmin ? Infinity : limitFor(user.plan);
+}
+
 // The tier a user could upgrade to next (null at the top).
 export function nextTier(plan: string): Tier | null {
   return plan === "free" ? "pro" : plan === "pro" ? "max" : null;
@@ -100,11 +105,13 @@ export async function canAddConnection(
   user: User
 ): Promise<{ ok: true } | { ok: false; used: number }> {
   const used = await countConnections(user.id);
-  return used < limitFor(user.plan) ? { ok: true } : { ok: false, used };
+  return used < limitForUser(user) ? { ok: true } : { ok: false, used };
 }
 
 // Pure rank check: items are ordered by createdAt asc; the first `limit` sync.
-export function itemSyncAllowed(orderedItemIds: string[], itemId: string, plan: string): boolean {
+// Admins are uncapped, so every item syncs.
+export function itemSyncAllowed(orderedItemIds: string[], itemId: string, plan: string, isAdmin = false): boolean {
+  if (isAdmin) return true;
   const rank = orderedItemIds.indexOf(itemId);
   return rank >= 0 && rank < limitFor(plan);
 }
@@ -120,7 +127,7 @@ export async function canSyncItem(
     orderBy: { createdAt: "asc" },
     select: { itemId: true },
   });
-  const ok = itemSyncAllowed(items.map((i) => i.itemId), itemId, user.plan);
+  const ok = itemSyncAllowed(items.map((i) => i.itemId), itemId, user.plan, user.isAdmin);
   return ok ? { ok: true } : { ok: false, used: items.length };
 }
 
@@ -132,6 +139,7 @@ export interface BillingSummary {
   plan: Plan;
   used: number;
   limit: number;
+  admin: boolean;
   active: boolean;
   hasCustomer: boolean;
   tiers: { id: Plan; price: number; limit: number }[];
@@ -142,6 +150,7 @@ export async function billingSummary(user: User): Promise<BillingSummary> {
     plan,
     used: await countConnections(user.id),
     limit: limitFor(plan),
+    admin: user.isAdmin,
     active: isSubscriptionActive(user),
     hasCustomer: !!user.stripeCustomerId,
     tiers: (["free", "pro", "max"] as Plan[]).map((id) => ({
