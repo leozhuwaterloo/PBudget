@@ -190,6 +190,7 @@ const en = {
     "Every posted item with no vendor. Match one and the queue shrinks — every row the new or edited vendor now matches disappears, no re-sync needed.",
   "review.createVendor": "New vendor",
   "review.addToVendor": "Add to a vendor",
+  "review.txnDetail": "Transaction",
   "review.fromCatalog": "From catalog",
   "review.conflictsTitle": "Conflicts ({n})",
   "review.conflictsHelp":
