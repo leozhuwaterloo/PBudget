@@ -1,5 +1,5 @@
-import type { Prisma, TransactionCategory } from "@prisma/client";
-import { prisma } from "./db";
+import type { TransactionCategory } from "@prisma/client";
+import { prisma, type Tx } from "./db";
 import { matchingCategoryRow, type MatchTxn, type MatchVendor } from "./analysis/match";
 import { plaidPrimary } from "./analysis/vendor";
 
@@ -94,7 +94,7 @@ export class CategoryError extends Error {
 // relations, so the user's vendor/split ids are gathered and matched by scalar
 // `in` (MergeGroup carries userId directly).
 async function cascadeRename(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   userId: string,
   oldName: string,
   newName: string

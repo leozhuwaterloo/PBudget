@@ -20,12 +20,14 @@ export default async function AccountsPage() {
     include: {
       institution: true,
       accounts: {
-        orderBy: { name: "asc" },
+        // name is encrypted at rest → can't ORDER BY it in SQL; sort in JS below
+        // (the db.ts extension has decrypted it to plaintext by the time we read).
         include: { _count: { select: { transactions: true } } },
       },
     },
     orderBy: { createdAt: "asc" },
   });
+  for (const i of items) i.accounts.sort((a, b) => a.name.localeCompare(b.name));
   const orderedIds = items.map((i) => i.itemId);
 
   const data = items.map((i) => ({

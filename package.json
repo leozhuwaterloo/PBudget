@@ -14,6 +14,7 @@
     "check:categories": "tsx scripts/check-categories.ts",
     "check:rematch": "tsx scripts/check-rematch.ts",
     "check:vendors": "tsx scripts/check-vendors.ts",
+    "check:crypto": "tsx scripts/check-crypto.ts",
     "check:tiers": "tsx scripts/check-tiers.ts",
     "check:billing": "tsx scripts/check-billing.ts",
     "check:catalog": "tsx scripts/check-catalog.ts",
