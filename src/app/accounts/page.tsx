@@ -33,7 +33,7 @@ export default async function AccountsPage() {
     institutionName: i.institution.name,
     institutionLogo: i.institution.logo,
     lastUpdated: i.lastUpdated.toISOString(),
-    syncAllowed: itemSyncAllowed(orderedIds, i.itemId, user.plan),
+    syncAllowed: itemSyncAllowed(orderedIds, i.itemId, user.plan, user.isAdmin),
     accounts: i.accounts.map((a) => ({
       accountId: a.accountId,
       name: a.name,

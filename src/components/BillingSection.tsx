@@ -12,6 +12,7 @@ type Summary = {
   plan: Plan;
   used: number;
   limit: number;
+  admin: boolean;
   active: boolean;
   hasCustomer: boolean;
   tiers: { id: Plan; price: number; limit: number }[];
@@ -77,8 +78,9 @@ export default function BillingSection() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div>{t("cust.billing.currentPlan")}: <strong>{planName(s.plan)}</strong></div>
         <div className="muted" style={{ marginTop: 4 }}>
-          {t("cust.billing.usage", { used: s.used, limit: s.limit })}
+          {t("cust.billing.usage", { used: s.used, limit: s.admin ? "∞" : s.limit })}
         </div>
+        {s.admin && <div style={{ marginTop: 4 }}>{t("cust.billing.admin")}</div>}
       </div>
 
       <table>
@@ -99,7 +101,7 @@ export default function BillingSection() {
               <td style={{ textAlign: "right" }}>
                 {tier.id === s.plan ? (
                   <span className="muted">{t("cust.billing.current")}</span>
-                ) : tier.id !== "free" && !s.active ? (
+                ) : tier.id !== "free" && !s.active && !s.admin ? (
                   <button
                     className="btn btn-sm btn-primary"
                     disabled={busy}

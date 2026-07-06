@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { gate } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { exchangePublicToken, syncItem } from "@/lib/plaid";
-import { limitFor, countConnections, upgradeCTA } from "@/lib/stripe";
+import { limitForUser, countConnections, upgradeCTA } from "@/lib/stripe";
 
 // Exchange a Plaid Link public_token for an access token, then sync the item.
 export async function POST(req: Request) {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const existing = await prisma.plaidItem.findUnique({ where: { itemId } });
     if (!existing) {
       const used = await countConnections(g.user!.id);
-      if (used >= limitFor(g.user!.plan)) {
+      if (used >= limitForUser(g.user!)) {
         return NextResponse.json(upgradeCTA(g.user!.plan, used), { status: 402 });
       }
     }
