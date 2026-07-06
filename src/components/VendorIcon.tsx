@@ -3,9 +3,12 @@ import React, { useState } from "react";
 import { letterAvatar } from "@/lib/catalog/icons";
 
 // A deterministic letter avatar for a vendor (first letter + a hue from the name).
-// Brand-icon glyphs were retired when vendors moved from icons to links.
-export function VendorIcon({ name, size = 28 }: { name: string; size?: number }) {
+// When the vendor has a website link, its favicon fills the circle instead (falls
+// back to the letter on load error or a map/no-host link).
+export function VendorIcon({ name, link = null, size = 28 }: { name: string; link?: string | null; size?: number }) {
   const { letter, hue } = letterAvatar(name || "?");
+  const host = link && !isMapLink(link) ? hostOf(link) : null;
+  const [ok, setOk] = useState(true);
   return (
     <span
       aria-hidden="true"
@@ -17,13 +20,25 @@ export function VendorIcon({ name, size = 28 }: { name: string; size?: number })
         alignItems: "center",
         justifyContent: "center",
         borderRadius: "50%",
+        overflow: "hidden",
         background: `hsl(${hue} 42% 88%)`,
         color: `hsl(${hue} 50% 32%)`,
         fontWeight: 600,
         fontSize: size * 0.44,
       }}
     >
-      {letter}
+      {host && ok ? (
+        <img
+          src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
+          alt=""
+          width={Math.round(size * 0.62)}
+          height={Math.round(size * 0.62)}
+          onError={() => setOk(false)}
+          style={{ display: "block" }}
+        />
+      ) : (
+        letter
+      )}
     </span>
   );
 }

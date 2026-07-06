@@ -89,7 +89,7 @@ export default function CatalogBrowser({
             }}
             onClick={() => setSelected(e)}
           >
-            <VendorIcon name={e.name} size={30} />
+            <VendorIcon name={e.name} link={e.link} size={30} />
             <span style={{ fontWeight: 600 }}>{e.name}</span>
           </button>
         ))}
@@ -101,7 +101,7 @@ export default function CatalogBrowser({
       {selected && (
         <div className="card" style={{ marginTop: 16, background: "var(--bg-3)" }}>
           <div className="row" style={{ gap: 10, marginBottom: 6 }}>
-            <VendorIcon name={selected.name} size={34} />
+            <VendorIcon name={selected.name} link={selected.link} size={34} />
             <strong style={{ fontSize: 16 }}>{selected.name}</strong>
             {selected.categoryName && <Chip tone="cat">{selected.categoryName}</Chip>}
           </div>

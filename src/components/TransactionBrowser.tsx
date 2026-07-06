@@ -113,7 +113,7 @@ export default function TransactionBrowser({ accountId, locale }: { accountId: s
                 </td>
                 <td>
                   <span className="row" style={{ gap: 6 }}>
-                    <VendorIcon name={r.vendorName} size={20} />
+                    <VendorIcon name={r.vendorName} link={r.vendorLink} size={20} />
                     {r.vendorName}
                     <VendorLink link={r.vendorLink} />
                   </span>
