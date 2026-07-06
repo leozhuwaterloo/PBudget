@@ -3,7 +3,8 @@
 // third party on render. Best-effort: any failure yields null and the UI falls back
 // to a letter avatar.
 //
-// - Website link → the site's favicon (Google's faviconV2 service, no key).
+// - Website link → the site's OWN declared favicon (what the browser shows),
+//   falling back to Google's faviconV2 service (no key) when it declares none.
 // - Google Maps link → the place/contributor's real profile photo IF Google exposes
 //   one (via the page's og:image). A bare place whose og:image is only a static-map
 //   tile gets nothing (a map tile isn't a profile icon) → letter avatar.
@@ -79,6 +80,45 @@ export function iconForImageUrl(url: string | null): Promise<string | null> {
   return url ? imageDataUri(url) : Promise.resolve(null);
 }
 
+// The site's OWN declared favicon — what the browser actually shows. Fetch the
+// page, read its <link rel="...icon...">, prefer apple-touch-icon (bigger/crisper),
+// resolve relative → absolute, fetch it. Preferred over Google's faviconV2, whose
+// cache is often stale/low-res (e.g. yifangtea.com). Null → caller falls back to
+// faviconV2. Reuses the same HTML-fetch+regex shape as mapIconDataUri.
+async function siteFaviconDataUri(pageUrl: string): Promise<string | null> {
+  let html: string;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    const res = await fetch(pageUrl, { headers: { "User-Agent": UA }, signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    html = await res.text();
+  } catch {
+    return null;
+  }
+  // rel/href appear in either order → grab each <link> tag, then read attrs.
+  const icons: { href: string; apple: boolean }[] = [];
+  for (const tag of html.match(/<link\b[^>]*>/gi) ?? []) {
+    const rel = tag.match(/\brel="([^"]*)"/i)?.[1] ?? "";
+    if (!/icon/i.test(rel)) continue;
+    const href = tag.match(/\bhref="([^"]+)"/i)?.[1];
+    if (href) icons.push({ href, apple: /apple-touch-icon/i.test(rel) });
+  }
+  icons.sort((a, b) => Number(b.apple) - Number(a.apple)); // apple-touch-icon first
+  for (const { href } of icons) {
+    let abs: string;
+    try {
+      abs = new URL(href.replace(/&amp;/g, "&"), pageUrl).href;
+    } catch {
+      continue;
+    }
+    const data = await imageDataUri(abs);
+    if (data) return data;
+  }
+  return null;
+}
+
 const cache = new Map<string, string | null>(); // key → data URI (or null miss)
 
 // The stored icon for a vendor link: a website favicon or a Maps profile photo.
@@ -92,13 +132,17 @@ export async function iconForLink(link: string | null): Promise<string | null> {
   if (isMapLink(link)) {
     result = await mapIconDataUri(link);
   } else {
-    // Google's faviconV2, queried with the site's full https origin — returns a real
-    // 200 favicon when Google has one, 404 (→ null → letter avatar) when it doesn't.
-    // The older s2/favicons?domain= path resolves some sites (e.g. perfectmeatbowl.com)
-    // via an http:// redirect that 404s even when faviconV2 has the icon.
-    const origin = new URL(link).origin;
-    const fav = `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(origin)}&size=64`;
-    result = await imageDataUri(fav);
+    // Prefer the site's own declared favicon (matches the browser). Only if it
+    // declares none / it won't fetch do we fall back to Google's faviconV2, which
+    // returns a real 200 favicon when Google has one, 404 (→ null → letter avatar)
+    // when it doesn't. faviconV2's cache is sometimes stale/low-res, so the site's
+    // own icon wins when present.
+    result = await siteFaviconDataUri(link);
+    if (!result) {
+      const origin = new URL(link).origin;
+      const fav = `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(origin)}&size=64`;
+      result = await imageDataUri(fav);
+    }
   }
   cache.set(key, result);
   return result;
