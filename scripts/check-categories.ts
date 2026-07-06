@@ -94,8 +94,33 @@ async function main(): Promise<void> {
   const survivors = await prisma.transactionCategory.count({ where: { userId: USER } });
   assert.equal(survivors, 17, "only the one category removed");
 
+  // --- Subcategories (2-level tree) ---------------------------------------
+  const food = await prisma.transactionCategory.create({ data: { userId: USER, name: "Food" } });
+  const dining = await prisma.transactionCategory.create({ data: { userId: USER, name: "Dining" } });
+  const parentOf = async (id: string) =>
+    (await prisma.transactionCategory.findUnique({ where: { id } }))!.parentName;
+
+  await updateCategory(USER, dining.id, { parentName: "Food" });
+  assert.equal(await parentOf(dining.id), "Food", "child nested under parent");
+
+  // Invalid parents are all rejected (self, unknown, a child → >2 levels).
+  await assert.rejects(() => updateCategory(USER, food.id, { parentName: "Food" }), /own parent/, "self-parent rejected");
+  await assert.rejects(() => updateCategory(USER, food.id, { parentName: "Nope" }), /No category named/, "unknown parent rejected");
+  await assert.rejects(() => updateCategory(USER, food.id, { parentName: "Dining" }), /two levels|subcategory/, "nesting under a child rejected");
+  // Food has a child, so it can't itself become a child.
+  await prisma.transactionCategory.create({ data: { userId: USER, name: "Snacks" } });
+  await assert.rejects(() => updateCategory(USER, food.id, { parentName: "Snacks" }), /subcategories/, "a parent can't become a child");
+
+  // Renaming the parent cascades to the child's parentName pointer.
+  await updateCategory(USER, food.id, { name: "Meals" });
+  assert.equal(await parentOf(dining.id), "Meals", "rename cascades to child parentName");
+
+  // Deleting the parent reparents its children to top level (no orphan pointer).
+  await deleteCategory(USER, food.id);
+  assert.equal(await parentOf(dining.id), null, "child reparented to top level on parent delete");
+
   await prisma.user.deleteMany({ where: { id: USER } });
-  console.log("\n  ✓ FR4 categories: seeding, rename cascade, delete rejection all pass\n");
+  console.log("\n  ✓ FR4 categories: seeding, rename cascade, delete rejection, subcategories all pass\n");
 }
 
 main()

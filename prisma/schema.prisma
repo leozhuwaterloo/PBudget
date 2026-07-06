@@ -144,6 +144,7 @@ model TransactionCategory {
   name              String
   budget            Decimal @default(0)
   excludeFromTotals Boolean @default(false) // FR4: keep off Dashboard totals (Income/Transfer/…)
+  parentName        String? // subcategory parent (by name, like every other category ref); null = top-level. Capped at 2 levels.
 
   @@unique([userId, name])
 }

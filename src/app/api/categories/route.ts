@@ -7,6 +7,7 @@ import {
   deleteCategory,
   ensureDefaultCategories,
   updateCategory,
+  validateParent,
 } from "@/lib/categories";
 import type { TransactionCategory } from "@prisma/client";
 
@@ -19,7 +20,16 @@ const serialize = (c: TransactionCategory) => ({
   name: c.name,
   budget: num(c.budget),
   excludeFromTotals: c.excludeFromTotals,
+  parentName: c.parentName,
 });
+
+// undefined = not provided (leave as-is), null = clear to top-level, string = set parent.
+function readParent(body: unknown): string | null | undefined {
+  const b = body as { parentName?: unknown } | null;
+  if (!b || !("parentName" in b)) return undefined;
+  if (b.parentName == null) return null;
+  return typeof b.parentName === "string" && b.parentName.trim() ? b.parentName.trim() : null;
+}
 
 // Returns trimmed name (≤100 chars) or null if absent/invalid.
 function readName(body: unknown): string | null {
@@ -66,11 +76,13 @@ export async function POST(req: Request) {
   const excludeFromTotals = (body as { excludeFromTotals?: unknown })?.excludeFromTotals === true;
 
   try {
+    const parentName = await validateParent(userId, null, readParent(body) ?? null);
     const cat = await prisma.transactionCategory.create({
-      data: { userId, name, budget: budget ?? 0, excludeFromTotals },
+      data: { userId, name, budget: budget ?? 0, excludeFromTotals, parentName },
     });
     return NextResponse.json(serialize(cat), { status: 201 });
   } catch (e) {
+    if (e instanceof CategoryError) return NextResponse.json({ error: e.message }, { status: e.status });
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return NextResponse.json({ error: "A category with that name already exists" }, { status: 409 });
     }
@@ -90,7 +102,7 @@ export async function PATCH(req: Request) {
   const id = typeof (body as { id?: unknown })?.id === "string" ? (body as { id: string }).id : "";
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const patch: { name?: string; budget?: number; excludeFromTotals?: boolean } = {};
+  const patch: { name?: string; budget?: number; excludeFromTotals?: boolean; parentName?: string | null } = {};
   if ((body as { name?: unknown })?.name !== undefined) {
     const name = readName(body);
     if (!name) return NextResponse.json({ error: "Name must be 1–100 characters" }, { status: 400 });
@@ -102,6 +114,8 @@ export async function PATCH(req: Request) {
   if (typeof (body as { excludeFromTotals?: unknown })?.excludeFromTotals === "boolean") {
     patch.excludeFromTotals = (body as { excludeFromTotals: boolean }).excludeFromTotals;
   }
+  const parentName = readParent(body);
+  if (parentName !== undefined) patch.parentName = parentName;
 
   try {
     const cat = await updateCategory(userId, id, patch);
