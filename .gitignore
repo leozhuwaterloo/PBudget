@@ -18,3 +18,8 @@ prisma/dev.db*
 .DS_Store
 next-env.d.ts
 *.tsbuildinfo
+
+# Local tooling / scratch — not app source
+.claude/
+.stackboard-drops/
+._*
