@@ -56,7 +56,16 @@ export const DEFAULT_CATEGORIES = [
   "Transfer", "Grocery", "Restaurant", "Food Delivery", "Online Shopping",
   "In-Store Shopping", "Game", "Entertainment", "Income", "Other Income",
   "Fee", "Recurring", "Utility", "Pet", "Travel", "Cash", "Gas", "Baby",
+  "Mortgage Insurance", "Telecom",
 ] as const;
+
+// "Recurring" is the top-level home for fixed monthly bills — payments that don't
+// change month to month. These seed nested under it (parentName is by-name, not an
+// FK, so it's fine that the parent is created in the same batch).
+const DEFAULT_PARENT: Record<string, string> = {
+  "Mortgage Insurance": "Recurring",
+  "Telecom": "Recurring",
+};
 
 // Seeded with excludeFromTotals=true. Plaid's TRANSFER_IN/OUT collapse to
 // "Transfer" (see plaidCategoryName), so those two are no longer separate rows.
@@ -78,7 +87,12 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
   const missing = names.filter((n) => !have.has(n));
   if (missing.length === 0) return;
   await prisma.transactionCategory.createMany({
-    data: missing.map((name) => ({ userId, name, excludeFromTotals: EXCLUDE_FROM_TOTALS.has(name) })),
+    data: missing.map((name) => ({
+      userId,
+      name,
+      excludeFromTotals: EXCLUDE_FROM_TOTALS.has(name),
+      parentName: DEFAULT_PARENT[name] ?? null,
+    })),
   });
 }
 

@@ -173,7 +173,7 @@ export default function VendorEditor({
         </div>
         <div style={{ flex: "1 1 200px" }}>
           <label>{t("cust.vendors.defaultCategory")}</label>
-          <CategorySelect value={defaultCat} categories={categories} onChange={setDefaultCat} noneLabel={t("cust.vendors.noDefault")} />
+          <CategorySelect value={defaultCat} categories={categories} onChange={setDefaultCat} noneLabel={t("cust.vendors.chooseCategory")} />
         </div>
         <div style={{ flex: "1 1 240px" }}>
           <label>{t("cust.vendors.link")}</label>
@@ -226,7 +226,7 @@ export default function VendorEditor({
       {error && <div className="error">{error}</div>}
 
       <div className="row" style={{ gap: 8, marginTop: 18 }}>
-        <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={save}>
+        <button className="btn btn-primary" disabled={saving || !name.trim() || !defaultCat} onClick={save}>
           {saving ? t("common.saving") : t("common.save")}
         </button>
         <button className="btn btn-ghost" disabled={saving} onClick={onCancel}>

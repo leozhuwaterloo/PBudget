@@ -118,7 +118,7 @@ const zh: Messages = {
   "cust.vendors.name": "名称",
   "cust.vendors.namePlaceholder": "例如 Starbucks",
   "cust.vendors.defaultCategory": "默认分类",
-  "cust.vendors.noDefault": "无默认",
+  "cust.vendors.chooseCategory": "选择分类……",
   "cust.vendors.link": "链接",
   "cust.vendors.linkPlaceholder": "https://maps.google.com/… 或网站",
   "cust.vendors.linkHelp": "可选——本地商户填谷歌地图链接，线上商户填网站。显示为 📍 / 🌐。",

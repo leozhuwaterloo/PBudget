@@ -549,6 +549,9 @@ export const CATALOG_BUCKET_SLUGS: Set<string> = new Set(BUCKETS.map((b) => slug
   for (const e of CATALOG) {
     if (seen.has(e.slug)) throw new Error(`Duplicate catalog slug: ${e.slug} (${e.name})`);
     seen.add(e.slug);
+    // Instantiate copies categoryName straight in, bypassing createVendor's guard —
+    // every entry must carry a default category (vendors require one, FR3).
+    if (!e.categoryName) throw new Error(`Catalog entry has no default category: ${e.slug} (${e.name})`);
   }
   // A LINKS key that matches no entry name is a typo (would silently attach to
   // nothing) — fail loudly, same as the slug guard.
