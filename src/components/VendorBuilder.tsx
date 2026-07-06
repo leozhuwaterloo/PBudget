@@ -14,7 +14,7 @@ export default function VendorBuilder() {
   const t = useT();
   const [vendors, setVendors] = useState<Vendor[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
-  const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [] });
+  const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [], plaidConfidences: [] });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Vendor | null | "new">(null); // null = closed, "new" = create
   const [showCatalog, setShowCatalog] = useState(false);

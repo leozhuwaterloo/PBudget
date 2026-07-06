@@ -143,6 +143,7 @@ const zh: Messages = {
   "cust.vendors.channel": "支付渠道",
   "cust.vendors.plaidPrimary": "预估分类",
   "cust.vendors.plaidDetailed": "预估细分类",
+  "cust.vendors.plaidConfidence": "预估置信度",
   "cust.vendors.rowCategory": "行分类",
   "cust.vendors.rowNoCategory": "无分类",
   "cust.vendors.valuePlaceholder": "值",

@@ -28,6 +28,7 @@ type UnmatchedRow = {
   paymentChannel: string;
   plaidPrimary: string | null;
   plaidDetailed: string | null;
+  plaidConfidence: string | null;
   eligibleForSplit: boolean;
 };
 type ConflictRow = {
@@ -131,6 +132,7 @@ function prefillCondition(row: UnmatchedRow): Condition {
     paymentChannel: null,
     plaidPrimary: null,
     plaidDetailed: null,
+    plaidConfidence: null,
   };
 }
 const prefillName = (row: UnmatchedRow) => (row.merchantName?.trim() || row.name || "").slice(0, 100);
@@ -186,7 +188,7 @@ export default function Review() {
   const [data, setData] = useState<ReviewData | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [] });
+  const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [], plaidConfidences: [] });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -826,6 +828,7 @@ function TxnDetail({ row, accountName }: { row: UnmatchedRow; accountName: (id: 
         {row.paymentChannel && <Chip tone="channel">{t("cust.vendors.channel")}: {row.paymentChannel}</Chip>}
         {row.plaidPrimary && <Chip tone="plaidPrimary">{t("cust.vendors.plaidPrimary")}: {row.plaidPrimary}</Chip>}
         {row.plaidDetailed && <Chip tone="plaidDetailed">{t("cust.vendors.plaidDetailed")}: {row.plaidDetailed}</Chip>}
+        {row.plaidConfidence && <Chip tone="plaidConfidence">{t("cust.vendors.plaidConfidence")}: {row.plaidConfidence}</Chip>}
       </div>
     </div>
   );

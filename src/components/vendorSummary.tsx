@@ -16,6 +16,7 @@ export type AnyCondition = {
   paymentChannel?: string | null;
   plaidPrimary?: string | null;
   plaidDetailed?: string | null;
+  plaidConfidence?: string | null;
 };
 
 // Per-field-type chip hue so each filter reads at a glance. Hue-based (translucent
@@ -29,6 +30,7 @@ const CHIP_HUE: Record<string, number> = {
   channel: 190, // payment channel → cyan
   plaidPrimary: 248, // Plaid primary → indigo
   plaidDetailed: 322, // Plaid detailed → pink
+  plaidConfidence: 88, // Plaid confidence → lime
 };
 
 export function Chip({ tone = "field", children }: { tone?: string; children: React.ReactNode }) {
@@ -66,6 +68,7 @@ function fieldChips(c: AnyCondition, t: (k: string, p?: Record<string, string | 
   if (c.paymentChannel) out.push({ tone: "channel", text: `${t("cust.vendors.channel")}: ${c.paymentChannel}` });
   if (c.plaidPrimary) out.push({ tone: "plaidPrimary", text: `${t("cust.vendors.plaidPrimary")}: ${c.plaidPrimary}` });
   if (c.plaidDetailed) out.push({ tone: "plaidDetailed", text: `${t("cust.vendors.plaidDetailed")}: ${c.plaidDetailed}` });
+  if (c.plaidConfidence) out.push({ tone: "plaidConfidence", text: `${t("cust.vendors.plaidConfidence")}: ${c.plaidConfidence}` });
   return out;
 }
 

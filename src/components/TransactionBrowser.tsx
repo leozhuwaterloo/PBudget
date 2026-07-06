@@ -22,6 +22,7 @@ type BrowserTxn = {
   pending: boolean;
   plaidPrimary: string | null;
   plaidDetailed: string | null;
+  plaidConfidence: string | null;
   vendorName: string;
   vendorLink: string | null;
   vendorIcon: string | null;
@@ -116,6 +117,7 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
                 <td>
                   {r.plaidPrimary ?? "—"}
                   {r.plaidDetailed && <span className="muted" style={{ display: "block", fontSize: 11 }}>{r.plaidDetailed}</span>}
+                  {r.plaidConfidence && <span className="muted" style={{ display: "block", fontSize: 11 }}>{t("cust.vendors.plaidConfidence")}: {r.plaidConfidence}</span>}
                 </td>
                 <td>
                   <span className="row" style={{ gap: 6 }}>

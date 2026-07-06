@@ -34,6 +34,7 @@ export type ConditionInput = {
   paymentChannel?: string | null;
   plaidPrimary?: string | null;
   plaidDetailed?: string | null;
+  plaidConfidence?: string | null;
 };
 export type VendorInput = {
   name?: unknown;
@@ -120,12 +121,13 @@ function buildRows(
     }
     const plaidPrimary = str(c.plaidPrimary, `${where} Plaid primary`);
     const plaidDetailed = str(c.plaidDetailed, `${where} Plaid detailed`);
+    const plaidConfidence = str(c.plaidConfidence, `${where} Plaid confidence`);
 
     // ≥1 matching field. The row's category is an outcome, so it never counts.
     const fieldCount =
       (name ? 1 : 0) + (merchant ? 1 : 0) + (amountMin !== undefined ? 1 : 0) +
       (amountMax !== undefined ? 1 : 0) + (accountId ? 1 : 0) + (paymentChannel ? 1 : 0) +
-      (plaidPrimary ? 1 : 0) + (plaidDetailed ? 1 : 0);
+      (plaidPrimary ? 1 : 0) + (plaidDetailed ? 1 : 0) + (plaidConfidence ? 1 : 0);
     if (fieldCount === 0) bad(`${where} needs at least one matching field`);
 
     const categoryName = str(c.categoryName, `${where} category`);
@@ -146,6 +148,7 @@ function buildRows(
       paymentChannel: paymentChannel ?? null,
       plaidPrimary: plaidPrimary ?? null,
       plaidDetailed: plaidDetailed ?? null,
+      plaidConfidence: plaidConfidence ?? null,
     });
   });
 
@@ -236,6 +239,7 @@ function serializeRow(c: VendorWithConditions["conditions"][number]) {
     paymentChannel: c.paymentChannel,
     plaidPrimary: c.plaidPrimary,
     plaidDetailed: c.plaidDetailed,
+    plaidConfidence: c.plaidConfidence,
   };
 }
 

@@ -19,6 +19,7 @@ export type Condition = {
   paymentChannel: string | null;
   plaidPrimary: string | null;
   plaidDetailed: string | null;
+  plaidConfidence: string | null;
 };
 export type Vendor = {
   id: string;
@@ -32,7 +33,7 @@ export type Vendor = {
   categoryRules: Condition[];
 };
 export type Account = { accountId: string; name: string; subtype: string | null };
-export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaileds: string[] };
+export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaileds: string[]; plaidConfidences: string[] };
 
 const TEXT_OPS = ["contains", "equals", "starts_with", "regex"];
 const CHANNELS = ["online", "in store", "other"];
@@ -51,6 +52,7 @@ type RowForm = {
   paymentChannel: string;
   plaidPrimary: string;
   plaidDetailed: string;
+  plaidConfidence: string;
 };
 
 let rowSeq = 0;
@@ -70,12 +72,14 @@ function toRowForm(c: Condition): RowForm {
     paymentChannel: c.paymentChannel ?? "",
     plaidPrimary: c.plaidPrimary ?? "",
     plaidDetailed: c.plaidDetailed ?? "",
+    plaidConfidence: c.plaidConfidence ?? "",
   };
 }
 
 const emptyRow = (): RowForm => toRowForm({
   categoryName: null, nameOp: null, nameValue: null, merchantOp: null, merchantValue: null,
   amountMin: null, amountMax: null, accountId: null, paymentChannel: null, plaidPrimary: null, plaidDetailed: null,
+  plaidConfidence: null,
 });
 
 // Serialize a row to the API body. Text pairs are only sent when a value is
@@ -95,6 +99,7 @@ function rowBody(r: RowForm, withCategory: boolean) {
     paymentChannel: r.paymentChannel || null,
     plaidPrimary: r.plaidPrimary.trim() || null,
     plaidDetailed: r.plaidDetailed.trim() || null,
+    plaidConfidence: r.plaidConfidence.trim() || null,
   };
 }
 
@@ -214,6 +219,7 @@ export default function VendorEditor({
 
       <datalist id="plaid-primaries">{refs.plaidPrimaries.map((p) => <option key={p} value={p} />)}</datalist>
       <datalist id="plaid-detaileds">{refs.plaidDetaileds.map((p) => <option key={p} value={p} />)}</datalist>
+      <datalist id="plaid-confidences">{refs.plaidConfidences.map((p) => <option key={p} value={p} />)}</datalist>
 
       {error && <div className="error">{error}</div>}
 
@@ -366,6 +372,11 @@ function RowEditor({
         <div style={cell}>
           <label>{t("cust.vendors.plaidDetailed")}</label>
           <input list="plaid-detaileds" value={row.plaidDetailed} onChange={(e) => onChange({ plaidDetailed: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
+        </div>
+        {/* plaid confidence (VERY_HIGH…UNKNOWN) */}
+        <div style={cell}>
+          <label>{t("cust.vendors.plaidConfidence")}</label>
+          <input list="plaid-confidences" value={row.plaidConfidence} onChange={(e) => onChange({ plaidConfidence: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
         </div>
         {/* per-row category (outcome) — category rules only */}
         {showCategory && (
