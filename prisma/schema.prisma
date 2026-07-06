@@ -160,9 +160,9 @@ model Vendor {
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String // display name
   link         String? // Google Maps entry (local vendor) or website (online) | null
-  // DEPRECATED: vendors moved from bundled icons to links. Column KEPT (unread,
-  // unwritten) so prod's db-push diff stays additive — the deploy guard refuses a
-  // DROP COLUMN. Drop it in a later dedicated migration if ever worth it.
+  iconLink     String? // optional direct image URL for the icon; overrides link-derived favicon
+  // Cached icon data URI. Derived from iconLink if set, else the favicon/Maps photo
+  // of `link`. Column predates links (was bundled icons) but is now written again.
   icon         String?
   categoryName String? // optional DEFAULT category (FR3 fallback)
   priority     Int? // ascending = match order; NULL = legacy row, never matches

@@ -24,6 +24,7 @@ export type Vendor = {
   id: string;
   name: string;
   link: string | null;
+  iconLink: string | null;
   icon: string | null;
   categoryName: string | null;
   priority: number | null;
@@ -117,6 +118,7 @@ export default function VendorEditor({
   const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [link, setLink] = useState(initial?.link ?? "");
+  const [iconLink, setIconLink] = useState(initial?.iconLink ?? "");
   const [defaultCat, setDefaultCat] = useState(initial?.categoryName ?? "");
   const [matchRows, setMatchRows] = useState<RowForm[]>(
     initial && initial.matchConditions.length ? initial.matchConditions.map(toRowForm) : [emptyRow()]
@@ -134,6 +136,7 @@ export default function VendorEditor({
       ...(initial?.id ? { id: initial.id } : {}),
       name,
       link: link.trim() || null,
+      iconLink: iconLink.trim() || null,
       categoryName: defaultCat || null,
       matchConditions: matchRows.map((r) => rowBody(r, false)),
       categoryRules: catRows.map((r) => rowBody(r, true)),
@@ -169,8 +172,21 @@ export default function VendorEditor({
           <label>{t("cust.vendors.link")}</label>
           <input type="url" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("cust.vendors.linkPlaceholder")} />
         </div>
+        <div style={{ flex: "1 1 240px" }}>
+          <label>{t("cust.vendors.iconLink")}</label>
+          <div className="row" style={{ gap: 8, alignItems: "center" }}>
+            {iconLink.trim() && (
+              // Live preview straight from the URL — best-effort; a broken URL just hides it.
+              <img src={iconLink} alt="" width={28} height={28} key={iconLink}
+                style={{ borderRadius: 4, objectFit: "contain", flex: "0 0 28px" }}
+                onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+            )}
+            <input type="url" inputMode="url" value={iconLink} onChange={(e) => setIconLink(e.target.value)} placeholder={t("cust.vendors.iconLinkPlaceholder")} />
+          </div>
+        </div>
       </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>{t("cust.vendors.linkHelp")}</p>
+      <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("cust.vendors.iconLinkHelp")}</p>
 
       {/* Match conditions — identity */}
       <RowSection

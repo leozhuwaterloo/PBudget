@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { rematchUser } from "../analysis/match";
 import { ensureDefaultCategories } from "../categories";
-import { faviconDataUri } from "../favicon";
+import { iconForLink } from "../favicon";
 import {
   CATALOG,
   CATALOG_BUCKET_SLUGS,
@@ -59,7 +59,7 @@ async function createVendorFromEntry(
     ...entry.categoryRules.map((c) => rowFromCatalog(c, "category")),
   ];
 
-  const icon = await faviconDataUri(entry.link); // cache the favicon once at copy time
+  const icon = await iconForLink(entry.link); // cache the icon once at copy time
 
   // A concurrent instantiate could grab our priority first (unique constraint);
   // bump and retry a handful of times before giving up.
