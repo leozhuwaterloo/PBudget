@@ -432,8 +432,8 @@ function UnmatchedSection({
                 </td>
                 <td>{money(r.amount, r.currency)}</td>
                 <td>{day(r.date)}</td>
-                <td>
-                  <div className="row wrap">
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <div className="row" style={{ flexWrap: "nowrap" }}>
                     <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => onCreate(r)}>
                       {t("review.createVendor")}
                     </button>
