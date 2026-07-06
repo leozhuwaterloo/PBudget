@@ -56,6 +56,8 @@ async function reset(): Promise<void> {
   await prisma.user.deleteMany({ where: { id: USER } });
 
   await prisma.user.create({ data: { id: USER, email: `${USER}@t.local`, passwordHash: "x" } });
+  // Vendors now require a default category; seed one for the fixtures to reference.
+  await prisma.transactionCategory.create({ data: { userId: USER, name: "Grocery" } });
   await prisma.plaidInstitution.upsert({
     where: { institutionId: "rt-inst" },
     create: { institutionId: "rt-inst", name: "RT Bank" },
@@ -92,9 +94,9 @@ async function reset(): Promise<void> {
   // Conflict vendors: high before low so the append-at-end priority makes the
   // NAME vendor (created first) the winner. dup vendor keeps the dup pair matched
   // (so it shows only as duplicate_charge, not also unmatched).
-  await createVendor(USER, { name: "rt-conf-high", matchConditions: [{ nameOp: "contains", nameValue: "zconf" }] });
-  await createVendor(USER, { name: "rt-conf-low", matchConditions: [{ merchantOp: "contains", merchantValue: "zconfm" }] });
-  await createVendor(USER, { name: "rt-dup-vendor", matchConditions: [{ merchantOp: "equals", merchantValue: "Zdup Mart" }] });
+  await createVendor(USER, { name: "rt-conf-high", categoryName: "Grocery", matchConditions: [{ nameOp: "contains", nameValue: "zconf" }] });
+  await createVendor(USER, { name: "rt-conf-low", categoryName: "Grocery", matchConditions: [{ merchantOp: "contains", merchantValue: "zconfm" }] });
+  await createVendor(USER, { name: "rt-dup-vendor", categoryName: "Grocery", matchConditions: [{ merchantOp: "contains", merchantValue: "Zdup Mart" }] });
 
   await analyzeUser(USER); // fires suspicion + final rematch (builds the queues)
 }
@@ -115,6 +117,22 @@ async function main(): Promise<void> {
   check(
     !!findUn(UN_1)?.accountId && findUn(UN_1)?.paymentChannel === "online",
     "unmatched row carries account + payment channel for the Review detail card"
+  );
+
+  // --- Server-side pagination + search over the unmatched queue ------------
+  const paged = await reviewData(USER, { page: 0 });
+  check(
+    paged.unmatchedTotal === data.unmatched.length && paged.unmatched.length <= paged.unmatchedPageSize,
+    "pagination: page 0 reports the full total and returns at most pageSize rows"
+  );
+  const searched = await reviewData(USER, { q: "zother" }); // case-insensitive over merchant/name/title
+  check(
+    searched.unmatchedTotal === 1 && !!searched.unmatched.find((r) => r.id === UN_OTHER),
+    "search: a query narrows the unmatched queue to the matching merchant"
+  );
+  check(
+    (await reviewData(USER, { q: "no-such-merchant-zzz" })).unmatchedTotal === 0,
+    "search: a non-matching query yields an empty unmatched page"
   );
 
   const conflict = data.conflicts.find((c) => c.id === CONF);
@@ -162,7 +180,7 @@ async function main(): Promise<void> {
   // --- AC1: create a vendor from an unmatched row --------------------------
   // The UI POSTs /api/vendors with an equals condition on the row's merchant; the
   // create rematches. Both Zqueue rows must leave the queue; Zother must remain.
-  await createVendor(USER, { name: "Zqueue Alpha", matchConditions: [{ merchantOp: "equals", merchantValue: "Zqueue Alpha" }] });
+  await createVendor(USER, { name: "Zqueue Alpha", categoryName: "Grocery", matchConditions: [{ merchantOp: "contains", merchantValue: "Zqueue Alpha" }] });
   const newVendor = await prisma.vendor.findFirst({ where: { userId: USER, name: "Zqueue Alpha" } });
   data = await reviewData(USER);
   check(!data.unmatched.find((r) => r.id === UN_1) && !data.unmatched.find((r) => r.id === UN_2), "AC1: BOTH Zqueue rows removed from the queue — it shrank past the acted-on row");

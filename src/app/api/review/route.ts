@@ -9,8 +9,12 @@ export const dynamic = "force-dynamic";
 // assembly lives in src/lib/review.ts (unit-tested by scripts/check-review.ts);
 // this route is just the auth gate. Mutations reuse the existing routes (flags
 // dismiss, merge confirm/dissolve/create, vendors, catalog, splits DELETE).
-export async function GET() {
+export async function GET(req: Request) {
   const g = await gate({ verified: true });
   if (g.error) return g.error;
-  return NextResponse.json(await reviewData(g.user!.id));
+  const url = new URL(req.url);
+  const pageParam = url.searchParams.get("page");
+  const q = url.searchParams.get("q") ?? undefined;
+  const page = pageParam == null ? undefined : Math.max(0, parseInt(pageParam, 10) || 0);
+  return NextResponse.json(await reviewData(g.user!.id, { page, q }));
 }

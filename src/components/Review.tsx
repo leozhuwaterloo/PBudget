@@ -76,6 +76,9 @@ type SplitRow = {
 type ReviewData = {
   counters: { today: number; thisMonth: number; totalOpen: number };
   unmatched: UnmatchedRow[];
+  unmatchedTotal: number;
+  unmatchedPage: number;
+  unmatchedPageSize: number;
   conflicts: ConflictRow[];
   suspicion: Record<string, SuspicionEntry[]>;
   pendingGroups: GroupRow[];
@@ -84,7 +87,6 @@ type ReviewData = {
 };
 
 const SUSPICION_RULES = ["unmatched_transfer", "unusual_amount", "duplicate_charge"];
-const PAGE_SIZE = 25;
 
 const money = (amount: number | null, currency: string | null) =>
   amount == null ? "—" : `${currency ? currency + " " : ""}${(-amount).toFixed(2)}`;
@@ -193,6 +195,8 @@ export default function Review() {
   const [busy, setBusy] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState(0);
+  const [qInput, setQInput] = useState(""); // what's typed into the unmatched search
+  const [q, setQ] = useState(""); // debounced value that drives the fetch
   const [modal, setModal] = useState<Modal | null>(null);
 
   // Static-ish reference data for the vendor editor (categories + account/plaid refs).
@@ -208,18 +212,45 @@ export default function Review() {
     })();
   }, []);
 
-  // Review payload + the vendor list (for "extend an existing vendor"), refetched
-  // after every action so the queues shrink live (AC1).
+  // Debounce the unmatched search so typing doesn't refetch per keystroke; a fresh
+  // query jumps back to the first page.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setQ(qInput.trim());
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [qInput]);
+
+  // The vendor list (for "extend an existing vendor" / picker) needs ALL vendors,
+  // so it's fetched unpaginated and only refreshed after an action (reloadKey) —
+  // not on every unmatched page-turn.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = await getJson("/api/vendors");
+        if (!cancelled) setVendors(v.vendors ?? []);
+      } catch {
+        /* picker degrades gracefully; the review queues still render */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  // Review payload (paginated unmatched queue), refetched after every action so the
+  // queues shrink live (AC1) and whenever the page/search changes.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setBusy(true);
       setError("");
       try {
-        const [rev, v] = await Promise.all([getJson("/api/review"), getJson("/api/vendors")]);
+        const rev = await getJson(`/api/review?page=${page}&q=${encodeURIComponent(q)}`);
         if (cancelled) return;
         setData(rev);
-        setVendors(v.vendors ?? []);
       } catch (e: any) {
         if (!cancelled) setError(e.message);
       } finally {
@@ -229,7 +260,7 @@ export default function Review() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, page, q]);
 
   // Deep-link scroll (AC8): the sections render from client-fetched JSON, so on a
   // client-side <Link> nav from the Dashboard tiles the anchor isn't in the DOM
@@ -310,8 +341,12 @@ export default function Review() {
         <>
           <UnmatchedSection
             rows={data.unmatched}
-            page={page}
+            total={data.unmatchedTotal}
+            page={data.unmatchedPage}
+            pageSize={data.unmatchedPageSize}
             setPage={setPage}
+            q={qInput}
+            setQ={setQInput}
             busy={busy}
             onCreate={(row) => setModal({ kind: "create", row })}
             onExtend={(row) => setModal({ kind: "pick", row })}
@@ -387,8 +422,12 @@ export default function Review() {
 
 function UnmatchedSection({
   rows,
+  total,
   page,
+  pageSize,
   setPage,
+  q,
+  setQ,
   busy,
   onCreate,
   onExtend,
@@ -396,8 +435,12 @@ function UnmatchedSection({
   onSplit,
 }: {
   rows: UnmatchedRow[];
+  total: number;
   page: number;
+  pageSize: number;
   setPage: (n: number) => void;
+  q: string;
+  setQ: (s: string) => void;
   busy: boolean;
   onCreate: (row: UnmatchedRow) => void;
   onExtend: (row: UnmatchedRow) => void;
@@ -405,12 +448,25 @@ function UnmatchedSection({
   onSplit: (row: UnmatchedRow) => void;
 }) {
   const t = useT();
-  if (rows.length === 0) return null;
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // Hide only when there's genuinely nothing to review here; keep the section (and
+  // its search box) up while a query is active so it can be cleared even at 0 hits.
+  if (total === 0 && !q.trim()) return null;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   const p = Math.min(page, pages - 1);
-  const slice = rows.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE);
   return (
-    <Section id="unmatched" title={t("review.unmatchedTitle", { n: rows.length })} help={t("review.unmatchedHelp")}>
+    <Section id="unmatched" title={t("review.unmatchedTitle", { n: total })} help={t("review.unmatchedHelp")}>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <input
+          className="input"
+          style={{ maxWidth: 320 }}
+          placeholder={t("review.searchUnmatched")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">{t("review.noUnmatchedMatch", { q: q.trim() })}</p>
+      ) : (
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
@@ -422,7 +478,7 @@ function UnmatchedSection({
             </tr>
           </thead>
           <tbody>
-            {slice.map((r) => (
+            {rows.map((r) => (
               <tr key={r.flagId}>
                 <td>
                   <strong>{r.merchantName?.trim() || r.name}</strong>
@@ -455,6 +511,7 @@ function UnmatchedSection({
           </tbody>
         </table>
       </div>
+      )}
       {pages > 1 && (
         <div className="row" style={{ gap: 10, marginTop: 8, alignItems: "center" }}>
           <button className="btn btn-sm" disabled={p === 0} onClick={() => setPage(p - 1)}>

@@ -94,7 +94,12 @@ export type SplitRow = {
 };
 export type ReviewPayload = {
   counters: { today: number; thisMonth: number; totalOpen: number };
+  // The unmatched queue is the one unbounded section, so it paginates server-side.
+  // `unmatched` is the current page; `unmatchedTotal` is the count after search.
   unmatched: UnmatchedRow[];
+  unmatchedTotal: number;
+  unmatchedPage: number;
+  unmatchedPageSize: number;
   conflicts: ConflictRow[];
   suspicion: Record<string, SuspicionEntry[]>;
   pendingGroups: GroupRow[];
@@ -121,7 +126,12 @@ export async function dismissFlag(
   return "ok";
 }
 
-export async function reviewData(userId: string): Promise<ReviewPayload> {
+const UNMATCHED_PAGE_SIZE = 25;
+
+export async function reviewData(
+  userId: string,
+  opts: { page?: number; q?: string } = {}
+): Promise<ReviewPayload> {
   const [openFlags, allGroups, splits, posted, vendorRows] = await Promise.all([
     prisma.transactionFlag.findMany({ where: { userId, status: "open" } }),
     prisma.mergeGroup.findMany({ where: { userId }, include: { legs: true } }),
@@ -186,6 +196,31 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
       }];
     })
     .sort(byDateDesc);
+
+  // Search + pagination for the unmatched queue. merchantName/name are encrypted at
+  // rest so this can't be a DB filter — the rows above are already decrypted, so we
+  // filter/slice them here. Opt-in: with no `page` arg the full list is returned
+  // (check-review + whole-queue callers keep working). Counters below span the FULL
+  // list, independent of the current search.
+  const q = (opts.q ?? "").toLowerCase().trim();
+  const unmatchedMatched = q
+    ? unmatched.filter(
+        (r) =>
+          (r.merchantName ?? "").toLowerCase().includes(q) ||
+          r.name.toLowerCase().includes(q) ||
+          r.title.toLowerCase().includes(q)
+      )
+    : unmatched;
+  const unmatchedTotal = unmatchedMatched.length;
+  const lastPage = Math.max(0, Math.ceil(unmatchedTotal / UNMATCHED_PAGE_SIZE) - 1);
+  const unmatchedPage = opts.page === undefined ? 0 : Math.max(0, Math.min(opts.page, lastPage));
+  const unmatchedView =
+    opts.page === undefined
+      ? unmatchedMatched
+      : unmatchedMatched.slice(
+          unmatchedPage * UNMATCHED_PAGE_SIZE,
+          unmatchedPage * UNMATCHED_PAGE_SIZE + UNMATCHED_PAGE_SIZE
+        );
 
   // --- Conflicts: every matching vendor + the priority winner (materialized) ---
   const conflicts: ConflictRow[] = openFlags
@@ -279,5 +314,16 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
     totalOpen: openDates.length,
   };
 
-  return { counters, unmatched, conflicts, suspicion, pendingGroups, mergeGroups, splits: splitRows };
+  return {
+    counters,
+    unmatched: unmatchedView,
+    unmatchedTotal,
+    unmatchedPage,
+    unmatchedPageSize: UNMATCHED_PAGE_SIZE,
+    conflicts,
+    suspicion,
+    pendingGroups,
+    mergeGroups,
+    splits: splitRows,
+  };
 }

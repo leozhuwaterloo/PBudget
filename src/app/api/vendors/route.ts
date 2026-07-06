@@ -22,10 +22,16 @@ const readId = (body: unknown): string =>
   typeof (body as { id?: unknown })?.id === "string" ? (body as { id: string }).id : "";
 
 // GET — the user's vendors with ordered condition rows, priority-ascending.
-export async function GET() {
+// `?page=&q=` opt into server-side pagination + name search; without `page` the
+// full list is returned (the Review "add to a vendor" picker relies on that).
+export async function GET(req: Request) {
   const g = await gate({ verified: true });
   if (g.error) return g.error;
-  return NextResponse.json({ vendors: await listVendors(g.user!.id) });
+  const url = new URL(req.url);
+  const pageParam = url.searchParams.get("page");
+  const q = url.searchParams.get("q") ?? undefined;
+  const page = pageParam == null ? undefined : Math.max(0, parseInt(pageParam, 10) || 0);
+  return NextResponse.json(await listVendors(g.user!.id, { page, q }));
 }
 
 // POST — create. Body: { name, link?, categoryName?, matchConditions: [...], categoryRules: [...] }.

@@ -13,6 +13,13 @@ import { RowSummary, Chip } from "./vendorSummary";
 export default function VendorBuilder() {
   const t = useT();
   const [vendors, setVendors] = useState<Vendor[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [orderedIds, setOrderedIds] = useState<string[]>([]); // full priority order (all pages)
+  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(0);
+  const [qInput, setQInput] = useState(""); // what's typed
+  const [q, setQ] = useState(""); // debounced value that drives the fetch
+  const [reloadKey, setReloadKey] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [], plaidConfidences: [] });
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -22,38 +29,59 @@ export default function VendorBuilder() {
   const [rowError, setRowError] = useState<string | null>(null);
   const [openTxns, setOpenTxns] = useState<string | null>(null); // vendor id whose txns are shown
 
-  async function refresh() {
-    const res = await fetch("/api/vendors");
-    if (!res.ok) return setLoadError(t("cust.vendors.loadFailed"));
-    setVendors((await res.json()).vendors);
-  }
+  const refresh = () => setReloadKey((k) => k + 1);
 
+  // Debounce the search; a fresh query resets to the first page.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setQ(qInput.trim());
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [qInput]);
+
+  // One-time reference data (categories + account/plaid refs) for the editor.
   useEffect(() => {
     (async () => {
-      const [v, c, r] = await Promise.all([
-        fetch("/api/vendors"),
-        fetch("/api/categories"),
-        fetch("/api/vendors/refs"),
-      ]);
-      if (!v.ok) return setLoadError(t("cust.vendors.loadFailed"));
-      setVendors((await v.json()).vendors);
+      const [c, r] = await Promise.all([fetch("/api/categories"), fetch("/api/vendors/refs")]);
       if (c.ok) setCategories((await c.json()).categories.map((x: { name: string }) => x.name));
       if (r.ok) setRefs(await r.json());
     })();
   }, []);
+
+  // The paginated + searchable vendor list. Refetched on page/search change and
+  // after every mutation (reloadKey).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/vendors?page=${page}&q=${encodeURIComponent(q)}`);
+      if (cancelled) return;
+      if (!res.ok) return setLoadError(t("cust.vendors.loadFailed"));
+      const data = await res.json();
+      setVendors(data.vendors);
+      setTotal(data.total ?? data.vendors.length);
+      setOrderedIds(data.orderedIds ?? []);
+      setPageSize(data.pageSize ?? 25);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, q, reloadKey]);
 
   const accountName = useMemo(() => {
     const m = new Map(refs.accounts.map((a) => [a.accountId, a.name]));
     return (id: string) => m.get(id) ?? id;
   }, [refs]);
 
-  // Reorder over the priority-bearing vendors (the reorder API needs exactly them).
-  const ordered = useMemo(() => (vendors ?? []).filter((v) => v.priority != null), [vendors]);
+  const pages = Math.max(1, Math.ceil(total / pageSize));
 
+  // Reorder walks the FULL priority order (orderedIds) so it works across pages.
+  // The reorder API needs exactly the priority-bearing vendors, and orderedIds is
+  // precisely that list. Arrows are hidden while searching (positions are ambiguous).
   async function move(index: number, dir: -1 | 1) {
     const next = index + dir;
-    if (next < 0 || next >= ordered.length) return;
-    const ids = ordered.map((v) => v.id);
+    if (next < 0 || next >= orderedIds.length) return;
+    const ids = [...orderedIds];
     [ids[index], ids[next]] = [ids[next], ids[index]];
     setRowError(null);
     const res = await fetch("/api/vendors/reorder", {
@@ -106,9 +134,17 @@ export default function VendorBuilder() {
     <div>
       <p className="muted" style={{ marginTop: 0 }}>{t("cust.vendors.help")}</p>
 
-      <div className="row" style={{ gap: 8, marginBottom: 16 }}>
+      <div className="row" style={{ gap: 8, marginBottom: 16, alignItems: "center" }}>
         <button className="btn btn-primary" disabled={editing === "new"} onClick={() => setEditing("new")}>{t("cust.vendors.add")}</button>
         <button className="btn" onClick={() => setShowCatalog((s) => !s)}>{t("cust.vendors.browseCatalog")}</button>
+        <div className="spacer" style={{ flex: 1 }} />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder={t("cust.vendors.search")}
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+        />
       </div>
 
       {editing === "new" && <div style={{ marginBottom: 16 }}>{editor(null)}</div>}
@@ -133,15 +169,17 @@ export default function VendorBuilder() {
         </div>
       )}
 
-      {vendors.length === 0 && <p className="muted">{t("cust.vendors.empty")}</p>}
+      {vendors.length === 0 && (
+        <p className="muted">{q.trim() ? t("cust.vendors.noMatch", { q: q.trim() }) : t("cust.vendors.empty")}</p>
+      )}
 
       {vendors.map((v) => {
         // Editing this vendor? Swap its row for the editor in place.
         if (editing !== "new" && editing?.id === v.id) {
           return <div key={v.id}>{editor(editing)}</div>;
         }
-        const idx = ordered.findIndex((o) => o.id === v.id);
-        const canReorder = idx !== -1;
+        const idx = orderedIds.indexOf(v.id);
+        const canReorder = idx !== -1 && !q.trim();
         return (
           <div key={v.id} className="card">
             <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
@@ -149,7 +187,7 @@ export default function VendorBuilder() {
               {canReorder && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === 0} onClick={() => move(idx, -1)} title={t("cust.vendors.moveUp")}>▲</button>
-                  <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === ordered.length - 1} onClick={() => move(idx, 1)} title={t("cust.vendors.moveDown")}>▼</button>
+                  <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === orderedIds.length - 1} onClick={() => move(idx, 1)} title={t("cust.vendors.moveDown")}>▼</button>
                 </div>
               )}
               <VendorIcon name={v.name} link={v.link} icon={v.icon} size={34} />
@@ -183,6 +221,18 @@ export default function VendorBuilder() {
           </div>
         );
       })}
+
+      {pages > 1 && (
+        <div className="row" style={{ gap: 10, marginTop: 12, alignItems: "center" }}>
+          <button className="btn btn-sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            {t("review.prev")}
+          </button>
+          <span className="muted">{t("review.pageOf", { page: page + 1, pages })}</span>
+          <button className="btn btn-sm" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
+            {t("review.next")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
