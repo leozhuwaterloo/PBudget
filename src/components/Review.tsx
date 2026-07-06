@@ -1,9 +1,10 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReviewMergePicker from "./ReviewMergePicker";
 import CatalogBrowser from "./CatalogBrowser";
 import VendorEditor, { type Vendor, type Condition, type Refs } from "./VendorEditor";
 import SplitDialog, { type SplitParent } from "./SplitDialog";
+import { Chip } from "./vendorSummary";
 import { useT } from "@/lib/i18n/context";
 
 // Review v2 — the funnel's human hub (F12, FR6). One sectioned page over
@@ -23,6 +24,10 @@ type UnmatchedRow = {
   amount: number | null;
   currency: string | null;
   date: string;
+  accountId: string;
+  paymentChannel: string;
+  plaidPrimary: string | null;
+  plaidDetailed: string | null;
   eligibleForSplit: boolean;
 };
 type ConflictRow = {
@@ -240,6 +245,12 @@ export default function Review() {
     requestAnimationFrame(() => document.getElementById(hash)?.scrollIntoView());
   }, [data]);
 
+  // accountId → name for the transaction-detail card (refs come from /api/vendors/refs).
+  const accountName = useMemo(() => {
+    const m = new Map(refs.accounts.map((a) => [a.accountId, a.name]));
+    return (id: string) => m.get(id) ?? id;
+  }, [refs]);
+
   const reload = () => setReloadKey((k) => k + 1);
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -334,7 +345,7 @@ export default function Review() {
       )}
       {modal?.kind === "create" && (
         <Overlay onClose={() => setModal(null)} maxWidth={860}>
-          <TxnDetail row={modal.row} />
+          <TxnDetail row={modal.row} accountName={accountName} />
           <VendorEditor
             initial={createInitial(modal.row)}
             categories={categories}
@@ -346,7 +357,7 @@ export default function Review() {
       )}
       {modal?.kind === "pick" && (
         <Overlay onClose={() => setModal(null)}>
-          <TxnDetail row={modal.row} />
+          <TxnDetail row={modal.row} accountName={accountName} />
           <VendorPicker
             vendors={vendors}
             onPick={(vendor) => setModal({ kind: "extend", row: modal.row, vendor })}
@@ -356,7 +367,7 @@ export default function Review() {
       )}
       {modal?.kind === "extend" && (
         <Overlay onClose={() => setModal(null)} maxWidth={860}>
-          <TxnDetail row={modal.row} />
+          <TxnDetail row={modal.row} accountName={accountName} />
           <VendorEditor
             initial={extendInitial(modal.vendor, modal.row)}
             categories={categories}
@@ -792,20 +803,29 @@ function Counter({ label, value }: { label: string; value: number }) {
 
 // The source transaction, shown atop the create / add-to-vendor modals so it's
 // clear which row is being matched (the editor form only shows the pre-fill).
-function TxnDetail({ row }: { row: UnmatchedRow }) {
+// Fields render as the same colored chips the vendors page uses (vendorSummary),
+// so the detail reads consistently with the condition builder.
+function TxnDetail({ row, accountName }: { row: UnmatchedRow; accountName: (id: string) => string }) {
   const t = useT();
+  const heading = row.level === "group" ? row.title : row.name;
   return (
     <div className="card" style={{ margin: 0, marginBottom: 12, background: "var(--bg-3)" }}>
-      <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-        {t("review.txnDetail")}
+      <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+        {row.level === "group" ? `${t("review.txnDetail")} · ${t("review.mergedGroup")}` : t("review.txnDetail")}
       </div>
-      <div className="row wrap" style={{ gap: 16, alignItems: "baseline" }}>
-        <strong style={{ fontSize: 15 }}>{row.merchantName?.trim() || row.name}</strong>
+      <div className="row wrap" style={{ gap: 16, alignItems: "baseline", marginBottom: 8 }}>
+        <strong style={{ fontSize: 15 }}>{heading}</strong>
         <span style={{ fontWeight: 600 }}>{money(row.amount, row.currency)}</span>
         <span className="muted">{day(row.date)}</span>
       </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-        {row.level === "group" ? `${t("review.mergedGroup")} · ${row.title}` : row.name}
+      <div className="row wrap" style={{ gap: 6 }}>
+        {row.merchantName?.trim() && (
+          <Chip tone="merchant">{t("cust.vendors.merchantName")}: {row.merchantName.trim()}</Chip>
+        )}
+        <Chip tone="account">{t("cust.vendors.account")}: {accountName(row.accountId)}</Chip>
+        {row.paymentChannel && <Chip tone="channel">{t("cust.vendors.channel")}: {row.paymentChannel}</Chip>}
+        {row.plaidPrimary && <Chip tone="plaidPrimary">{t("cust.vendors.plaidPrimary")}: {row.plaidPrimary}</Chip>}
+        {row.plaidDetailed && <Chip tone="plaidDetailed">{t("cust.vendors.plaidDetailed")}: {row.plaidDetailed}</Chip>}
       </div>
     </div>
   );

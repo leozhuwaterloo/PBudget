@@ -5,7 +5,7 @@
 // (see scripts/check-review.ts). Amounts stay Plaid-convention (+ = outflow); the
 // UI renders them user-convention.
 import { prisma } from "./db";
-import { normalizeVendor } from "./analysis/vendor";
+import { normalizeVendor, plaidPrimary, plaidDetailed } from "./analysis/vendor";
 import { primaryLeg } from "./analysis/groups";
 import { matchesVendor } from "./analysis/match";
 import { RULES } from "./analysis/constants";
@@ -39,6 +39,11 @@ export type UnmatchedRow = {
   amount: number | null;
   currency: string | null;
   date: Date;
+  // Representative-txn fields for the Review detail card (a group shows its primary leg's).
+  accountId: string;
+  paymentChannel: string;
+  plaidPrimary: string | null;
+  plaidDetailed: string | null;
   // FR5: transaction rows can initiate a split when posted, ungrouped, unsplit.
   // Group-backed rows are never eligible (split/merge mutual exclusion).
   eligibleForSplit: boolean;
@@ -171,6 +176,10 @@ export async function reviewData(userId: string): Promise<ReviewPayload> {
         amount: isGroup ? num(grp!.netAmount) : num(t.amount),
         currency: isGroup ? grp!.currency : t.isoCurrencyCode,
         date: isGroup ? grp!.date : t.datetime,
+        accountId: t.accountId,
+        paymentChannel: t.paymentChannel,
+        plaidPrimary: plaidPrimary(t.category),
+        plaidDetailed: plaidDetailed(t.category),
         eligibleForSplit: !isGroup && eligibleTxn(t.transactionId),
       }];
     })
