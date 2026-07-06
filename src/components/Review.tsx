@@ -334,6 +334,7 @@ export default function Review() {
       )}
       {modal?.kind === "create" && (
         <Overlay onClose={() => setModal(null)} maxWidth={860}>
+          <TxnDetail row={modal.row} />
           <VendorEditor
             initial={createInitial(modal.row)}
             categories={categories}
@@ -345,6 +346,7 @@ export default function Review() {
       )}
       {modal?.kind === "pick" && (
         <Overlay onClose={() => setModal(null)}>
+          <TxnDetail row={modal.row} />
           <VendorPicker
             vendors={vendors}
             onPick={(vendor) => setModal({ kind: "extend", row: modal.row, vendor })}
@@ -354,6 +356,7 @@ export default function Review() {
       )}
       {modal?.kind === "extend" && (
         <Overlay onClose={() => setModal(null)} maxWidth={860}>
+          <TxnDetail row={modal.row} />
           <VendorEditor
             initial={extendInitial(modal.vendor, modal.row)}
             categories={categories}
@@ -783,6 +786,27 @@ function Counter({ label, value }: { label: string; value: number }) {
     <div className="card" style={{ margin: 0, minWidth: 130 }}>
       <div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div>
       <div className="muted">{label}</div>
+    </div>
+  );
+}
+
+// The source transaction, shown atop the create / add-to-vendor modals so it's
+// clear which row is being matched (the editor form only shows the pre-fill).
+function TxnDetail({ row }: { row: UnmatchedRow }) {
+  const t = useT();
+  return (
+    <div className="card" style={{ margin: 0, marginBottom: 12, background: "var(--bg-3)" }}>
+      <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+        {t("review.txnDetail")}
+      </div>
+      <div className="row wrap" style={{ gap: 16, alignItems: "baseline" }}>
+        <strong style={{ fontSize: 15 }}>{row.merchantName?.trim() || row.name}</strong>
+        <span style={{ fontWeight: 600 }}>{money(row.amount, row.currency)}</span>
+        <span className="muted">{day(row.date)}</span>
+      </div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+        {row.level === "group" ? `${t("review.mergedGroup")} · ${row.title}` : row.name}
+      </div>
     </div>
   );
 }

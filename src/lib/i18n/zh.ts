@@ -188,6 +188,7 @@ const zh: Messages = {
     "每一笔尚无商户的已入账交易。匹配其一，队列即会缩小——新建或修改的商户所匹配的每一行都会消失，无需重新同步。",
   "review.createVendor": "新建商户",
   "review.addToVendor": "加入某商户",
+  "review.txnDetail": "交易",
   "review.fromCatalog": "从目录添加",
   "review.conflictsTitle": "冲突（{n}）",
   "review.conflictsHelp":
