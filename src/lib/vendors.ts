@@ -219,6 +219,14 @@ function readName(v: unknown): string {
   return s!;
 }
 
+// Vendor default category: REQUIRED. Every vendor must carry a fallback category
+// so a matched transaction always resolves to one. Existence checked separately.
+function readCategory(v: unknown): string {
+  const s = str(v, "default category");
+  if (!s) bad("A vendor needs a default category");
+  return s!;
+}
+
 // --- Serialization -----------------------------------------------------------
 
 type VendorWithConditions = Prisma.VendorGetPayload<{ include: { conditions: true } }>;
@@ -291,9 +299,9 @@ export async function createVendor(userId: string, input: VendorInput) {
   const name = readName(input.name);
   const link = readLink(input.link);
   const iconLink = readLink(input.iconLink, "iconLink", "Icon link");
-  const categoryName = str(input.categoryName, "default category") ?? null;
+  const categoryName = readCategory(input.categoryName);
   const { rows, categoryNames, accountIds } = buildVendorRows(input);
-  if (categoryName) categoryNames.add(categoryName);
+  categoryNames.add(categoryName);
   await assertReferences(userId, categoryNames, accountIds);
 
   // ponytail: max+1 append. Single-user app, so the race between concurrent
@@ -327,9 +335,9 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
   const name = readName(input.name);
   const link = readLink(input.link);
   const iconLink = readLink(input.iconLink, "iconLink", "Icon link");
-  const categoryName = str(input.categoryName, "default category") ?? null;
+  const categoryName = readCategory(input.categoryName);
   const { rows, categoryNames, accountIds } = buildVendorRows(input);
-  if (categoryName) categoryNames.add(categoryName);
+  categoryNames.add(categoryName);
   await assertReferences(userId, categoryNames, accountIds);
 
   // Re-fetch only when the icon SOURCE changed (iconLink if set, else link) — keeps

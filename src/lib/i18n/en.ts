@@ -118,7 +118,7 @@ const en = {
   "cust.vendors.name": "Name",
   "cust.vendors.namePlaceholder": "e.g. Starbucks",
   "cust.vendors.defaultCategory": "Default category",
-  "cust.vendors.noDefault": "No default",
+  "cust.vendors.chooseCategory": "Choose a category…",
   "cust.vendors.link": "Link",
   "cust.vendors.linkPlaceholder": "https://maps.google.com/… or website",
   "cust.vendors.linkHelp": "Optional — a Google Maps entry for a local vendor, or a website for an online one. Shown as 📍 / 🌐.",
