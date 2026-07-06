@@ -1,6 +1,6 @@
 import type { MergeGroup } from "@prisma/client";
 import { prisma } from "../db";
-import { humanize } from "../categories";
+import { plaidCategoryName } from "../categories";
 import { normalizeVendor, plaidPrimary } from "./vendor";
 import { primaryLeg, netAmount } from "./groups";
 import { analyzeUser } from "./analyze";
@@ -40,7 +40,7 @@ export async function createMergeGroup(
       status: opts.status,
       title: primary.name,
       vendorName: normalizeVendor(primary.merchantName, primary.name),
-      categoryName: pp ? humanize(pp) : null,
+      categoryName: pp ? plaidCategoryName(pp) : null,
       date: primary.datetime,
       netAmount: netAmount(legs),
       currency: primary.isoCurrencyCode,

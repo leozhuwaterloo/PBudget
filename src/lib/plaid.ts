@@ -8,7 +8,7 @@ import {
 } from "plaid";
 import { prisma } from "./db";
 import { encrypt } from "./crypto";
-import { humanize } from "./categories";
+import { plaidCategoryName } from "./categories";
 
 // ---- Client --------------------------------------------------------------
 
@@ -188,7 +188,7 @@ async function saveTransactions(userId: string, txns: Transaction[]): Promise<vo
   const seen = new Set<string>();
   for (const t of txns) {
     const pfc = t.personal_finance_category?.primary;
-    if (pfc) seen.add(humanize(pfc));
+    if (pfc) seen.add(plaidCategoryName(pfc));
   }
   for (const name of seen) {
     await prisma.transactionCategory.upsert({
@@ -207,7 +207,7 @@ async function saveTransactions(userId: string, txns: Transaction[]): Promise<vo
     }
     const dt = t.datetime ? new Date(t.datetime) : new Date(`${t.date}T00:00:00Z`);
     const predictedCategory = t.personal_finance_category?.primary
-      ? humanize(t.personal_finance_category.primary)
+      ? plaidCategoryName(t.personal_finance_category.primary)
       : null;
 
     const fields = {

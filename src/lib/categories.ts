@@ -12,6 +12,15 @@ export function humanize(pfcPrimary: string): string {
     .join(" ");
 }
 
+// The app category NAME a Plaid primary maps to (last-resort fallback + the auto
+// -created budget row). TRANSFER_IN/TRANSFER_OUT collapse to a single "Transfer" —
+// we don't surface Plaid's in/out split as two categories — so transfer txns
+// resolve to the one renameable "Transfer" category, not raw "Transfer In/Out".
+export function plaidCategoryName(pfcPrimary: string): string {
+  if (pfcPrimary === "TRANSFER_IN" || pfcPrimary === "TRANSFER_OUT") return "Transfer";
+  return humanize(pfcPrimary);
+}
+
 // The materialized winning vendor with the fields the waterfall reads: its ordered
 // condition rows (delegated to F1's matcher) plus its default category.
 export type WaterfallVendor = MatchVendor & { categoryName: string | null };
@@ -36,7 +45,7 @@ export function resolveCategory(
     if (vendor.categoryName) return vendor.categoryName; // vendor default
   }
   const pp = plaidPrimary(txn.category);
-  return pp ? humanize(pp) : null;
+  return pp ? plaidCategoryName(pp) : null;
 }
 
 // ---- Custom categories & budgets (FR4) ------------------------------------
@@ -49,11 +58,10 @@ export const DEFAULT_CATEGORIES = [
   "Fee", "Recurring", "Utility", "Pet", "Travel", "Cash", "Gas", "Baby",
 ] as const;
 
-// Seeded with excludeFromTotals=true. "Transfer In"/"Transfer Out" aren't in the
-// default set but are created so the flag has a home — parity with Budget.tsx's
-// old hardcoded IGNORE = {Income, Transfer In, Transfer Out} (PRD FR4).
+// Seeded with excludeFromTotals=true. Plaid's TRANSFER_IN/OUT collapse to
+// "Transfer" (see plaidCategoryName), so those two are no longer separate rows.
 const EXCLUDE_FROM_TOTALS = new Set<string>([
-  "Income", "Transfer In", "Transfer Out", "Transfer", "Other Income",
+  "Income", "Transfer", "Other Income",
 ]);
 
 // Idempotent seed of the default categories. Called at signup and lazily (from
@@ -61,7 +69,7 @@ const EXCLUDE_FROM_TOTALS = new Set<string>([
 // MISSING rows are created (with their seeded excludeFromTotals); existing rows,
 // budgets and flags are left exactly as the user set them. Re-running is a no-op.
 export async function ensureDefaultCategories(userId: string): Promise<void> {
-  const names = [...DEFAULT_CATEGORIES, "Transfer In", "Transfer Out"];
+  const names = [...DEFAULT_CATEGORIES];
   const existing = await prisma.transactionCategory.findMany({
     where: { userId, name: { in: names } },
     select: { name: true },
@@ -82,8 +90,9 @@ export class CategoryError extends Error {
 
 // Cascade a category rename to every row that references the name by string
 // (there is no FK): Vendor default category, VendorCondition row category,
-// SplitPart override. updateMany can't filter across relations, so the user's
-// vendor/split ids are gathered and matched by scalar `in`.
+// SplitPart override, MergeGroup snapshot. updateMany can't filter across
+// relations, so the user's vendor/split ids are gathered and matched by scalar
+// `in` (MergeGroup carries userId directly).
 async function cascadeRename(
   tx: Prisma.TransactionClient,
   userId: string,
@@ -100,6 +109,7 @@ async function cascadeRename(
     tx.vendor.updateMany({ where: { userId, categoryName: oldName }, data: { categoryName: newName } }),
     tx.vendorCondition.updateMany({ where: { vendorId: { in: vendorIds }, categoryName: oldName }, data: { categoryName: newName } }),
     tx.splitPart.updateMany({ where: { splitId: { in: splitIds }, categoryName: oldName }, data: { categoryName: newName } }),
+    tx.mergeGroup.updateMany({ where: { userId, categoryName: oldName }, data: { categoryName: newName } }),
   ]);
 }
 
@@ -132,12 +142,13 @@ export async function updateCategory(
 // How many rows reference a category name across the cascade sites. Used to
 // reject deletes while the category is still in use.
 export async function categoryRefCount(userId: string, name: string): Promise<number> {
-  const [vendor, cond, part] = await Promise.all([
+  const [vendor, cond, part, group] = await Promise.all([
     prisma.vendor.count({ where: { userId, categoryName: name } }),
     prisma.vendorCondition.count({ where: { categoryName: name, vendor: { userId } } }),
     prisma.splitPart.count({ where: { categoryName: name, split: { userId } } }),
+    prisma.mergeGroup.count({ where: { userId, categoryName: name } }),
   ]);
-  return vendor + cond + part;
+  return vendor + cond + part + group;
 }
 
 // Delete a category, rejected (409) while any row still references its name.

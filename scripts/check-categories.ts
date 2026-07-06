@@ -8,11 +8,12 @@ import {
   updateCategory,
   deleteCategory,
   categoryRefCount,
+  plaidCategoryName,
   CategoryError,
 } from "../src/lib/categories";
 
 const USER = "cat-test-user";
-const EXCLUDED = ["Income", "Transfer In", "Transfer Out", "Transfer", "Other Income"].sort();
+const EXCLUDED = ["Income", "Transfer", "Other Income"].sort();
 
 async function reset(): Promise<void> {
   // Cascades to categories/vendors/conditions/splits/parts via FK onDelete.
@@ -23,12 +24,17 @@ async function reset(): Promise<void> {
 async function main(): Promise<void> {
   await reset();
 
+  // --- Plaid primary → app category (transfers collapse) -------------------
+  assert.equal(plaidCategoryName("TRANSFER_IN"), "Transfer", "TRANSFER_IN → Transfer");
+  assert.equal(plaidCategoryName("TRANSFER_OUT"), "Transfer", "TRANSFER_OUT → Transfer");
+  assert.equal(plaidCategoryName("FOOD_AND_DRINK"), "Food And Drink", "other primaries humanized");
+
   // --- Seeding -------------------------------------------------------------
   await ensureDefaultCategories(USER);
   let cats = await prisma.transactionCategory.findMany({ where: { userId: USER } });
-  assert.equal(cats.length, 20, "18 defaults + Transfer In/Out");
+  assert.equal(cats.length, 18, "18 defaults (no separate Transfer In/Out)");
   const excluded = cats.filter((c) => c.excludeFromTotals).map((c) => c.name).sort();
-  assert.deepEqual(excluded, EXCLUDED, "exactly the 5 exclude-from-totals rows");
+  assert.deepEqual(excluded, EXCLUDED, "exactly the 3 exclude-from-totals rows");
 
   // Idempotency + never overwrites user edits: edit a row, re-seed, expect no change.
   const grocery = cats.find((c) => c.name === "Grocery")!;
@@ -39,17 +45,18 @@ async function main(): Promise<void> {
   });
   await ensureDefaultCategories(USER); // second run
   cats = await prisma.transactionCategory.findMany({ where: { userId: USER } });
-  assert.equal(cats.length, 20, "re-seed adds nothing");
+  assert.equal(cats.length, 18, "re-seed adds nothing");
   assert.equal(Number(cats.find((c) => c.name === "Grocery")!.budget), 500, "budget edit preserved");
   assert.equal(cats.find((c) => c.name === "Income")!.excludeFromTotals, false, "flag edit preserved");
 
   // --- Rename cascade ------------------------------------------------------
-  // Reference "Grocery" from all four cascade sites.
-  await prisma.categoryMapping.create({ data: { userId: USER, plaidPrimary: "FOOD_AND_DRINK", categoryName: "Grocery" } });
+  // Reference "Grocery" from all four cascade sites (vendor, condition, split
+  // part, merge group).
   const vendor = await prisma.vendor.create({ data: { userId: USER, name: "V1", categoryName: "Grocery", priority: 1 } });
   await prisma.vendorCondition.create({ data: { vendorId: vendor.id, order: 0, categoryName: "Grocery", nameOp: "equals", nameValue: "x" } });
   const split = await prisma.transactionSplit.create({ data: { userId: USER, parentTransactionId: "ptxn-1" } });
   await prisma.splitPart.create({ data: { splitId: split.id, amount: 100, categoryName: "Grocery" } });
+  await prisma.mergeGroup.create({ data: { userId: USER, status: "confirmed", title: "g", categoryName: "Grocery", date: new Date(), netAmount: 0 } });
   assert.equal(await categoryRefCount(USER, "Grocery"), 4, "4 references before rename");
 
   await updateCategory(USER, grocery.id, { name: "Groceries" });
@@ -74,10 +81,10 @@ async function main(): Promise<void> {
   );
 
   // Remove every reference, then delete succeeds.
-  await prisma.categoryMapping.deleteMany({ where: { userId: USER, categoryName: "Groceries" } });
   await prisma.vendor.updateMany({ where: { userId: USER, categoryName: "Groceries" }, data: { categoryName: null } });
   await prisma.vendorCondition.updateMany({ where: { vendorId: vendor.id, categoryName: "Groceries" }, data: { categoryName: null } });
   await prisma.splitPart.updateMany({ where: { splitId: split.id, categoryName: "Groceries" }, data: { categoryName: null } });
+  await prisma.mergeGroup.updateMany({ where: { userId: USER, categoryName: "Groceries" }, data: { categoryName: null } });
   assert.equal(await categoryRefCount(USER, "Groceries"), 0, "references cleared");
 
   await deleteCategory(USER, grocery.id);
@@ -85,7 +92,7 @@ async function main(): Promise<void> {
 
   // Budgets on OTHER categories are untouched by the delete.
   const survivors = await prisma.transactionCategory.count({ where: { userId: USER } });
-  assert.equal(survivors, 19, "only the one category removed");
+  assert.equal(survivors, 17, "only the one category removed");
 
   await prisma.user.deleteMany({ where: { id: USER } });
   console.log("\n  ✓ FR4 categories: seeding, rename cascade, delete rejection all pass\n");

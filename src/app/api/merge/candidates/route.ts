@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gate, num } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { humanize } from "@/lib/categories";
+import { plaidCategoryName } from "@/lib/categories";
 import { normalizeVendor, plaidPrimary } from "@/lib/analysis/vendor";
 import { splitParentIds } from "@/lib/splits";
 
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
         currency: t.isoCurrencyCode,
         date: t.datetime,
         accountId: t.accountId,
-        categoryName: pp ? humanize(pp) : null,
+        categoryName: pp ? plaidCategoryName(pp) : null,
       };
     });
 
