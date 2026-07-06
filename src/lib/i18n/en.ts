@@ -143,6 +143,7 @@ const en = {
   "cust.vendors.channel": "Payment channel",
   "cust.vendors.plaidPrimary": "Estimated category",
   "cust.vendors.plaidDetailed": "Estimated detailed category",
+  "cust.vendors.plaidConfidence": "Estimated confidence",
   "cust.vendors.rowCategory": "Row category",
   "cust.vendors.rowNoCategory": "No category",
   "cust.vendors.valuePlaceholder": "value",

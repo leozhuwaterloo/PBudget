@@ -202,6 +202,7 @@ model VendorCondition {
   paymentChannel String? // online | in store | other
   plaidPrimary   String?
   plaidDetailed  String?
+  plaidConfidence String? // Plaid personal_finance_category.confidence_level (VERY_HIGH…UNKNOWN)
 
   @@index([vendorId])
 }

@@ -6,8 +6,9 @@
 // unmatched_vendor row; a second overlapping vendor opens a vendor_conflict; reorder
 // flips the winner; invalid regex / zero rows / no-field row / duplicate name are
 // each rejected 400; deleting a vendor returns its txns to the unmatched queue.
+import type { VendorCondition } from "@prisma/client";
 import { prisma } from "../src/lib/db";
-import { rematchUser } from "../src/lib/analysis/match";
+import { rematchUser, matchesCondition } from "../src/lib/analysis/match";
 import {
   VendorError,
   createVendor,
@@ -71,6 +72,19 @@ async function reset(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log("\nChecking F3 vendors CRUD + reorder:");
+
+  // Pure matcher: a plaidConfidence condition matches only when the txn's Plaid
+  // confidence_level equals it (new FR1 field; parsed from the category JSON).
+  {
+    const cond = { plaidConfidence: "HIGH" } as unknown as VendorCondition;
+    const txn = (level: string | null) => ({
+      name: "x", merchantName: null, amount: 1, accountId: "a", paymentChannel: "online",
+      category: level ? JSON.stringify({ primary: "P", detailed: "D", confidence_level: level }) : null,
+    });
+    check(matchesCondition(cond, txn("HIGH")), "plaidConfidence matches equal confidence_level");
+    check(!matchesCondition(cond, txn("LOW")), "plaidConfidence rejects different confidence_level");
+    check(!matchesCondition(cond, txn(null)), "plaidConfidence rejects txn with no confidence");
+  }
   await reset();
 
   // Baseline: no vendors → the txn is unmatched and sits in the queue.
@@ -82,7 +96,7 @@ async function main(): Promise<void> {
   const v1 = await createVendor(USER, {
     name: "Zebra",
     categoryName: "Grocery",
-    conditions: [{ nameOp: "contains", nameValue: "zebra", categoryName: "Grocery" }],
+    matchConditions: [{ nameOp: "contains", nameValue: "zebra" }],
   });
   check((await vendorIdOfTxn()) === v1.id, "create: matching vendor claims the txn (vendorId set)");
   const um = await anyFlag("unmatched_vendor");
@@ -92,9 +106,12 @@ async function main(): Promise<void> {
   // --- Second overlapping vendor opens a conflict --------------------------
   const v2 = await createVendor(USER, {
     name: "Zebra Alt",
-    conditions: [{ merchantOp: "contains", merchantValue: "zebra" }],
+    matchConditions: [{ merchantOp: "contains", merchantValue: "zebra" }],
   });
   check(v2.priority === 1, "create: second vendor appends at priority 1 (end of order)");
+  // Incremental rematch leaves a txn already owned by v1 alone; the conflict over a
+  // now-overlapping vendor surfaces on a full rematch (Accounts → "Re-match all").
+  await rematchUser(USER);
   check((await vendorIdOfTxn()) === v1.id, "conflict: priority winner (v1) stays assigned");
   check(!!(await openFlag("vendor_conflict")), "conflict: vendor_conflict opens on multi-match");
 
@@ -108,37 +125,37 @@ async function main(): Promise<void> {
 
   // --- Validation: each bad save is a 400 ----------------------------------
   await reject400(
-    () => createVendor(USER, { name: "Zebra", conditions: [{ nameOp: "contains", nameValue: "x" }] }),
+    () => createVendor(USER, { name: "Zebra", matchConditions: [{ nameOp: "contains", nameValue: "x" }] }),
     "duplicate name"
   );
-  await reject400(() => createVendor(USER, { name: "No Rows", conditions: [] }), "zero condition rows");
+  await reject400(() => createVendor(USER, { name: "No Rows", matchConditions: [] }), "zero condition rows");
   await reject400(
-    () => createVendor(USER, { name: "No Fields", conditions: [{ categoryName: "Grocery" }] }),
+    () => createVendor(USER, { name: "No Fields", matchConditions: [{ categoryName: "Grocery" }] }),
     "row with no matching field"
   );
   await reject400(
-    () => createVendor(USER, { name: "Bad Regex", conditions: [{ nameOp: "regex", nameValue: "(" }] }),
+    () => createVendor(USER, { name: "Bad Regex", matchConditions: [{ nameOp: "regex", nameValue: "(" }] }),
     "invalid regex"
   );
   await reject400(
-    () => createVendor(USER, { name: "Long Regex", conditions: [{ nameOp: "regex", nameValue: "a".repeat(201) }] }),
+    () => createVendor(USER, { name: "Long Regex", matchConditions: [{ nameOp: "regex", nameValue: "a".repeat(201) }] }),
     "over-length regex"
   );
   await reject400(
-    () => createVendor(USER, { name: "Bad Bounds", conditions: [{ amountMin: 100, amountMax: 10 }] }),
+    () => createVendor(USER, { name: "Bad Bounds", matchConditions: [{ amountMin: 100, amountMax: 10 }] }),
     "amountMin > amountMax"
   );
   await reject400(
-    () => createVendor(USER, { name: "Ghost Cat", conditions: [{ nameOp: "equals", nameValue: "x", categoryName: "Nope" }] }),
+    () => createVendor(USER, { name: "Ghost Cat", categoryRules: [{ nameOp: "equals", nameValue: "x", categoryName: "Nope" }] }),
     "unknown category"
   );
   await reject400(
-    () => createVendor(USER, { name: "Ghost Acct", conditions: [{ accountId: OTHER_ACCT }] }),
+    () => createVendor(USER, { name: "Ghost Acct", matchConditions: [{ accountId: OTHER_ACCT }] }),
     "account not owned by user"
   );
 
   // A no-name save is rejected too.
-  await reject400(() => createVendor(USER, { conditions: [{ nameOp: "equals", nameValue: "x" }] }), "missing name");
+  await reject400(() => createVendor(USER, { matchConditions: [{ nameOp: "equals", nameValue: "x" }] }), "missing name");
 
   // Failed saves created no vendors: still exactly v1 + v2.
   check((await prisma.vendor.count({ where: { userId: USER } })) === 2, "rejected saves create no vendors");

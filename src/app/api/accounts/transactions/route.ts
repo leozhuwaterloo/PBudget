@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gate } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { plaidPrimary, plaidDetailed, normalizeVendor } from "@/lib/analysis/vendor";
+import { plaidPrimary, plaidDetailed, plaidConfidence, normalizeVendor } from "@/lib/analysis/vendor";
 import { resolveCategory } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
@@ -80,6 +80,7 @@ export async function GET(req: Request) {
       pending: t.pending,
       plaidPrimary: plaidPrimary(t.category),
       plaidDetailed: plaidDetailed(t.category),
+      plaidConfidence: plaidConfidence(t.category),
       vendorName: vendor?.name ?? normalizeVendor(t.merchantName, t.name),
       vendorLink: vendor?.link ?? null,
       vendorIcon: vendor?.icon ?? null,

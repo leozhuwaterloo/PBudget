@@ -24,6 +24,18 @@ export function plaidDetailed(category: string | null | undefined): string | nul
   }
 }
 
+// Plaid's confidence in its predicted category (VERY_HIGH | HIGH | MEDIUM | LOW |
+// UNKNOWN), stored at the root of the category JSON alongside primary/detailed.
+// Surfaced on transactions and usable as a match-condition field. null if absent.
+export function plaidConfidence(category: string | null | undefined): string | null {
+  if (!category) return null;
+  try {
+    return (JSON.parse(category) as { confidence_level?: string }).confidence_level ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Lower-cased, whitespace-folded. The one string normalization the funnel uses:
 // vendor identity, and case-insensitive name/merchant condition matching (F1) both
 // go through this so they agree byte-for-byte.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gate } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { plaidPrimary, plaidDetailed } from "@/lib/analysis/vendor";
+import { plaidPrimary, plaidDetailed, plaidConfidence } from "@/lib/analysis/vendor";
 
 export const dynamic = "force-dynamic";
 
@@ -28,16 +28,20 @@ export async function GET() {
   });
   const primaries = new Set<string>();
   const detaileds = new Set<string>();
+  const confidences = new Set<string>();
   for (const t of txns) {
     const p = plaidPrimary(t.category);
     if (p) primaries.add(p);
     const d = plaidDetailed(t.category);
     if (d) detaileds.add(d);
+    const c = plaidConfidence(t.category);
+    if (c) confidences.add(c);
   }
 
   return NextResponse.json({
     accounts: accounts.map((a) => ({ accountId: a.accountId, name: a.name, subtype: a.accountSubtype })),
     plaidPrimaries: [...primaries].sort(),
     plaidDetaileds: [...detaileds].sort(),
+    plaidConfidences: [...confidences].sort(),
   });
 }
