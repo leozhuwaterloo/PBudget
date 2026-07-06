@@ -56,14 +56,15 @@ export const DEFAULT_CATEGORIES = [
   "Transfer", "Grocery", "Restaurant", "Food Delivery", "Online Shopping",
   "In-Store Shopping", "Game", "Entertainment", "Income", "Other Income",
   "Fee", "Recurring", "Utility", "Pet", "Travel", "Cash", "Gas", "Baby",
-  "Mortgage Insurance", "Telecom",
+  "Mortgage", "Insurance", "Telecom",
 ] as const;
 
 // "Recurring" is the top-level home for fixed monthly bills — payments that don't
 // change month to month. These seed nested under it (parentName is by-name, not an
 // FK, so it's fine that the parent is created in the same batch).
 const DEFAULT_PARENT: Record<string, string> = {
-  "Mortgage Insurance": "Recurring",
+  "Mortgage": "Recurring",
+  "Insurance": "Recurring",
   "Telecom": "Recurring",
 };
 
