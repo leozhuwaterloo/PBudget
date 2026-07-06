@@ -217,6 +217,7 @@ async function saveTransactions(userId: string, txns: Transaction[]): Promise<vo
       datetime: dt,
       name: t.name,
       merchantName: t.merchant_name ?? null,
+      website: t.website ?? null, // Plaid merchant enrichment (bare domain, often null)
       paymentChannel: t.payment_channel,
       pending: t.pending,
       pendingTransactionId: t.pending_transaction_id ?? null,
