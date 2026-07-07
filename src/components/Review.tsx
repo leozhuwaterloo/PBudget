@@ -688,8 +688,8 @@ function SuspicionSection({
                       </td>
                       <td>{money(e.amount, e.currency)}</td>
                       <td>{day(e.date)}</td>
-                      <td>
-                        <div className="row wrap">
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <div className="row" style={{ flexWrap: "nowrap" }}>
                           {e.level === "transaction" && e.transactionId && (
                             <button className="btn btn-sm" disabled={busy} onClick={() => onMerge(e.transactionId!)}>
                               {t("review.merge")}
@@ -873,8 +873,8 @@ function GroupTable({
                 </td>
                 <td>{money(g.amount, g.currency)}</td>
                 <td>{day(g.date)}</td>
-                <td>
-                  <div className="row wrap">{renderActions(g)}</div>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <div className="row" style={{ flexWrap: "nowrap" }}>{renderActions(g)}</div>
                 </td>
               </tr>
             ))}
