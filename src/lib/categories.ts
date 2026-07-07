@@ -50,13 +50,14 @@ export function resolveCategory(
 
 // ---- Custom categories & budgets (FR4) ------------------------------------
 
-// The old funnel's category set. BigPayment/Unknown/Ignore were funnel outcomes,
-// not categories, so they are NOT carried over (SPEC / PRD FR4).
+// The old funnel's category set. BigPayment/Unknown were funnel outcomes, not
+// categories, so they are NOT carried over (SPEC / PRD FR4). "Ignore" IS a real
+// category now (excluded from totals) so vendor rules can route noise into it.
 export const DEFAULT_CATEGORIES = [
   "Transfer", "Grocery", "Restaurant", "Food Delivery", "Online Shopping",
   "In-Store Shopping", "Game", "Entertainment", "Income", "Other Income",
   "Fee", "Recurring", "Utility", "Pet", "Travel", "Cash", "Gas", "Baby",
-  "Mortgage", "Insurance", "Telecom",
+  "Mortgage", "Insurance", "Telecom", "Ignore",
 ] as const;
 
 // "Recurring" is the top-level home for fixed monthly bills — payments that don't
@@ -71,7 +72,7 @@ const DEFAULT_PARENT: Record<string, string> = {
 // Seeded with excludeFromTotals=true. Plaid's TRANSFER_IN/OUT collapse to
 // "Transfer" (see plaidCategoryName), so those two are no longer separate rows.
 const EXCLUDE_FROM_TOTALS = new Set<string>([
-  "Income", "Transfer", "Other Income",
+  "Income", "Transfer", "Other Income", "Ignore",
 ]);
 
 // Idempotent seed of the default categories. Called at signup and lazily (from
