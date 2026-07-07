@@ -354,6 +354,11 @@ const en = {
   "review.merge": "Merge…",
   "review.dismiss": "Dismiss",
   "review.markValid": "Mark valid",
+  "review.viewTransaction": "View transaction",
+  "review.pending": "Pending",
+  "review.pendingYes": "Yes",
+  "review.pendingNo": "No",
+  "review.website": "Website",
 
   // review — rule labels
   "rule.unmatched_transfer": "Unmatched transfer",

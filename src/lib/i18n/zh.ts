@@ -349,6 +349,11 @@ const zh: Messages = {
   "review.merge": "合并…",
   "review.dismiss": "忽略",
   "review.markValid": "标记有效",
+  "review.viewTransaction": "查看交易",
+  "review.pending": "待处理",
+  "review.pendingYes": "是",
+  "review.pendingNo": "否",
+  "review.website": "网站",
 
   // review — rule labels
   "rule.unmatched_transfer": "未匹配转账",
