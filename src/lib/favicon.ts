@@ -33,6 +33,23 @@ export function hostOf(url: string): string | null {
   }
 }
 
+// Magic-byte image sniff → its MIME type, or null if the bytes aren't a known image
+// format (covers servers that return an image under octet-stream, and rejects the
+// HTML/error bodies that content-type alone lets through).
+function sniffImage(b: Buffer): string | null {
+  const sig = (...bytes: number[]) => bytes.every((x, i) => b[i] === x);
+  if (sig(0x89, 0x50, 0x4e, 0x47)) return "image/png";
+  if (sig(0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (sig(0x47, 0x49, 0x46, 0x38)) return "image/gif";
+  if (sig(0x00, 0x00, 0x01, 0x00) || sig(0x00, 0x00, 0x02, 0x00)) return "image/x-icon";
+  if (sig(0x42, 0x4d)) return "image/bmp";
+  if (b.length > 12 && sig(0x52, 0x49, 0x46, 0x46) && b.slice(8, 12).toString("latin1") === "WEBP") return "image/webp";
+  // SVG is text: an XML/`<svg` prefix (skip leading whitespace/BOM).
+  const head = b.slice(0, 256).toString("latin1").replace(/^﻿/, "").trimStart().toLowerCase();
+  if (head.startsWith("<svg") || (head.startsWith("<?xml") && head.includes("<svg"))) return "image/svg+xml";
+  return null;
+}
+
 // Fetch an image URL → data URI (bounded, best-effort).
 async function imageDataUri(url: string): Promise<string | null> {
   try {
@@ -43,7 +60,13 @@ async function imageDataUri(url: string): Promise<string | null> {
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length === 0) return null;
-    const type = res.headers.get("content-type") || "image/png";
+    // Guard: cache only ACTUAL images. Bot-protected sites (e.g. Akamai) answer a
+    // favicon request with an HTML challenge page (content-type text/html); without
+    // this it got stored as `data:text/html…` and rendered as a broken <img>. Trust
+    // an image/* content-type; otherwise sniff magic bytes and reject anything else.
+    const declared = res.headers.get("content-type") || "";
+    const type = /^image\//i.test(declared) ? declared : sniffImage(buf);
+    if (!type) return null;
     return `data:${type};base64,${buf.toString("base64")}`;
   } catch {
     return null;
