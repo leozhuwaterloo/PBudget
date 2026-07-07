@@ -692,7 +692,7 @@ function SuspicionSection({
                             </button>
                           )}
                           <button
-                            className="btn btn-sm btn-ghost"
+                            className="btn btn-sm btn-success"
                             disabled={busy}
                             onClick={() => actOptimistic(dropFlag(e.flagId), () => postJson(`/api/flags/${e.flagId}/dismiss`))}
                           >
