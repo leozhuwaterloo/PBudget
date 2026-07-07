@@ -8,7 +8,7 @@ import { prisma } from "./db";
 import { normalizeVendor, plaidPrimary, plaidDetailed, plaidConfidence } from "./analysis/vendor";
 import { primaryLeg } from "./analysis/groups";
 import { matchesVendor } from "./analysis/match";
-import { RULES } from "./analysis/constants";
+import { RULES, ANALYSIS_WINDOW_DAYS } from "./analysis/constants";
 
 const num = (d: unknown): number | null => (d == null ? null : Number(d));
 
@@ -167,6 +167,21 @@ export async function reviewData(
 
   const txnById = new Map(posted.map((t) => [t.transactionId, t]));
   const groupById = new Map(allGroups.map((gr) => [gr.id, gr]));
+
+  // Review only surfaces analyzer output from the last ANALYSIS_WINDOW_DAYS (mirrors
+  // analyzeUser's window). Older unmatched/conflict/suspicion flags and auto merge
+  // suggestions drop off the queue — they stay in the DB, just out of view, so a
+  // narrowed window takes effect on the next load without re-running analysis. User
+  // artifacts (confirmed merges, splits) are NOT windowed.
+  const since = new Date(Date.now() - ANALYSIS_WINDOW_DAYS * 86400000);
+  const flagDate = (f: (typeof openFlags)[number]): Date | null =>
+    (f.transactionId
+      ? txnById.get(f.transactionId)?.datetime
+      : f.mergeGroupId
+        ? groupById.get(f.mergeGroupId)?.date
+        : null) ?? null;
+  const inWindow = (d: Date | null): boolean => !!d && d >= since;
+
   // Match order = ascending priority; legacy/condition-less vendors never match.
   const vendors = vendorRows.filter((v) => v.conditions.length > 0);
 
@@ -189,7 +204,7 @@ export async function reviewData(
 
   // --- Unmatched queue: one row per effective item (merchant/name for pre-fill) ---
   const unmatched: UnmatchedRow[] = openFlags
-    .filter((f) => f.rule === RULES.unmatchedVendor)
+    .filter((f) => f.rule === RULES.unmatchedVendor && inWindow(flagDate(f)))
     .flatMap((f) => {
       const t = flagTxn(f);
       if (!t) return [];
@@ -242,7 +257,7 @@ export async function reviewData(
 
   // --- Conflicts: every matching vendor + the priority winner (materialized) ---
   const conflicts: ConflictRow[] = openFlags
-    .filter((f) => f.rule === RULES.vendorConflict)
+    .filter((f) => f.rule === RULES.vendorConflict && inWindow(flagDate(f)))
     .flatMap((f) => {
       const t = flagTxn(f);
       if (!t) return [];
@@ -269,6 +284,7 @@ export async function reviewData(
   for (const rule of SUSPICION) suspicion[rule] = [];
   for (const f of openFlags) {
     if (!(SUSPICION as readonly string[]).includes(f.rule)) continue;
+    if (!inWindow(flagDate(f))) continue;
     if (f.transactionId) {
       const t = txnById.get(f.transactionId);
       if (!t) continue;
@@ -300,7 +316,7 @@ export async function reviewData(
       return { transactionId: l.transactionId, name: t?.name ?? null, amount: t ? num(t.amount) : null };
     }),
   });
-  const pendingGroups = allGroups.filter((grp) => grp.status === "auto").map(groupView).sort(byDateDesc);
+  const pendingGroups = allGroups.filter((grp) => grp.status === "auto" && inWindow(grp.date)).map(groupView).sort(byDateDesc);
   const mergeGroups = allGroups.filter((grp) => grp.status === "confirmed").map(groupView).sort(byDateDesc);
 
   const splitRows: SplitRow[] = splits.flatMap((s) => {
