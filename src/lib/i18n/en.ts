@@ -197,7 +197,7 @@ const en = {
   "review.fromCatalog": "From catalog",
   "review.conflictsTitle": "Conflicts ({n})",
   "review.conflictsHelp":
-    "More than one vendor matches. The ★ winner is assigned by priority — tighten conditions or reorder in Customizations, or dismiss to keep the winner for this transaction.",
+    "More than one vendor matches. The ★ winner is assigned by priority — tighten conditions or reorder in Customizations so a single vendor matches, and the conflict clears itself.",
   "review.colMatches": "Matching vendors",
   "review.winner": "Priority winner",
   "review.editVendors": "Edit in Customizations",

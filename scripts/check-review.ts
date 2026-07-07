@@ -7,14 +7,14 @@
 //  - an unmatched txn appears in the queue (AC1);
 //  - "create vendor" from a row removes it AND every other queue row the new vendor
 //    matches, with vendorId materialized, without a fresh sync (AC1);
-//  - a two-vendor overlap shows a conflict with the priority winner, and dismiss
-//    permanently suppresses it (never reopens on re-match);
+//  - a two-vendor overlap shows a conflict with the priority winner; it cannot be
+//    dismissed, only resolved (clears when the overlap is removed);
 //  - suspicion tables list and dismiss (permanent);
 //  - ALL confirmed merges and ALL splits are browsable, dissolve/unsplit work (AC7);
 //  - the counters row reflects open items across every section.
 import { prisma } from "../src/lib/db";
 import { reviewData, dismissFlag } from "../src/lib/review";
-import { createVendor } from "../src/lib/vendors";
+import { createVendor, deleteVendor } from "../src/lib/vendors";
 import { rematchUser } from "../src/lib/analysis/match";
 import { analyzeUser } from "../src/lib/analysis/analyze";
 import { createMergeGroup, dissolveGroup } from "../src/lib/analysis/merge";
@@ -190,17 +190,27 @@ async function main(): Promise<void> {
   check(un1?.vendorId === newVendor?.id && un2?.vendorId === newVendor?.id, "AC1: vendorId materialized on both, without a fresh sync");
   check(data.counters.totalOpen === startTotal - 2, "AC1: counters dropped by exactly the two closed items");
 
-  // --- Conflict dismiss is permanent ---------------------------------------
+  // --- Conflicts cannot be dismissed — only resolved -----------------------
+  // A conflict is a queue flag: like unmatched_vendor it clears ONLY by resolution
+  // (removing the overlap so a single vendor wins), never by a manual dismiss.
   const confFlagId = conflict!.flagId;
-  const okConf = await dismissFlag(USER, confFlagId); // same seam the route uses
-  check(okConf === "ok", "conflict dismiss via the guarded path succeeds (guard only blocks unmatched_vendor)");
+  const guardedConf = await dismissFlag(USER, confFlagId); // same seam the route uses
+  check(guardedConf === "forbidden", "conflict dismiss is rejected (route → 4xx) — conflicts are resolve-only");
+  const confFlag = await prisma.transactionFlag.findUnique({ where: { id: confFlagId } });
+  check(confFlag?.status === "open", "the rejected conflict flag remains status=open");
   data = await reviewData(USER);
-  check(!data.conflicts.find((c) => c.id === CONF), "conflict dismissed → gone from the section");
-  await rematchUser(USER); // overlap still exists — a permanent dismissal must NOT reopen
+  check(!!data.conflicts.find((c) => c.id === CONF), "the conflict still shows — a rejected dismiss does not hide it");
+
+  // Resolving the overlap (drop one of the two matching vendors) + a full re-match
+  // — the "Re-match all" the user runs — clears it. (Incremental rematch after the
+  // non-winning delete leaves the winner-owned txn untouched, so it takes the full pass.)
+  const confLow = await prisma.vendor.findFirst({ where: { userId: USER, name: "rt-conf-low" } });
+  await deleteVendor(USER, confLow!.id);
+  await rematchUser(USER);
   data = await reviewData(USER);
-  check(!data.conflicts.find((c) => c.id === CONF), "conflict dismissal is permanent — re-match does not reopen it");
+  check(!data.conflicts.find((c) => c.id === CONF), "conflict clears once only one vendor matches (resolved, not dismissed)");
   const confTxn = await prisma.plaidTransaction.findUnique({ where: { transactionId: CONF } });
-  check(confTxn?.vendorId === confHigh?.id, "the winner stays assigned after dismissal (dismiss accepts the winner)");
+  check(confTxn?.vendorId === confHigh?.id, "the surviving vendor keeps the txn after the overlap is removed");
 
   // --- Suspicion dismiss ---------------------------------------------------
   const dupFlag = (data.suspicion["duplicate_charge"] ?? [])[0];

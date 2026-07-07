@@ -590,13 +590,6 @@ function ConflictSection({
                     <a className="btn btn-sm" href="/vendors">
                       {t("review.editVendors")}
                     </a>
-                    <button
-                      className="btn btn-sm btn-ghost"
-                      disabled={busy}
-                      onClick={() => act(() => postJson(`/api/flags/${r.flagId}/dismiss`))}
-                    >
-                      {t("review.dismiss")}
-                    </button>
                   </div>
                 </td>
               </tr>
