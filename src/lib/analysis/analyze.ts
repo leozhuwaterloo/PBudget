@@ -32,7 +32,7 @@ export async function analyzeUser(userId: string): Promise<void> {
     where: { pending: false, account: { item: { userId } } },
   });
 
-  // 2. Auto-match opposite-sign equal-amount cross-account pairs into net-0 groups.
+  // 2. Auto-match opposite-sign equal-amount pairs (any account) into net-0 groups.
   await autoMatch(userId, posted);
 
   // 3. Vendor match (FR1): materialize vendorId on every posted txn + maintain the
@@ -138,7 +138,9 @@ async function autoMatch(userId: string, posted: PlaidTransaction[]): Promise<vo
       const ca = cents(a.amount);
       const cb = cents(b.amount);
       if (ca === 0 || ca !== -cb) continue; // opposite sign AND equal |amount|
-      if (a.accountId === b.accountId) continue; // two different accounts
+      // Same-account pairs are allowed too: a send + its reclaim/cancel is a
+      // same-account net-0 round-trip worth merging (a rare unrelated charge +
+      // equal refund just surfaces as a pending suggestion to dismiss).
       if (a.isoCurrencyCode !== b.isoCurrencyCode) continue; // same currency
       const dist = Math.abs(a.datetime.getTime() - b.datetime.getTime());
       if (dist > AUTOMATCH_WINDOW_DAYS * DAY) continue; // within 4 days
