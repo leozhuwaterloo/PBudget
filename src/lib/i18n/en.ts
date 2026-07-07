@@ -86,11 +86,17 @@ const en = {
   "cust.nav.mappings": "Category mappings",
   "cust.nav.vendors": "Vendors",
   "cust.nav.merges": "Merged groups",
+  "cust.nav.markedValid": "Marked valid",
   "cust.nav.billing": "Billing",
   // merged groups tab — confirmed merges (pending ones stay in Review)
   "cust.merges.help": "Transactions you've merged into a single group (e.g. a transfer's two legs). Dissolve one to split it back into its original transactions.",
   "cust.merges.loadFailed": "Failed to load merged groups.",
   "cust.merges.empty": "No merged groups yet.",
+  // marked valid tab — suspicion flags you dismissed as OK
+  "cust.markedValid.help": "Flagged items you marked as valid. They stay out of Review's queue; restore one to flag it again.",
+  "cust.markedValid.loadFailed": "Failed to load marked-valid items.",
+  "cust.markedValid.empty": "You haven't marked any flagged items valid yet.",
+  "cust.markedValid.restore": "Restore",
   // categories & budgets (F9)
   "cust.cat.help":
     "Create your own categories, set a monthly budget for each, and exclude income and transfers from your spend totals.",
@@ -338,6 +344,7 @@ const en = {
   "review.colDate": "Date",
   "review.colActions": "Actions",
   "review.colItem": "Item",
+  "review.colReason": "Reason",
   "review.colAmount": "Amount",
   "review.confirm": "Confirm",
   "review.confirmAll": "Confirm all ({n})",
@@ -345,6 +352,7 @@ const en = {
   "review.mergedGroup": "Merged group",
   "review.merge": "Merge…",
   "review.dismiss": "Dismiss",
+  "review.markValid": "Mark valid",
 
   // review — rule labels
   "rule.unmatched_transfer": "Unmatched transfer",

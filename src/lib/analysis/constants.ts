@@ -3,6 +3,9 @@ export const UNUSUAL_MULTIPLIER = 3;
 export const UNUSUAL_MIN_PRIORS = 3;
 export const DUPLICATE_WINDOW_DAYS = 3;
 export const AUTOMATCH_WINDOW_DAYS = 4;
+// Review only looks back this far: auto-match pool + suspicion rules ignore
+// anything older, so old history doesn't churn the queue on every sync.
+export const ANALYSIS_WINDOW_DAYS = 365;
 
 export const RULES = {
   // Queue-type items (engine lands in F1's match.ts): every effective item is

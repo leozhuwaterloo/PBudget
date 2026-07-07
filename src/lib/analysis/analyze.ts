@@ -9,6 +9,7 @@ import { rematchUser } from "./match";
 import { primaryLeg } from "./groups";
 import { splitParentIds } from "../splits";
 import {
+  ANALYSIS_WINDOW_DAYS,
   AUTOMATCH_WINDOW_DAYS,
   DUPLICATE_WINDOW_DAYS,
   UNUSUAL_MIN_PRIORS,
@@ -26,10 +27,12 @@ const median = (xs: number[]): number => {
 };
 
 export async function analyzeUser(userId: string): Promise<void> {
-  // 1. Scope: the user's POSTED transactions only (FR1 exemption d). Pending
-  //    rows are invisible to analysis until they post.
+  // 1. Scope: the user's POSTED transactions in the last ANALYSIS_WINDOW_DAYS
+  //    (FR1 exemption d). Pending rows are invisible until they post; older-than-
+  //    window rows are ignored so stale history doesn't churn the queue.
+  const since = new Date(Date.now() - ANALYSIS_WINDOW_DAYS * DAY);
   const posted = await prisma.plaidTransaction.findMany({
-    where: { pending: false, account: { item: { userId } } },
+    where: { pending: false, datetime: { gte: since }, account: { item: { userId } } },
   });
 
   // 2. Auto-match opposite-sign equal-amount pairs (any account) into net-0 groups.
@@ -42,7 +45,7 @@ export async function analyzeUser(userId: string): Promise<void> {
 
   // 4. Suspicion rules over effective items + flag upsert invariant. Vendor
   //    identity is vendorId (fallback: normalized string for unmatched txns).
-  const items = await buildEffectiveItems(userId);
+  const items = await buildEffectiveItems(userId, since);
   for (const it of items) {
     // unmatched_transfer — transfer-like individual txn (never on groups).
     if (it.isTxn && it.transferLike) await fire(userId, RULES.unmatchedTransfer, it.target);
@@ -72,9 +75,9 @@ const vendorIdentity = (vendorId: string | null, normalized: string): string =>
 
 // Ungrouped posted txns + net-≠0 groups (at their net, under the group vendor).
 // Net-0 groups and all group legs are exempt from every rule.
-async function buildEffectiveItems(userId: string): Promise<Item[]> {
+async function buildEffectiveItems(userId: string, since: Date): Promise<Item[]> {
   const posted = await prisma.plaidTransaction.findMany({
-    where: { pending: false, account: { item: { userId } } },
+    where: { pending: false, datetime: { gte: since }, account: { item: { userId } } },
   });
   const groups = await prisma.mergeGroup.findMany({
     where: { userId },

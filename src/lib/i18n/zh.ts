@@ -88,11 +88,17 @@ const zh: Messages = {
   "cust.nav.mappings": "分类映射",
   "cust.nav.vendors": "商户",
   "cust.nav.merges": "合并组",
+  "cust.nav.markedValid": "已标记有效",
   "cust.nav.billing": "账单",
   // merged groups tab — confirmed merges (pending ones stay in Review)
   "cust.merges.help": "您已合并为单一组的交易（例如转账的两笔分录）。解散某组即可还原为原始交易。",
   "cust.merges.loadFailed": "加载合并组失败。",
   "cust.merges.empty": "暂无合并组。",
+  // marked valid tab — suspicion flags you dismissed as OK
+  "cust.markedValid.help": "您标记为有效的可疑项。它们不再出现在审阅队列中；恢复某项即可重新标记。",
+  "cust.markedValid.loadFailed": "加载已标记有效的项目失败。",
+  "cust.markedValid.empty": "您尚未将任何可疑项标记为有效。",
+  "cust.markedValid.restore": "恢复",
   // categories & budgets (F9)
   "cust.cat.help": "创建您自己的分类，为每个分类设置月度预算，并将收入和转账从支出总额中排除。",
   "cust.cat.loadFailed": "加载分类失败。",
@@ -333,6 +339,7 @@ const zh: Messages = {
   "review.colDate": "日期",
   "review.colActions": "操作",
   "review.colItem": "项目",
+  "review.colReason": "原因",
   "review.colAmount": "金额",
   "review.confirm": "确认",
   "review.confirmAll": "全部确认（{n}）",
@@ -340,6 +347,7 @@ const zh: Messages = {
   "review.mergedGroup": "合并组",
   "review.merge": "合并…",
   "review.dismiss": "忽略",
+  "review.markValid": "标记有效",
 
   // review — rule labels
   "rule.unmatched_transfer": "未匹配转账",

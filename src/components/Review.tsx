@@ -696,7 +696,7 @@ function SuspicionSection({
                             disabled={busy}
                             onClick={() => actOptimistic(dropFlag(e.flagId), () => postJson(`/api/flags/${e.flagId}/dismiss`))}
                           >
-                            {t("review.dismiss")}
+                            {t("review.markValid")}
                           </button>
                         </div>
                       </td>
