@@ -999,8 +999,8 @@ function ViewTransaction({ transactionId, onClose }: { transactionId: string; on
               .filter(([, v]) => v != null && v !== "")
               .map(([label, v]) => (
                 <tr key={label}>
-                  <td className="muted" style={{ whiteSpace: "nowrap", verticalAlign: "top", paddingRight: 16 }}>{label}</td>
-                  <td style={{ wordBreak: "break-word" }}>{v}</td>
+                  <td className="muted" style={{ whiteSpace: "nowrap", verticalAlign: "top", width: "1%", paddingRight: 16 }}>{label}</td>
+                  <td style={{ wordBreak: "break-word", textAlign: "right" }}>{v}</td>
                 </tr>
               ))}
           </tbody>
