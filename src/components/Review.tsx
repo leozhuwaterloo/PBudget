@@ -163,7 +163,8 @@ type Modal =
   | { kind: "pick"; row: UnmatchedRow }
   | { kind: "extend"; row: UnmatchedRow; vendor: Vendor }
   | { kind: "merge"; seedId?: string }
-  | { kind: "split"; parent: SplitParent };
+  | { kind: "split"; parent: SplitParent }
+  | { kind: "view"; transactionId: string };
 
 // Build the split dialog's parent from an eligible transaction row. `amount` is
 // non-null for transaction rows (Plaid-convention, as stored). `category` is only
@@ -397,6 +398,7 @@ export default function Review() {
             actOptimistic={actOptimistic}
             onMerge={(id) => setModal({ kind: "merge", seedId: id })}
             onSplit={(entry) => setModal({ kind: "split", parent: splitParentFromSuspicion(entry) })}
+            onView={(id) => setModal({ kind: "view", transactionId: id })}
           />
         </>
       )}
@@ -407,6 +409,11 @@ export default function Review() {
       )}
       {modal?.kind === "split" && (
         <SplitDialog parent={modal.parent} onClose={() => setModal(null)} onDone={afterSave} />
+      )}
+      {modal?.kind === "view" && (
+        <Overlay onClose={() => setModal(null)}>
+          <ViewTransaction transactionId={modal.transactionId} onClose={() => setModal(null)} />
+        </Overlay>
       )}
       {modal?.kind === "catalog" && (
         <Overlay onClose={() => setModal(null)}>
@@ -632,12 +639,14 @@ function SuspicionSection({
   actOptimistic,
   onMerge,
   onSplit,
+  onView,
 }: {
   suspicion: Record<string, SuspicionEntry[]>;
   busy: boolean;
   actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
   onMerge: (transactionId: string) => void;
   onSplit: (entry: SuspicionEntry) => void;
+  onView: (transactionId: string) => void;
 }) {
   const t = useT();
   const dropFlag = (flagId: string) => (d: ReviewData) => ({
@@ -698,6 +707,11 @@ function SuspicionSection({
                           >
                             {t("review.markValid")}
                           </button>
+                          {e.level === "transaction" && e.transactionId && (
+                            <button className="btn btn-sm btn-ghost" onClick={() => onView(e.transactionId!)}>
+                              {t("review.viewTransaction")}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -917,6 +931,81 @@ function TxnDetail({ row, accountName }: { row: UnmatchedRow; accountName: (id: 
         {row.plaidDetailed && <Chip tone="plaidDetailed">{t("cust.vendors.plaidDetailed")}: {row.plaidDetailed}</Chip>}
         {row.plaidConfidence && <Chip tone="plaidConfidence">{t("cust.vendors.plaidConfidence")}: {row.plaidConfidence}</Chip>}
       </div>
+    </div>
+  );
+}
+
+// The raw transaction record, fetched by id and shown as a label/value list in the
+// Review "View transaction" modal. GET /api/transactions/[id] scopes to the user and
+// decrypts PII; fields that are null are simply omitted.
+type RawTxn = {
+  transactionId: string;
+  name: string;
+  merchantName: string | null;
+  amount: number | null;
+  currency: string | null;
+  date: string;
+  account: string;
+  paymentChannel: string;
+  pending: boolean;
+  website: string | null;
+  plaidPrimary: string | null;
+  plaidDetailed: string | null;
+  plaidConfidence: string | null;
+};
+function ViewTransaction({ transactionId, onClose }: { transactionId: string; onClose: () => void }) {
+  const t = useT();
+  const [txn, setTxn] = useState<RawTxn | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    getJson(`/api/transactions/${transactionId}`)
+      .then((d) => !cancelled && setTxn(d))
+      .catch((e) => !cancelled && setErr(e.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [transactionId]);
+  const rows: [string, React.ReactNode][] = txn
+    ? [
+        [t("review.colItem"), txn.name],
+        [t("cust.vendors.merchantName"), txn.merchantName],
+        [t("review.colAmount"), money(txn.amount, txn.currency)],
+        [t("review.colDate"), day(txn.date)],
+        [t("cust.vendors.account"), txn.account],
+        [t("cust.vendors.channel"), txn.paymentChannel],
+        [t("review.pending"), txn.pending ? t("review.pendingYes") : t("review.pendingNo")],
+        [t("cust.vendors.plaidPrimary"), txn.plaidPrimary],
+        [t("cust.vendors.plaidDetailed"), txn.plaidDetailed],
+        [t("cust.vendors.plaidConfidence"), txn.plaidConfidence],
+        [t("review.website"), txn.website],
+        ["ID", txn.transactionId],
+      ]
+    : [];
+  return (
+    <div className="card" style={{ margin: 0 }}>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+        <div className="card-header" style={{ margin: 0 }}>{t("review.viewTransaction")}</div>
+        <button className="btn btn-sm btn-ghost" onClick={onClose}>{t("common.close")}</button>
+      </div>
+      {err ? (
+        <div className="error">{err}</div>
+      ) : !txn ? (
+        <p className="muted">{t("common.loading")}</p>
+      ) : (
+        <table>
+          <tbody>
+            {rows
+              .filter(([, v]) => v != null && v !== "")
+              .map(([label, v]) => (
+                <tr key={label}>
+                  <td className="muted" style={{ whiteSpace: "nowrap", verticalAlign: "top", paddingRight: 16 }}>{label}</td>
+                  <td style={{ wordBreak: "break-word" }}>{v}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
