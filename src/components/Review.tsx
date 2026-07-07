@@ -381,7 +381,7 @@ export default function Review() {
         </Overlay>
       )}
       {modal?.kind === "create" && (
-        <Overlay onClose={() => setModal(null)} maxWidth={860}>
+        <Overlay onClose={() => setModal(null)} maxWidth={1100}>
           <TxnDetail row={modal.row} accountName={accountName} />
           <VendorEditor
             initial={createInitial(modal.row)}
@@ -403,7 +403,7 @@ export default function Review() {
         </Overlay>
       )}
       {modal?.kind === "extend" && (
-        <Overlay onClose={() => setModal(null)} maxWidth={860}>
+        <Overlay onClose={() => setModal(null)} maxWidth={1100}>
           <TxnDetail row={modal.row} accountName={accountName} />
           <VendorEditor
             initial={extendInitial(modal.vendor, modal.row)}

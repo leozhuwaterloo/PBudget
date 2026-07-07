@@ -164,7 +164,7 @@ export default function VendorBuilder() {
         />
       </div>
 
-      {editing === "new" && <div style={{ marginBottom: 16 }}>{editor(null)}</div>}
+      {editing === "new" && <div className="editor-wide" style={{ marginBottom: 16 }}>{editor(null)}</div>}
 
       {notice && (
         <div className="banner row" style={{ justifyContent: "space-between" }}>
@@ -241,7 +241,7 @@ export default function VendorBuilder() {
                 </div>
               )}
             </div>
-            {isEditing && <div style={{ margin: "8px 0 16px" }}>{editor(editing)}</div>}
+            {isEditing && <div className="editor-wide" style={{ margin: "8px 0 16px" }}>{editor(editing)}</div>}
           </React.Fragment>
         );
       })}
