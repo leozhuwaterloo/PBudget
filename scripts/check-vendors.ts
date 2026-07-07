@@ -86,15 +86,6 @@ async function main(): Promise<void> {
     check(!matchesCondition(cond, txn("LOW")), "plaidConfidence rejects different confidence_level");
     check(!matchesCondition(cond, txn(null)), "plaidConfidence rejects txn with no confidence");
   }
-
-  // Pure matcher: "does not contain" (negated contains) — matches when the target
-  // lacks the substring, rejects when it holds it. Case-insensitive via normalizeStr.
-  {
-    const cond = { merchantOp: "not_contains", merchantValue: "Refund" } as unknown as VendorCondition;
-    const txn = (m: string) => ({ name: "x", merchantName: m, amount: 1, accountId: "a", paymentChannel: "online", category: null });
-    check(matchesCondition(cond, txn("Amazon Purchase")), "not_contains: matches when the substring is absent");
-    check(!matchesCondition(cond, txn("Amazon REFUND")), "not_contains: rejects when present (case-insensitive)");
-  }
   await reset();
 
   // Baseline: no vendors → the txn is unmatched and sits in the queue.

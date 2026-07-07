@@ -64,8 +64,6 @@ function textOp(
   switch (op) {
     case "contains":
       return target.includes(v);
-    case "not_contains":
-      return !target.includes(v);
     // equals / starts_with are retired from the editor (contains + regex only) but
     // still evaluated so legacy rows created before the change keep matching.
     case "equals":

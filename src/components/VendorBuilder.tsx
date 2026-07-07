@@ -174,51 +174,54 @@ export default function VendorBuilder() {
       )}
 
       {vendors.map((v) => {
-        // Editing this vendor? Swap its row for the editor in place.
-        if (editing !== "new" && editing?.id === v.id) {
-          return <div key={v.id}>{editor(editing)}</div>;
-        }
+        // Edit opens the editor as a SEPARATE row below — the vendor's own row stays
+        // visible (so you can see what you're editing against), rather than being
+        // swapped out for the editor.
+        const isEditing = editing !== "new" && editing?.id === v.id;
         const idx = orderedIds.indexOf(v.id);
         const canReorder = idx !== -1 && !q.trim();
         return (
-          <div key={v.id} className="card">
-            <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
-              {/* reorder controls */}
-              {canReorder && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === 0} onClick={() => move(idx, -1)} title={t("cust.vendors.moveUp")}>▲</button>
-                  <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === orderedIds.length - 1} onClick={() => move(idx, 1)} title={t("cust.vendors.moveDown")}>▼</button>
+          <React.Fragment key={v.id}>
+            <div className="card">
+              <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
+                {/* reorder controls */}
+                {canReorder && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === 0} onClick={() => move(idx, -1)} title={t("cust.vendors.moveUp")}>▲</button>
+                    <button className="btn btn-sm btn-ghost" style={{ padding: "2px 6px" }} disabled={idx === orderedIds.length - 1} onClick={() => move(idx, 1)} title={t("cust.vendors.moveDown")}>▼</button>
+                  </div>
+                )}
+                <VendorIcon name={v.name} link={v.link} icon={v.icon} size={34} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="row wrap" style={{ gap: 10 }}>
+                    <strong style={{ fontSize: 15 }}>{v.name}</strong>
+                    {v.categoryName && <Chip tone="cat">{t("cust.vendors.defaultChip", { name: v.categoryName })}</Chip>}
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    {v.matchConditions.map((c) => (
+                      <RowSummary key={c.id} condition={c} accountName={accountName} />
+                    ))}
+                    {v.categoryRules.map((c) => (
+                      <RowSummary key={c.id} condition={c} accountName={accountName} />
+                    ))}
+                  </div>
+                </div>
+                <div className="row" style={{ gap: 6 }}>
+                  <button className="btn btn-sm" onClick={() => setOpenTxns((id) => (id === v.id ? null : v.id))}>
+                    {openTxns === v.id ? t("cust.vendors.hideTxns") : t("cust.vendors.viewTxns")}
+                  </button>
+                  <button className="btn btn-sm" onClick={() => setEditing((e) => (e !== "new" && e?.id === v.id ? null : v))}>{t("cust.vendors.edit")}</button>
+                  <button className="btn btn-sm btn-ghost" onClick={() => del(v)}>{t("cust.vendors.delete")}</button>
+                </div>
+              </div>
+              {openTxns === v.id && (
+                <div style={{ marginTop: 10, borderTop: "1px solid var(--border)" }}>
+                  <TransactionBrowser vendorId={v.id} />
                 </div>
               )}
-              <VendorIcon name={v.name} link={v.link} icon={v.icon} size={34} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="row wrap" style={{ gap: 10 }}>
-                  <strong style={{ fontSize: 15 }}>{v.name}</strong>
-                  {v.categoryName && <Chip tone="cat">{t("cust.vendors.defaultChip", { name: v.categoryName })}</Chip>}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  {v.matchConditions.map((c) => (
-                    <RowSummary key={c.id} condition={c} accountName={accountName} />
-                  ))}
-                  {v.categoryRules.map((c) => (
-                    <RowSummary key={c.id} condition={c} accountName={accountName} />
-                  ))}
-                </div>
-              </div>
-              <div className="row" style={{ gap: 6 }}>
-                <button className="btn btn-sm" onClick={() => setOpenTxns((id) => (id === v.id ? null : v.id))}>
-                  {openTxns === v.id ? t("cust.vendors.hideTxns") : t("cust.vendors.viewTxns")}
-                </button>
-                <button className="btn btn-sm" onClick={() => setEditing(v)}>{t("cust.vendors.edit")}</button>
-                <button className="btn btn-sm btn-ghost" onClick={() => del(v)}>{t("cust.vendors.delete")}</button>
-              </div>
             </div>
-            {openTxns === v.id && (
-              <div style={{ marginTop: 10, borderTop: "1px solid var(--border)" }}>
-                <TransactionBrowser vendorId={v.id} />
-              </div>
-            )}
-          </div>
+            {isEditing && <div style={{ margin: "8px 0 16px" }}>{editor(editing)}</div>}
+          </React.Fragment>
         );
       })}
 

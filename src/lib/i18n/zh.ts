@@ -151,7 +151,6 @@ const zh: Messages = {
   "cust.vendors.valuePlaceholder": "值",
   "cust.vendors.emptyRow": "未设置任何匹配字段",
   "cust.vendors.op.contains": "包含",
-  "cust.vendors.op.not_contains": "不包含",
   "cust.vendors.op.equals": "等于",
   "cust.vendors.op.starts_with": "开头为",
   "cust.vendors.op.regex": "正则",
