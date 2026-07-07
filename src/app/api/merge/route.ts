@@ -5,6 +5,41 @@ import { createMergeGroup } from "@/lib/analysis/merge";
 import { analyzeUser } from "@/lib/analysis/analyze";
 import { splitParentIds } from "@/lib/splits";
 
+// GET /api/merge — all confirmed merge groups (the "Merged groups" tab in
+// Customizations). Pending/auto groups stay in Review's confirmation queue.
+export async function GET() {
+  const g = await gate({ verified: true });
+  if (g.error) return g.error;
+  const userId = g.user!.id;
+
+  const groups = await prisma.mergeGroup.findMany({
+    where: { userId, status: "confirmed" },
+    include: { legs: true },
+    orderBy: { date: "desc" },
+  });
+  const legIds = groups.flatMap((grp) => grp.legs.map((l) => l.transactionId));
+  const txns = await prisma.plaidTransaction.findMany({
+    where: { transactionId: { in: legIds } },
+    select: { transactionId: true, name: true, amount: true },
+  });
+  const txnById = new Map(txns.map((tx) => [tx.transactionId, tx]));
+
+  return NextResponse.json({
+    groups: groups.map((grp) => ({
+      id: grp.id,
+      title: grp.title,
+      vendor: grp.vendorName,
+      amount: num(grp.netAmount),
+      currency: grp.currency,
+      date: grp.date,
+      legs: grp.legs.map((l) => {
+        const tx = txnById.get(l.transactionId);
+        return { transactionId: l.transactionId, name: tx?.name ?? null, amount: tx ? num(tx.amount) : null };
+      }),
+    })),
+  });
+}
+
 // POST /api/merge — manual N-way merge (FR3). Body: { transactionIds: string[] }.
 // Validate N≥2, all posted, single currency (a mixed-currency sum is undefined),
 // none already grouped; then createMergeGroup(status:"confirmed") — manual merges

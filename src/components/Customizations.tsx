@@ -3,14 +3,15 @@ import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/context";
 import CategoriesEditor from "./CategoriesEditor";
 import BillingSection from "./BillingSection";
+import MergesManager from "./MergesManager";
 
-// Customizations shell: subtab nav (categories / billing). Vendors moved to
-// /vendors; the old Category Mappings tab was removed — vendors now solely
+// Customizations shell: subtab nav (categories / merges / billing). Vendors moved
+// to /vendors; the old Category Mappings tab was removed — vendors now solely
 // determine a transaction's category (a seeded catch-all vendor covers the Plaid
 // categories the mapping used to). Initial tab honors the URL hash so Stripe's
 // portal return_url (#billing) lands on the right tab.
-type Tab = "categories" | "billing";
-const TABS: Tab[] = ["categories", "billing"];
+type Tab = "categories" | "merges" | "billing";
+const TABS: Tab[] = ["categories", "merges", "billing"];
 
 export default function Customizations() {
   const t = useT();
@@ -41,6 +42,7 @@ export default function Customizations() {
       </div>
 
       {tab === "categories" && <CategoriesEditor />}
+      {tab === "merges" && <MergesManager />}
       {tab === "billing" && <BillingSection />}
     </div>
   );

@@ -307,7 +307,9 @@ export default function Review() {
     reload();
   };
 
-  const hasBrowse = !!data && (data.mergeGroups.length > 0 || data.splits.length > 0);
+  // Confirmed merges moved to Customizations, so they no longer keep Review from
+  // showing "all clear" — only splits still count as browsable here.
+  const hasBrowse = !!data && data.splits.length > 0;
   const nothing =
     !!data &&
     data.counters.totalOpen === 0 &&
@@ -695,11 +697,12 @@ function MergeSplitSection({
   actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
 }) {
   const dropPending = (id: string) => (d: ReviewData) => ({ ...d, pendingGroups: d.pendingGroups.filter((g) => g.id !== id) });
-  const dropMerge = (id: string) => (d: ReviewData) => ({ ...d, mergeGroups: d.mergeGroups.filter((g) => g.id !== id) });
   const dropSplit = (parentTransactionId: string) => (d: ReviewData) => ({ ...d, splits: d.splits.filter((s) => s.parentTransactionId !== parentTransactionId) });
   const t = useT();
-  const { pendingGroups, mergeGroups, splits } = data;
-  if (pendingGroups.length === 0 && mergeGroups.length === 0 && splits.length === 0) return null;
+  // Confirmed merges live in Customizations → Merged groups; Review keeps the
+  // pending-confirmation queue + splits.
+  const { pendingGroups, splits } = data;
+  if (pendingGroups.length === 0 && splits.length === 0) return null;
   return (
     <Section id="pending" title={t("review.mergesSplitsTitle")} help={t("review.mergesSplitsHelp")}>
       {pendingGroups.length > 0 && (
@@ -724,23 +727,6 @@ function MergeSplitSection({
                 {t("review.dissolve")}
               </button>
             </>
-          )}
-        />
-      )}
-
-      {mergeGroups.length > 0 && (
-        <GroupTable
-          title={t("review.allMerges", { n: mergeGroups.length })}
-          groups={mergeGroups}
-          busy={busy}
-          renderActions={(g) => (
-            <button
-              className="btn btn-sm"
-              disabled={busy}
-              onClick={() => actOptimistic(dropMerge(g.id), () => postJson(`/api/merge/${g.id}/dissolve`))}
-            >
-              {t("review.dissolve")}
-            </button>
           )}
         />
       )}

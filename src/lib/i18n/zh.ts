@@ -87,7 +87,12 @@ const zh: Messages = {
   "cust.nav.categories": "分类与预算",
   "cust.nav.mappings": "分类映射",
   "cust.nav.vendors": "商户",
+  "cust.nav.merges": "合并组",
   "cust.nav.billing": "账单",
+  // merged groups tab — confirmed merges (pending ones stay in Review)
+  "cust.merges.help": "您已合并为单一组的交易（例如转账的两笔分录）。解散某组即可还原为原始交易。",
+  "cust.merges.loadFailed": "加载合并组失败。",
+  "cust.merges.empty": "暂无合并组。",
   // categories & budgets (F9)
   "cust.cat.help": "创建您自己的分类，为每个分类设置月度预算，并将收入和转账从支出总额中排除。",
   "cust.cat.loadFailed": "加载分类失败。",
