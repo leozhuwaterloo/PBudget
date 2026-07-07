@@ -90,6 +90,11 @@ h2 { font-family: var(--serif); font-weight: 600; }
 .field-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: end; }
 @media (max-width: 900px) { .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
+/* The vendor editor breaks out wider than the 1100px content column so its 4-col
+   field grid has room to breathe. Centered on the parent; capped at the viewport
+   (min(…,94vw)) so it never causes horizontal page scroll. */
+.editor-wide { width: min(1360px, 94vw); position: relative; left: calc((100% - min(1360px, 94vw)) / 2); }
+
 /* Ledger tables -------------------------------------------------------- */
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }

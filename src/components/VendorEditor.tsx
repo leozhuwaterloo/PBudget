@@ -160,7 +160,7 @@ export default function VendorEditor({
   }
 
   return (
-    <div className="card" style={{ borderColor: "var(--primary)" }}>
+    <div className="card editor-wide" style={{ borderColor: "var(--primary)" }}>
       <div className="card-header">
         {initial?.id ? t("cust.vendors.editTitle") : t("cust.vendors.createTitle")}
       </div>
@@ -335,13 +335,14 @@ function RowEditor({
           onOp={(merchantOp) => onChange({ merchantOp })}
           onValue={(merchantValue) => onChange({ merchantValue })}
         />
-        {/* amount min/max (signed) */}
+        {/* amount min/max (signed — Plaid convention: + spending, − income) */}
         <div>
           <label>{t("cust.vendors.amount")}</label>
           <div className="row" style={{ gap: 6 }}>
             <input type="number" step="0.01" placeholder={t("cust.vendors.min")} value={row.amountMin} onChange={(e) => onChange({ amountMin: e.target.value })} />
             <input type="number" step="0.01" placeholder={t("cust.vendors.max")} value={row.amountMax} onChange={(e) => onChange({ amountMax: e.target.value })} />
           </div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{t("cust.vendors.amountHint")}</div>
         </div>
         {/* account */}
         <div>

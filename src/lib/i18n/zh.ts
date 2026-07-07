@@ -139,6 +139,7 @@ const zh: Messages = {
   "cust.vendors.txnName": "交易名称",
   "cust.vendors.merchantName": "商户名称",
   "cust.vendors.amount": "金额",
+  "cust.vendors.amountHint": "采用交易显示的符号：负为支出，正为收入/退款（例如下限 0 可匹配收入）。",
   "cust.vendors.min": "最小",
   "cust.vendors.max": "最大",
   "cust.vendors.account": "账户",

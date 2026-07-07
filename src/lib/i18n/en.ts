@@ -139,6 +139,7 @@ const en = {
   "cust.vendors.txnName": "Transaction name",
   "cust.vendors.merchantName": "Merchant name",
   "cust.vendors.amount": "Amount",
+  "cust.vendors.amountHint": "Uses the sign shown on transactions: − is spending, + is income/refund (e.g. min 0 matches income).",
   "cust.vendors.min": "min",
   "cust.vendors.max": "max",
   "cust.vendors.account": "Account",

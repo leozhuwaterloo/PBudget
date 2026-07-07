@@ -86,7 +86,11 @@ export function matchesCondition(c: VendorCondition, txn: MatchTxn): boolean {
   push(textOp(c.nameOp, c.nameValue, normalizeStr(txn.name)));
   push(textOp(c.merchantOp, c.merchantValue, normalizeStr(txn.merchantName ?? "")));
 
-  const amt = cents(txn.amount);
+  // Amount filter reads in the DISPLAYED sign convention: the UI renders -amount
+  // (income positive, spending negative), so a user's min/max match what they see
+  // on screen — e.g. `min 0` catches income. Stored amount is raw Plaid (+ = outflow),
+  // so negate it here before comparing against the entered bounds.
+  const amt = -cents(txn.amount);
   if (c.amountMin != null) preds.push(amt >= cents(c.amountMin));
   if (c.amountMax != null) preds.push(amt <= cents(c.amountMax));
 
