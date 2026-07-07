@@ -85,7 +85,12 @@ const en = {
   "cust.nav.categories": "Categories & budgets",
   "cust.nav.mappings": "Category mappings",
   "cust.nav.vendors": "Vendors",
+  "cust.nav.merges": "Merged groups",
   "cust.nav.billing": "Billing",
+  // merged groups tab — confirmed merges (pending ones stay in Review)
+  "cust.merges.help": "Transactions you've merged into a single group (e.g. a transfer's two legs). Dissolve one to split it back into its original transactions.",
+  "cust.merges.loadFailed": "Failed to load merged groups.",
+  "cust.merges.empty": "No merged groups yet.",
   // categories & budgets (F9)
   "cust.cat.help":
     "Create your own categories, set a monthly budget for each, and exclude income and transfers from your spend totals.",
