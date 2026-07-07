@@ -121,6 +121,10 @@ async function main(): Promise<void> {
     searched.total === 1 && searched.vendors[0]?.name === "Zebra Alt" && searched.orderedIds.length === 2,
     "list: search narrows results but orderedIds stays the full set"
   );
+  // Default-category filter: both vendors default to "Grocery", so it keeps both;
+  // an unused category name drops all (proves the filter isn't a no-op).
+  check((await listVendors(USER, { category: "Grocery" })).total === 2, "list: category filter keeps vendors with that default category");
+  check((await listVendors(USER, { category: "Nope" })).total === 0, "list: category filter excludes vendors whose default category differs");
   // Incremental rematch leaves a txn already owned by v1 alone; the conflict over a
   // now-overlapping vendor surfaces on a full rematch (Accounts → "Re-match all").
   await rematchUser(USER);

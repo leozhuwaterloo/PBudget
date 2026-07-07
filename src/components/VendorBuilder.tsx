@@ -19,6 +19,7 @@ export default function VendorBuilder() {
   const [page, setPage] = useState(0);
   const [qInput, setQInput] = useState(""); // what's typed
   const [q, setQ] = useState(""); // debounced value that drives the fetch
+  const [category, setCategory] = useState(""); // "" = all default categories
   const [reloadKey, setReloadKey] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [], plaidConfidences: [] });
@@ -54,7 +55,9 @@ export default function VendorBuilder() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await fetch(`/api/vendors?page=${page}&q=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/vendors?page=${page}&q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`
+      );
       if (cancelled) return;
       if (!res.ok) return setLoadError(t("cust.vendors.loadFailed"));
       const data = await res.json();
@@ -66,7 +69,7 @@ export default function VendorBuilder() {
     return () => {
       cancelled = true;
     };
-  }, [page, q, reloadKey]);
+  }, [page, q, category, reloadKey]);
 
   const accountName = useMemo(() => {
     const m = new Map(refs.accounts.map((a) => [a.accountId, a.name]));
@@ -138,6 +141,20 @@ export default function VendorBuilder() {
         <button className="btn btn-primary" disabled={editing === "new"} onClick={() => setEditing("new")}>{t("cust.vendors.add")}</button>
         <button className="btn" onClick={() => setShowCatalog((s) => !s)}>{t("cust.vendors.browseCatalog")}</button>
         <div className="spacer" style={{ flex: 1 }} />
+        <select
+          className="input"
+          style={{ maxWidth: 200 }}
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value);
+            setPage(0);
+          }}
+        >
+          <option value="">{t("cust.vendors.allCategories")}</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
         <input
           className="input"
           style={{ maxWidth: 260 }}
@@ -170,7 +187,11 @@ export default function VendorBuilder() {
       )}
 
       {vendors.length === 0 && (
-        <p className="muted">{q.trim() ? t("cust.vendors.noMatch", { q: q.trim() }) : t("cust.vendors.empty")}</p>
+        <p className="muted">
+          {q.trim() || category
+            ? t("cust.vendors.noMatch", { q: q.trim() || category })
+            : t("cust.vendors.empty")}
+        </p>
       )}
 
       {vendors.map((v) => {
@@ -179,7 +200,7 @@ export default function VendorBuilder() {
         // swapped out for the editor.
         const isEditing = editing !== "new" && editing?.id === v.id;
         const idx = orderedIds.indexOf(v.id);
-        const canReorder = idx !== -1 && !q.trim();
+        const canReorder = idx !== -1 && !q.trim() && !category;
         return (
           <React.Fragment key={v.id}>
             <div className="card">

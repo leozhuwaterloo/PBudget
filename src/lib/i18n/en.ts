@@ -133,6 +133,7 @@ const en = {
   "cust.vendors.addRule": "Add rule",
   "cust.vendors.rowN": "Row {n}",
   "cust.vendors.search": "Search vendors…",
+  "cust.vendors.allCategories": "All categories",
   "cust.vendors.noMatch": "No vendors match “{q}”.",
   "cust.vendors.removeRow": "Remove",
   "cust.vendors.txnName": "Transaction name",
