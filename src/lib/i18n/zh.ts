@@ -112,6 +112,7 @@ const zh: Messages = {
   "cust.cat.createFailed": "无法创建分类。",
   "cust.cat.deleteFailed": "无法删除分类。",
   "cust.cat.delete": "删除",
+  "cust.cat.builtin": "内置",
   "cust.cat.confirmDelete": "删除分类“{name}”？其月度预算将丢失。",
   "cust.cat.empty": "暂无分类。",
   // vendors (F10) — priority list, condition builder, catalog browser

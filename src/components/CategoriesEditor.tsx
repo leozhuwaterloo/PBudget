@@ -175,7 +175,11 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                 </td>
               </tr>
             )}
-            {ordered.map(({ c, depth }) => (
+            {ordered.map(({ c, depth }) => {
+              // "Ignore" is a built-in category (Review/merge key on the name): its
+              // name is fixed and it can't be deleted. Other fields stay editable.
+              const locked = c.name === "Ignore";
+              return (
               <React.Fragment key={c.id}>
                 <tr>
                   <td>
@@ -183,6 +187,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                       {depth > 0 && <span className="muted" style={{ marginRight: 4 }}>↳</span>}
                       <input
                         defaultValue={c.name}
+                        readOnly={locked}
                         onBlur={(e) => rename(c.id, e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") e.currentTarget.blur();
@@ -230,9 +235,13 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                     />
                   </td>
                   <td>
-                    <button className="btn btn-sm btn-ghost" onClick={() => del(c.id)}>
-                      {t("cust.cat.delete")}
-                    </button>
+                    {locked ? (
+                      <span className="muted">{t("cust.cat.builtin")}</span>
+                    ) : (
+                      <button className="btn btn-sm btn-ghost" onClick={() => del(c.id)}>
+                        {t("cust.cat.delete")}
+                      </button>
+                    )}
                   </td>
                 </tr>
                 {rowError[c.id] && (
@@ -243,7 +252,8 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                   </tr>
                 )}
               </React.Fragment>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -8,6 +8,7 @@ import { prisma } from "./db";
 import { normalizeVendor, plaidPrimary, plaidDetailed, plaidConfidence } from "./analysis/vendor";
 import { primaryLeg } from "./analysis/groups";
 import { matchesVendor } from "./analysis/match";
+import { ignoredTxnIds } from "./categories";
 import { RULES, ANALYSIS_WINDOW_DAYS } from "./analysis/constants";
 
 const num = (d: unknown): number | null => (d == null ? null : Number(d));
@@ -202,6 +203,21 @@ export async function reviewData(
   };
   const byDateDesc = (a: { date: Date }, b: { date: Date }) => b.date.getTime() - a.date.getTime();
 
+  // Transactions routed to the Ignore category are hidden from Review (and the merge
+  // picker + Dashboard totals). Resolve via the materialized vendor — the winning
+  // vendorId is always one of these loaded vendors — and drop any flag/pending-group
+  // whose txn (or a group's primary leg) is ignored. Flags stay in the DB, out of view.
+  const ignored = ignoredTxnIds(posted, vendors);
+  const isIgnored = (f: (typeof openFlags)[number]): boolean => {
+    const t = flagTxn(f);
+    return !!t && ignored.has(t.transactionId);
+  };
+  const groupIgnored = (grp: (typeof allGroups)[number]): boolean => {
+    const legs = legsOf(grp);
+    const primary = legs.length ? primaryLeg(legs) : null;
+    return !!primary && ignored.has(primary.transactionId);
+  };
+
   // --- Unmatched queue: one row per effective item (merchant/name for pre-fill) ---
   const unmatched: UnmatchedRow[] = openFlags
     .filter((f) => f.rule === RULES.unmatchedVendor && inWindow(flagDate(f)))
@@ -257,7 +273,7 @@ export async function reviewData(
 
   // --- Conflicts: every matching vendor + the priority winner (materialized) ---
   const conflicts: ConflictRow[] = openFlags
-    .filter((f) => f.rule === RULES.vendorConflict && inWindow(flagDate(f)))
+    .filter((f) => f.rule === RULES.vendorConflict && inWindow(flagDate(f)) && !isIgnored(f))
     .flatMap((f) => {
       const t = flagTxn(f);
       if (!t) return [];
@@ -285,6 +301,7 @@ export async function reviewData(
   for (const f of openFlags) {
     if (!(SUSPICION as readonly string[]).includes(f.rule)) continue;
     if (!inWindow(flagDate(f))) continue;
+    if (isIgnored(f)) continue;
     if (f.transactionId) {
       const t = txnById.get(f.transactionId);
       if (!t) continue;
@@ -316,7 +333,7 @@ export async function reviewData(
       return { transactionId: l.transactionId, name: t?.name ?? null, amount: t ? num(t.amount) : null };
     }),
   });
-  const pendingGroups = allGroups.filter((grp) => grp.status === "auto" && inWindow(grp.date)).map(groupView).sort(byDateDesc);
+  const pendingGroups = allGroups.filter((grp) => grp.status === "auto" && inWindow(grp.date) && !groupIgnored(grp)).map(groupView).sort(byDateDesc);
   const mergeGroups = allGroups.filter((grp) => grp.status === "confirmed").map(groupView).sort(byDateDesc);
 
   const splitRows: SplitRow[] = splits.flatMap((s) => {

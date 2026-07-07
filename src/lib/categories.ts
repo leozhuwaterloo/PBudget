@@ -48,6 +48,30 @@ export function resolveCategory(
   return pp ? plaidCategoryName(pp) : null;
 }
 
+// The built-in "ignore" category. Transactions the user routes here (via a vendor
+// rule → this category) are hidden from Review and the merge picker, and stay out
+// of Dashboard totals (seeded excludeFromTotals). Review/merge key on this exact
+// name, so it is protected from rename/delete below — the string must not drift.
+export const IGNORE_CATEGORY = "Ignore";
+
+// Posted-txn ids whose resolved category is Ignore. Pure over already-loaded rows so
+// hot callers (reviewData) don't re-query; `vendors` must include their conditions.
+// Only a vendor rule can reach Ignore (unmatched txns fall back to a Plaid primary),
+// so a null-vendor txn is never ignored.
+// ponytail: whole-transaction concept — a split PART overridden to Ignore isn't counted.
+export function ignoredTxnIds(
+  posted: (MatchTxn & { transactionId: string; vendorId: string | null })[],
+  vendors: (WaterfallVendor & { id: string })[]
+): Set<string> {
+  const byId = new Map(vendors.map((v) => [v.id, v]));
+  const out = new Set<string>();
+  for (const t of posted) {
+    const v = (t.vendorId && byId.get(t.vendorId)) || null;
+    if (v && resolveCategory(v, t, null) === IGNORE_CATEGORY) out.add(t.transactionId);
+  }
+  return out;
+}
+
 // ---- Custom categories & budgets (FR4) ------------------------------------
 
 // The old funnel's category set. BigPayment/Unknown were funnel outcomes, not
@@ -163,6 +187,10 @@ export async function updateCategory(
   const cat = await prisma.transactionCategory.findFirst({ where: { id, userId } });
   if (!cat) throw new CategoryError(404, "Category not found");
   const rename = patch.name !== undefined && patch.name !== cat.name;
+  // Review/merge key on the literal "Ignore" name; renaming it would silently break
+  // the suppression, so it's locked (other edits — budget/exclude/parent — are fine).
+  if (rename && cat.name === IGNORE_CATEGORY)
+    throw new CategoryError(400, `The "${IGNORE_CATEGORY}" category is built-in and can't be renamed.`);
   // Validate against the POST-rename name so "rename + reparent" in one call is coherent.
   const selfName = rename ? patch.name! : cat.name;
   const parentName =
@@ -202,6 +230,10 @@ export async function categoryRefCount(userId: string, name: string): Promise<nu
 export async function deleteCategory(userId: string, id: string): Promise<void> {
   const cat = await prisma.transactionCategory.findFirst({ where: { id, userId } });
   if (!cat) throw new CategoryError(404, "Category not found");
+  // The built-in Ignore category is never deletable (checked before ref-count so the
+  // message is about being built-in, not about lingering references).
+  if (cat.name === IGNORE_CATEGORY)
+    throw new CategoryError(400, `The "${IGNORE_CATEGORY}" category is built-in and can't be deleted.`);
   const refs = await categoryRefCount(userId, cat.name);
   if (refs > 0) {
     throw new CategoryError(

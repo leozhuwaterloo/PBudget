@@ -4,6 +4,7 @@
 import type { PlaidTransaction } from "@prisma/client";
 import { prisma } from "../db";
 import { normalizeVendor, isTransferLike } from "./vendor";
+import { ignoredTxnIds } from "../categories";
 import { createMergeGroup } from "./merge";
 import { rematchUser } from "./match";
 import { primaryLeg } from "./groups";
@@ -36,7 +37,13 @@ export async function analyzeUser(userId: string): Promise<void> {
   });
 
   // 2. Auto-match opposite-sign equal-amount pairs (any account) into net-0 groups.
-  await autoMatch(userId, posted);
+  //    Ignored txns (routed to the Ignore category by a vendor rule) never auto-merge.
+  //    ponytail: keys on the vendorId materialized by the PREVIOUS rematch (this runs
+  //    before step 3), so a txn ignored for the first time this sync is excluded on the
+  //    next run — reviewData hides any interim auto group in the meantime.
+  const vendors = await prisma.vendor.findMany({ where: { userId }, include: { conditions: true } });
+  const ignored = ignoredTxnIds(posted, vendors);
+  await autoMatch(userId, posted, ignored);
 
   // 3. Vendor match (FR1): materialize vendorId on every posted txn + maintain the
   //    unmatched_vendor / vendor_conflict queue flags. Runs after auto-match so a
@@ -118,7 +125,7 @@ async function buildEffectiveItems(userId: string, since: Date): Promise<Item[]>
 
 // --- Auto-match (FR3) -------------------------------------------------------
 
-async function autoMatch(userId: string, posted: PlaidTransaction[]): Promise<void> {
+async function autoMatch(userId: string, posted: PlaidTransaction[], ignored: Set<string>): Promise<void> {
   const grouped = new Set(
     (await prisma.mergeGroupLeg.findMany({ select: { transactionId: true } })).map(
       (l) => l.transactionId
@@ -130,7 +137,9 @@ async function autoMatch(userId: string, posted: PlaidTransaction[]): Promise<vo
   // Split parents can never be merged (FR5 merge/split mutual exclusion), so they
   // never enter the auto-match pool.
   const splitParents = await splitParentIds(userId);
-  const cands = posted.filter((t) => !grouped.has(t.transactionId) && !splitParents.has(t.transactionId));
+  const cands = posted.filter(
+    (t) => !grouped.has(t.transactionId) && !splitParents.has(t.transactionId) && !ignored.has(t.transactionId)
+  );
 
   type Pair = { a: string; b: string; dist: number; key: string };
   const pairs: Pair[] = [];

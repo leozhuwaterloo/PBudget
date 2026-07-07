@@ -111,6 +111,7 @@ const en = {
   "cust.cat.createFailed": "Could not create category.",
   "cust.cat.deleteFailed": "Could not delete category.",
   "cust.cat.delete": "Delete",
+  "cust.cat.builtin": "Built-in",
   "cust.cat.confirmDelete": "Delete category “{name}”? Its monthly budget will be lost.",
   "cust.cat.empty": "No categories yet.",
   // vendors (F10) — priority list, condition builder, catalog browser
