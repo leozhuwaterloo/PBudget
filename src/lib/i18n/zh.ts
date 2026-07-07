@@ -195,7 +195,7 @@ const zh: Messages = {
   "review.fromCatalog": "从目录添加",
   "review.conflictsTitle": "冲突（{n}）",
   "review.conflictsHelp":
-    "有多个商户同时匹配。★ 为按优先级选定的胜出者——可在“自定义”中收紧条件或重新排序，或忽略以对该交易保留胜出者。",
+    "有多个商户同时匹配。★ 为按优先级选定的胜出者——请在“自定义”中收紧条件或重新排序，使仅有一个商户匹配，冲突即会自动清除。",
   "review.colMatches": "匹配的商户",
   "review.winner": "优先级胜出者",
   "review.editVendors": "在自定义中编辑",
