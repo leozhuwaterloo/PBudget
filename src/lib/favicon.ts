@@ -120,6 +120,19 @@ async function siteFaviconDataUri(pageUrl: string): Promise<string | null> {
   } catch {
     return null;
   }
+  // Relative icon hrefs resolve against <base href> when the document declares one
+  // (HTML spec), not the document URL. Universal Orlando serves <base href="/web/">
+  // and icons like "assets/images/…" only resolve correctly against it — resolving
+  // against the page URL builds a dead path and the site's real favicon is missed.
+  const baseHref = html.match(/<base\b[^>]*\bhref="([^"]+)"/i)?.[1];
+  let baseUrl = pageUrl;
+  if (baseHref) {
+    try {
+      baseUrl = new URL(baseHref.replace(/&amp;/g, "&"), pageUrl).href;
+    } catch {
+      /* keep pageUrl */
+    }
+  }
   // rel/href appear in either order → grab each <link> tag, then read attrs.
   const icons: { href: string; apple: boolean }[] = [];
   for (const tag of html.match(/<link\b[^>]*>/gi) ?? []) {
@@ -132,7 +145,7 @@ async function siteFaviconDataUri(pageUrl: string): Promise<string | null> {
   for (const { href } of icons) {
     let abs: string;
     try {
-      abs = new URL(href.replace(/&amp;/g, "&"), pageUrl).href;
+      abs = new URL(href.replace(/&amp;/g, "&"), baseUrl).href;
     } catch {
       continue;
     }
