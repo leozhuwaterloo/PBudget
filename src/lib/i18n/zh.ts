@@ -327,6 +327,7 @@ const zh: Messages = {
   "review.colItem": "项目",
   "review.colAmount": "金额",
   "review.confirm": "确认",
+  "review.confirmAll": "全部确认（{n}）",
   "review.dissolve": "解散",
   "review.mergedGroup": "合并组",
   "review.merge": "合并…",

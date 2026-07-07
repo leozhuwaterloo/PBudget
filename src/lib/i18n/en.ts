@@ -332,6 +332,7 @@ const en = {
   "review.colItem": "Item",
   "review.colAmount": "Amount",
   "review.confirm": "Confirm",
+  "review.confirmAll": "Confirm all ({n})",
   "review.dissolve": "Dissolve",
   "review.mergedGroup": "Merged group",
   "review.merge": "Merge…",
