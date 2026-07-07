@@ -520,7 +520,7 @@ function UnmatchedSection({
           <tbody>
             {rows.map((r) => (
               <tr key={r.flagId}>
-                <td>
+                <td style={{ width: "100%" }}>
                   <strong>{r.merchantName?.trim() || r.name}</strong>
                   <div className="muted" style={{ fontSize: 12 }}>
                     {r.level === "group" ? `${t("review.mergedGroup")} · ${r.title}` : r.name}
@@ -680,7 +680,7 @@ function SuspicionSection({
                 <tbody>
                   {entries.map((e) => (
                     <tr key={e.flagId}>
-                      <td>
+                      <td style={{ width: "100%" }}>
                         <strong>{e.level === "group" ? e.title : e.vendor}</strong>
                         <div className="muted" style={{ fontSize: 12 }}>
                           {e.level === "group" ? `${t("review.mergedGroup")} · ${e.vendor ?? "—"}` : e.name}
@@ -805,7 +805,7 @@ function MergeSplitSection({
               <tbody>
                 {splits.map((s) => (
                   <tr key={s.parentTransactionId}>
-                    <td>
+                    <td style={{ width: "100%" }}>
                       <strong>{s.title}</strong>
                       <div className="muted" style={{ fontSize: 12 }}>
                         {s.parts
@@ -865,7 +865,7 @@ function GroupTable({
           <tbody>
             {groups.map((g) => (
               <tr key={g.id}>
-                <td>
+                <td style={{ width: "100%" }}>
                   <strong>{g.title}</strong>
                   <div className="muted" style={{ fontSize: 12 }}>
                     {g.legs.map((l) => `${l.name ?? l.transactionId} (${money(l.amount, g.currency)})`).join("  +  ")}
