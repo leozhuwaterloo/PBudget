@@ -283,7 +283,7 @@ const VENDOR_PAGE_SIZE = 25;
 // priority order (all pages) so the client can still reorder across page bounds.
 export async function listVendors(
   userId: string,
-  opts: { page?: number; q?: string } = {}
+  opts: { page?: number; q?: string; category?: string } = {}
 ) {
   const vendors = await prisma.vendor.findMany({
     where: { userId },
@@ -293,7 +293,12 @@ export async function listVendors(
   const all = vendors.map(serializeVendor);
   const orderedIds = all.filter((v) => v.priority != null).map((v) => v.id);
   const q = (opts.q ?? "").toLowerCase().trim();
-  const filtered = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
+  const category = (opts.category ?? "").trim(); // exact default-category filter
+  const filtered = all.filter(
+    (v) =>
+      (!q || v.name.toLowerCase().includes(q)) &&
+      (!category || v.categoryName === category)
+  );
   const total = filtered.length;
   const lastPage = Math.max(0, Math.ceil(total / VENDOR_PAGE_SIZE) - 1);
   const page = opts.page === undefined ? 0 : Math.max(0, Math.min(opts.page, lastPage));

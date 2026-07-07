@@ -133,6 +133,7 @@ const zh: Messages = {
   "cust.vendors.addRule": "添加规则",
   "cust.vendors.rowN": "第 {n} 行",
   "cust.vendors.search": "搜索商户……",
+  "cust.vendors.allCategories": "全部默认类别",
   "cust.vendors.noMatch": "没有匹配“{q}”的商户。",
   "cust.vendors.removeRow": "移除",
   "cust.vendors.txnName": "交易名称",
