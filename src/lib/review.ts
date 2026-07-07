@@ -127,6 +127,23 @@ export async function dismissFlag(
   return "ok";
 }
 
+// Un-mark a marked-valid (dismissed) flag — reopen it so the analyzer/queue
+// surface it again. The inverse of dismissFlag, used by the "Marked valid" tab.
+export async function restoreFlag(
+  userId: string,
+  flagId: string
+): Promise<"ok" | "not_found"> {
+  const flag = await prisma.transactionFlag.findFirst({
+    where: { id: flagId, userId, status: "dismissed" },
+  });
+  if (!flag) return "not_found";
+  await prisma.transactionFlag.update({
+    where: { id: flag.id },
+    data: { status: "open", resolvedAt: null },
+  });
+  return "ok";
+}
+
 const UNMATCHED_PAGE_SIZE = 25;
 
 export async function reviewData(
