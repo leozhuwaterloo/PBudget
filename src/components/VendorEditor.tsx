@@ -166,20 +166,20 @@ export default function VendorEditor({
       </div>
 
       {/* Vendor-level fields */}
-      <div className="row wrap" style={{ gap: 16, alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 200px" }}>
+      <div className="field-grid">
+        <div>
           <label>{t("cust.vendors.name")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("cust.vendors.namePlaceholder")} />
         </div>
-        <div style={{ flex: "1 1 200px" }}>
+        <div>
           <label>{t("cust.vendors.defaultCategory")}</label>
           <CategorySelect value={defaultCat} categories={categories} onChange={setDefaultCat} noneLabel={t("cust.vendors.chooseCategory")} />
         </div>
-        <div style={{ flex: "1 1 240px" }}>
+        <div>
           <label>{t("cust.vendors.link")}</label>
           <input type="url" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("cust.vendors.linkPlaceholder")} />
         </div>
-        <div style={{ flex: "1 1 240px" }}>
+        <div>
           <label>{t("cust.vendors.iconLink")}</label>
           <div className="row" style={{ gap: 8, alignItems: "center" }}>
             {iconLink.trim() && (
@@ -308,7 +308,6 @@ function RowEditor({
   onRemove: () => void;
 }) {
   const t = useT();
-  const cell: React.CSSProperties = { flex: "1 1 200px" };
   return (
     <div className="card" style={{ background: "var(--bg-3)", padding: 14, marginBottom: 12 }}>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
@@ -319,7 +318,7 @@ function RowEditor({
           </button>
         )}
       </div>
-      <div className="row wrap" style={{ gap: 12, alignItems: "flex-end" }}>
+      <div className="field-grid">
         {/* transaction name */}
         <TextField
           label={t("cust.vendors.txnName")}
@@ -337,7 +336,7 @@ function RowEditor({
           onValue={(merchantValue) => onChange({ merchantValue })}
         />
         {/* amount min/max (signed) */}
-        <div style={cell}>
+        <div>
           <label>{t("cust.vendors.amount")}</label>
           <div className="row" style={{ gap: 6 }}>
             <input type="number" step="0.01" placeholder={t("cust.vendors.min")} value={row.amountMin} onChange={(e) => onChange({ amountMin: e.target.value })} />
@@ -345,7 +344,7 @@ function RowEditor({
           </div>
         </div>
         {/* account */}
-        <div style={cell}>
+        <div>
           <label>{t("cust.vendors.account")}</label>
           <select value={row.accountId} onChange={(e) => onChange({ accountId: e.target.value })}>
             <option value="">{t("cust.vendors.anyOption")}</option>
@@ -357,7 +356,7 @@ function RowEditor({
           </select>
         </div>
         {/* payment channel */}
-        <div style={cell}>
+        <div>
           <label>{t("cust.vendors.channel")}</label>
           <select value={row.paymentChannel} onChange={(e) => onChange({ paymentChannel: e.target.value })}>
             <option value="">{t("cust.vendors.anyOption")}</option>
@@ -367,22 +366,22 @@ function RowEditor({
           </select>
         </div>
         {/* plaid primary/detailed (datalists defined once at editor level) */}
-        <div style={cell}>
+        <div>
           <label>{t("cust.vendors.plaidPrimary")}</label>
           <input list="plaid-primaries" value={row.plaidPrimary} onChange={(e) => onChange({ plaidPrimary: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
         </div>
-        <div style={cell}>
+        <div>
           <label>{t("cust.vendors.plaidDetailed")}</label>
           <input list="plaid-detaileds" value={row.plaidDetailed} onChange={(e) => onChange({ plaidDetailed: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
         </div>
         {/* plaid confidence (VERY_HIGH…UNKNOWN) */}
-        <div style={cell}>
+        <div>
           <label>{t("cust.vendors.plaidConfidence")}</label>
           <input list="plaid-confidences" value={row.plaidConfidence} onChange={(e) => onChange({ plaidConfidence: e.target.value })} placeholder={t("cust.vendors.anyOption")} />
         </div>
         {/* per-row category (outcome) — category rules only */}
         {showCategory && (
-          <div style={cell}>
+          <div>
             <label>{t("cust.vendors.rowCategory")}</label>
             <CategorySelect value={row.categoryName} categories={categories} onChange={(categoryName) => onChange({ categoryName })} noneLabel={t("cust.vendors.rowNoCategory")} />
           </div>
@@ -407,7 +406,7 @@ function TextField({
 }) {
   const t = useT();
   return (
-    <div style={{ flex: "1 1 260px" }}>
+    <div>
       <label>{label}</label>
       <div className="row" style={{ gap: 6 }}>
         <select style={{ flex: "0 0 130px" }} value={op} onChange={(e) => onOp(e.target.value)}>
