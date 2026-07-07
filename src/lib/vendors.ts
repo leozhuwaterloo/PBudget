@@ -10,7 +10,7 @@ import { normalizeStr } from "./analysis/vendor";
 
 // Accepted on save: contains + regex only (equals/starts_with retired). The
 // matcher still evaluates legacy equals/starts_with rows; they just can't be created.
-const TEXT_OPS = new Set(["contains", "not_contains", "regex"]);
+const TEXT_OPS = new Set(["contains", "regex"]);
 const CHANNELS = new Set(["online", "in store", "other"]);
 
 export class VendorError extends Error {
@@ -67,7 +67,7 @@ function textPair(op: unknown, value: unknown, field: string): { op: string; val
   if (o === undefined && val === undefined) return undefined;
   if (o === undefined || val === undefined)
     bad(`${field} needs both an operator and a value`);
-  if (!TEXT_OPS.has(o!)) bad(`${field} operator must be one of contains, does not contain, regex`);
+  if (!TEXT_OPS.has(o!)) bad(`${field} operator must be one of contains, regex`);
   if (o === "regex") {
     const err = validateRegex(val!);
     if (err) bad(`${field}: ${err}`);
