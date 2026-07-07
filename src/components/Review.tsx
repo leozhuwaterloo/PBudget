@@ -731,6 +731,25 @@ function MergeSplitSection({
         />
       )}
 
+      {pendingGroups.length > 0 && (
+        <div className="row" style={{ justifyContent: "flex-end", marginBottom: 14 }}>
+          <button
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={() =>
+              actOptimistic(
+                (d) => ({ ...d, pendingGroups: [] }),
+                // ponytail: no bulk endpoint; confirm each. Pending counts are small.
+                // Partial failure reconciles on the next reload.
+                () => Promise.all(pendingGroups.map((g) => postJson(`/api/merge/${g.id}/confirm`)))
+              )
+            }
+          >
+            {t("review.confirmAll", { n: pendingGroups.length })}
+          </button>
+        </div>
+      )}
+
       {splits.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>{t("review.allSplits", { n: splits.length })}</h3>
