@@ -356,6 +356,8 @@ export default function Review() {
 
           <ConflictSection rows={data.conflicts} busy={busy} act={act} />
 
+          <MergeSplitSection data={data} busy={busy} act={act} />
+
           <SuspicionSection
             suspicion={data.suspicion}
             busy={busy}
@@ -363,8 +365,6 @@ export default function Review() {
             onMerge={(id) => setModal({ kind: "merge", seedId: id })}
             onSplit={(entry) => setModal({ kind: "split", parent: splitParentFromSuspicion(entry) })}
           />
-
-          <MergeSplitSection data={data} busy={busy} act={act} />
         </>
       )}
 
