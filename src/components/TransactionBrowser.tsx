@@ -111,7 +111,7 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
               <tr key={r.transactionId} className={r.pending ? "pending" : undefined}>
                 <td>{r.name}</td>
                 <td>{r.merchantName ?? ""}</td>
-                <td>{money(r.amount, r.currency)}</td>
+                <td>{money(-r.amount, r.currency)}</td>
                 <td>{new Date(r.date).toLocaleDateString("en-ZA", { timeZone: "UTC" })}</td>
                 <td>{r.pending ? t("accounts.browser.pending") : t("accounts.browser.posted")}</td>
                 <td>
