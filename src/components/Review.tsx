@@ -285,18 +285,7 @@ export default function Review() {
   }, [refs]);
 
   const reload = () => setReloadKey((k) => k + 1);
-  const act = async (fn: () => Promise<unknown>) => {
-    setBusy(true);
-    setError("");
-    try {
-      await fn();
-      reload();
-    } catch (e: any) {
-      setError(e.message);
-      setBusy(false);
-    }
-  };
-  // Merges & splits row actions each remove their row: drop it from the local data
+  // Review row actions each remove their row: drop it from the local data
   // immediately (so it vanishes on click), then run the mutation + reload. Restore
   // the snapshot on failure so a failed action doesn't leave the row wrongly gone.
   const actOptimistic = async (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => {
@@ -371,14 +360,14 @@ export default function Review() {
             onSplit={(row) => setModal({ kind: "split", parent: splitParentFromUnmatched(row) })}
           />
 
-          <ConflictSection rows={data.conflicts} busy={busy} act={act} />
+          <ConflictSection rows={data.conflicts} />
 
           <MergeSplitSection data={data} busy={busy} actOptimistic={actOptimistic} />
 
           <SuspicionSection
             suspicion={data.suspicion}
             busy={busy}
-            act={act}
+            actOptimistic={actOptimistic}
             onMerge={(id) => setModal({ kind: "merge", seedId: id })}
             onSplit={(entry) => setModal({ kind: "split", parent: splitParentFromSuspicion(entry) })}
           />
@@ -544,15 +533,7 @@ function UnmatchedSection({
   );
 }
 
-function ConflictSection({
-  rows,
-  busy,
-  act,
-}: {
-  rows: ConflictRow[];
-  busy: boolean;
-  act: (fn: () => Promise<unknown>) => void;
-}) {
+function ConflictSection({ rows }: { rows: ConflictRow[] }) {
   const t = useT();
   if (rows.length === 0) return null;
   return (
@@ -621,17 +602,23 @@ function ConflictSection({
 function SuspicionSection({
   suspicion,
   busy,
-  act,
+  actOptimistic,
   onMerge,
   onSplit,
 }: {
   suspicion: Record<string, SuspicionEntry[]>;
   busy: boolean;
-  act: (fn: () => Promise<unknown>) => void;
+  actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
   onMerge: (transactionId: string) => void;
   onSplit: (entry: SuspicionEntry) => void;
 }) {
   const t = useT();
+  const dropFlag = (flagId: string) => (d: ReviewData) => ({
+    ...d,
+    suspicion: Object.fromEntries(
+      Object.entries(d.suspicion).map(([rule, entries]) => [rule, entries.filter((e) => e.flagId !== flagId)])
+    ),
+  });
   const anything = SUSPICION_RULES.some((rule) => (suspicion[rule] ?? []).length > 0);
   if (!anything) return null;
   return (
@@ -680,7 +667,7 @@ function SuspicionSection({
                           <button
                             className="btn btn-sm btn-ghost"
                             disabled={busy}
-                            onClick={() => act(() => postJson(`/api/flags/${e.flagId}/dismiss`))}
+                            onClick={() => actOptimistic(dropFlag(e.flagId), () => postJson(`/api/flags/${e.flagId}/dismiss`))}
                           >
                             {t("review.dismiss")}
                           </button>
