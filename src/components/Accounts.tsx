@@ -99,8 +99,10 @@ export default function Accounts({
 
   const sync = (itemId: string) =>
     run(async () => {
-      await postJson("/api/plaid/item/sync", { item_id: itemId });
+      setNote("");
+      const { result } = await postJson("/api/plaid/item/sync", { item_id: itemId });
       router.refresh();
+      setNote(t("accounts.syncDone", { n: result.transactions }));
     });
 
   // Full vendor re-match across every transaction. Vendor edits only touch the
@@ -134,10 +136,16 @@ export default function Accounts({
         <button className="btn btn-sm" disabled={busy} onClick={rematchAll}>
           {t("accounts.rematchAll")}
         </button>
-        <span className="muted" style={{ fontSize: 12 }}>{note || t("accounts.rematchHint")}</span>
+        <span className="muted" style={{ fontSize: 12 }}>{t("accounts.rematchHint")}</span>
       </div>
 
       {error && <div className="error">{error}</div>}
+      {note && (
+        <div className="banner row" style={{ justifyContent: "space-between" }}>
+          <span>{note}</span>
+          <button className="btn btn-sm btn-ghost" onClick={() => setNote("")}>✕</button>
+        </div>
+      )}
       {cta}
 
       {items.length === 0 && <p className="muted">{t("accounts.noBanks")}</p>}

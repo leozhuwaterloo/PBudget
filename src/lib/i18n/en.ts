@@ -28,6 +28,7 @@ const en = {
   "accounts.connect": "Connect a bank account",
   "accounts.lastUpdated": "Updated",
   "accounts.sync": "Sync",
+  "accounts.syncDone": "Synced — {n} transactions in the fetch window.",
   "accounts.reauth": "Re-auth",
   "accounts.syncBlocked": "This connection is over your plan's limit of {limit} and is read-only. Sync is blocked until you upgrade or disconnect another bank.",
   "accounts.limitTitle": "Connection limit reached.",

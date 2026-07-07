@@ -30,6 +30,7 @@ const zh: Messages = {
   "accounts.connect": "连接银行账户",
   "accounts.lastUpdated": "更新于",
   "accounts.sync": "同步",
+  "accounts.syncDone": "同步完成 — 拉取窗口内共 {n} 笔交易。",
   "accounts.reauth": "重新授权",
   "accounts.syncBlocked": "此连接超出了您套餐 {limit} 个的上限，处于只读状态。升级套餐或断开其他银行后方可同步。",
   "accounts.limitTitle": "已达连接数上限。",
