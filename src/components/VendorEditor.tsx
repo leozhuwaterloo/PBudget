@@ -37,7 +37,7 @@ export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaile
 
 // Text-match operators offered in the editor. Deliberately just contains + regex;
 // equals/starts_with are retired (the matcher still honors any legacy rows).
-const TEXT_OPS = ["contains", "regex"];
+const TEXT_OPS = ["contains", "not_contains", "regex"];
 const CHANNELS = ["online", "in store", "other"];
 
 // Row form state: everything a string (inputs), converted at save.

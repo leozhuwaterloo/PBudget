@@ -151,6 +151,7 @@ const en = {
   "cust.vendors.valuePlaceholder": "value",
   "cust.vendors.emptyRow": "No matching fields set",
   "cust.vendors.op.contains": "contains",
+  "cust.vendors.op.not_contains": "does not contain",
   "cust.vendors.op.equals": "equals",
   "cust.vendors.op.starts_with": "starts with",
   "cust.vendors.op.regex": "regex",
