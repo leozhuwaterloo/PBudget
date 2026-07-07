@@ -192,6 +192,7 @@ export default function Review() {
   const [categories, setCategories] = useState<string[]>([]);
   const [refs, setRefs] = useState<Refs>({ accounts: [], plaidPrimaries: [], plaidDetaileds: [], plaidConfidences: [] });
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState(0);
@@ -306,6 +307,21 @@ export default function Review() {
     setModal(null);
     reload();
   };
+  // Run the full analyzer on demand (auto-match + re-match + suspicion rules) so
+  // config/data changes surface without a Plaid sync. Reload picks up the results.
+  const analyze = async () => {
+    setBusy(true);
+    setError("");
+    setNote("");
+    try {
+      const res = await postJson("/api/review/analyze");
+      setNote(t("review.analyzeDone", { groups: res.pendingGroups, flags: res.openFlags }));
+      reload();
+    } catch (e: any) {
+      setError(e.message);
+      setBusy(false);
+    }
+  };
 
   // Confirmed merges moved to Customizations, so they no longer keep Review from
   // showing "all clear" — only splits still count as browsable here.
@@ -328,7 +344,10 @@ export default function Review() {
         </div>
       )}
 
-      <div className="row wrap" style={{ marginBottom: 16 }}>
+      <div className="row wrap" style={{ marginBottom: 16, gap: 8, alignItems: "center" }}>
+        <button className="btn" disabled={busy} onClick={analyze} title={t("review.analyzeHint")}>
+          {t("review.analyze")}
+        </button>
         <div className="spacer" style={{ flex: 1 }} />
         <button className="btn" disabled={busy} onClick={() => setModal({ kind: "merge" })}>
           {t("review.mergeTransactions")}
@@ -336,6 +355,12 @@ export default function Review() {
       </div>
 
       {error && <div className="error">{error}</div>}
+      {note && (
+        <div className="banner row" style={{ justifyContent: "space-between" }}>
+          <span>{note}</span>
+          <button className="btn btn-sm btn-ghost" onClick={() => setNote("")}>✕</button>
+        </div>
+      )}
 
       {!data ? (
         <p className="muted">{t("common.loading")}</p>
