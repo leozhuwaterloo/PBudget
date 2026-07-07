@@ -25,6 +25,10 @@ type ItemLite = {
   accounts: AccountLite[];
 };
 type Connect = { canAdd: boolean; cta: UpgradeCTA | null };
+type SyncStatus =
+  | { phase: "running" }
+  | { phase: "done"; count: number }
+  | { phase: "error"; message: string; errorType: string | null; errorCode: string | null; requestId: string | null };
 
 async function postJson(url: string, body?: unknown) {
   const res = await fetch(url, {
@@ -66,6 +70,7 @@ export default function Accounts({
   const [error, setError] = useState("");
   const [openAccount, setOpenAccount] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   // A limit hit surfaced from a live 402 (defensive — the server pre-computes the
   // CTA, so the button is already replaced when at the limit).
   const [limitHit, setLimitHit] = useState<UpgradeCTA | null>(connect.cta);
@@ -97,12 +102,29 @@ export default function Accounts({
       setReauth({ itemId, token: link_token });
     });
 
+  // Sync reports into a status dialog (not the top error banner). Returning
+  // without throwing on !ok keeps run()'s catch from also surfacing it up top.
   const sync = (itemId: string) =>
     run(async () => {
-      setNote("");
-      const { result } = await postJson("/api/plaid/item/sync", { item_id: itemId });
+      setSyncStatus({ phase: "running" });
+      const res = await fetch("/api/plaid/item/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: itemId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSyncStatus({
+          phase: "error",
+          message: d.error || t("common.genericError"),
+          errorType: d.errorType ?? null,
+          errorCode: d.errorCode ?? null,
+          requestId: d.requestId ?? null,
+        });
+        return;
+      }
       router.refresh();
-      setNote(t("accounts.syncDone", { n: result.transactions }));
+      setSyncStatus({ phase: "done", count: d.result?.transactions ?? 0 });
     });
 
   // Full vendor re-match across every transaction. Vendor edits only touch the
@@ -262,6 +284,45 @@ export default function Accounts({
           }
         />
       )}
+
+      {syncStatus && <SyncStatusDialog status={syncStatus} onClose={() => setSyncStatus(null)} />}
+    </div>
+  );
+}
+
+function SyncStatusDialog({ status, onClose }: { status: SyncStatus; onClose: () => void }) {
+  const t = useT();
+  const running = status.phase === "running";
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "80px 16px", overflow: "auto", zIndex: 50 }}
+      onClick={running ? undefined : onClose}
+    >
+      <div className="card" style={{ maxWidth: 460, width: "100%", margin: 0 }} onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">{t("accounts.sync.dialogTitle")}</div>
+
+        {status.phase === "running" && <p className="muted" style={{ marginTop: 0 }}>{t("accounts.sync.running")}</p>}
+
+        {status.phase === "done" && (
+          <p style={{ marginTop: 0 }}>✓ {t("accounts.syncDone", { n: status.count })}</p>
+        )}
+
+        {status.phase === "error" && (
+          <>
+            <p style={{ marginTop: 0, color: "var(--danger, #c0392b)" }}>✗ {t("accounts.sync.failed")}</p>
+            <div style={{ fontFamily: "monospace", fontSize: 12, background: "var(--code-bg, rgba(0,0,0,0.05))", borderRadius: 6, padding: "10px 12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {status.errorType && <div><strong>{t("accounts.sync.errorType")}:</strong> {status.errorType}</div>}
+              {status.errorCode && <div><strong>{t("accounts.sync.errorCode")}:</strong> {status.errorCode}</div>}
+              <div style={{ marginTop: status.errorType || status.errorCode ? 6 : 0 }}>{status.message}</div>
+              {status.requestId && <div className="muted" style={{ marginTop: 6 }}>{t("accounts.sync.requestId")}: {status.requestId}</div>}
+            </div>
+          </>
+        )}
+
+        <div className="row" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="btn" disabled={running} onClick={onClose}>{t("common.close")}</button>
+        </div>
+      </div>
     </div>
   );
 }

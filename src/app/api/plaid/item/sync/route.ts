@@ -34,6 +34,17 @@ export async function POST(req: Request) {
     await analyzeUser(g.user!.id);
     return NextResponse.json({ result });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Plaid error" }, { status: 500 });
+    // Plaid errors ride on the axios error's response body — surface the exact
+    // type/code/message (e.message is just "Request failed with status code 400").
+    const p = e?.response?.data;
+    return NextResponse.json(
+      {
+        error: p?.error_message || p?.display_message || e?.message || "Plaid error",
+        errorType: p?.error_type ?? null,
+        errorCode: p?.error_code ?? null,
+        requestId: p?.request_id ?? null,
+      },
+      { status: 500 }
+    );
   }
 }
