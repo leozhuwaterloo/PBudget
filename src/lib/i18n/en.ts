@@ -29,6 +29,12 @@ const en = {
   "accounts.lastUpdated": "Updated",
   "accounts.sync": "Sync",
   "accounts.syncDone": "Synced — {n} transactions in the fetch window.",
+  "accounts.sync.dialogTitle": "Sync status",
+  "accounts.sync.running": "Syncing with your bank via Plaid… this can take a moment.",
+  "accounts.sync.failed": "Sync failed.",
+  "accounts.sync.errorType": "Type",
+  "accounts.sync.errorCode": "Code",
+  "accounts.sync.requestId": "Plaid request id",
   "accounts.reauth": "Re-auth",
   "accounts.syncBlocked": "This connection is over your plan's limit of {limit} and is read-only. Sync is blocked until you upgrade or disconnect another bank.",
   "accounts.limitTitle": "Connection limit reached.",
@@ -251,6 +257,7 @@ const en = {
   "common.save": "Save",
   "common.saving": "Saving…",
   "common.reset": "Reset",
+  "common.close": "Close",
   "common.genericError": "Something went wrong",
 
   // auth
