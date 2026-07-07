@@ -296,6 +296,23 @@ export default function Review() {
       setBusy(false);
     }
   };
+  // Merges & splits row actions each remove their row: drop it from the local data
+  // immediately (so it vanishes on click), then run the mutation + reload. Restore
+  // the snapshot on failure so a failed action doesn't leave the row wrongly gone.
+  const actOptimistic = async (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => {
+    const snapshot = data;
+    setBusy(true);
+    setError("");
+    setData((d) => (d ? remove(d) : d));
+    try {
+      await fn();
+      reload();
+    } catch (e: any) {
+      setData(snapshot);
+      setError(e.message);
+      setBusy(false);
+    }
+  };
   const afterSave = () => {
     setModal(null);
     reload();
@@ -356,7 +373,7 @@ export default function Review() {
 
           <ConflictSection rows={data.conflicts} busy={busy} act={act} />
 
-          <MergeSplitSection data={data} busy={busy} act={act} />
+          <MergeSplitSection data={data} busy={busy} actOptimistic={actOptimistic} />
 
           <SuspicionSection
             suspicion={data.suspicion}
@@ -684,12 +701,15 @@ function SuspicionSection({
 function MergeSplitSection({
   data,
   busy,
-  act,
+  actOptimistic,
 }: {
   data: ReviewData;
   busy: boolean;
-  act: (fn: () => Promise<unknown>) => void;
+  actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
 }) {
+  const dropPending = (id: string) => (d: ReviewData) => ({ ...d, pendingGroups: d.pendingGroups.filter((g) => g.id !== id) });
+  const dropMerge = (id: string) => (d: ReviewData) => ({ ...d, mergeGroups: d.mergeGroups.filter((g) => g.id !== id) });
+  const dropSplit = (parentTransactionId: string) => (d: ReviewData) => ({ ...d, splits: d.splits.filter((s) => s.parentTransactionId !== parentTransactionId) });
   const t = useT();
   const { pendingGroups, mergeGroups, splits } = data;
   if (pendingGroups.length === 0 && mergeGroups.length === 0 && splits.length === 0) return null;
@@ -705,14 +725,14 @@ function MergeSplitSection({
               <button
                 className="btn btn-sm btn-primary"
                 disabled={busy}
-                onClick={() => act(() => postJson(`/api/merge/${g.id}/confirm`))}
+                onClick={() => actOptimistic(dropPending(g.id), () => postJson(`/api/merge/${g.id}/confirm`))}
               >
                 {t("review.confirm")}
               </button>
               <button
                 className="btn btn-sm"
                 disabled={busy}
-                onClick={() => act(() => postJson(`/api/merge/${g.id}/dissolve`))}
+                onClick={() => actOptimistic(dropPending(g.id), () => postJson(`/api/merge/${g.id}/dissolve`))}
               >
                 {t("review.dissolve")}
               </button>
@@ -730,7 +750,7 @@ function MergeSplitSection({
             <button
               className="btn btn-sm"
               disabled={busy}
-              onClick={() => act(() => postJson(`/api/merge/${g.id}/dissolve`))}
+              onClick={() => actOptimistic(dropMerge(g.id), () => postJson(`/api/merge/${g.id}/dissolve`))}
             >
               {t("review.dissolve")}
             </button>
@@ -768,7 +788,7 @@ function MergeSplitSection({
                       <button
                         className="btn btn-sm"
                         disabled={busy}
-                        onClick={() => act(() => delJson("/api/splits", { parentTransactionId: s.parentTransactionId }))}
+                        onClick={() => actOptimistic(dropSplit(s.parentTransactionId), () => delJson("/api/splits", { parentTransactionId: s.parentTransactionId }))}
                       >
                         {t("review.unsplit")}
                       </button>
