@@ -86,6 +86,21 @@ async function main(): Promise<void> {
     check(!matchesCondition(cond, txn("LOW")), "plaidConfidence rejects different confidence_level");
     check(!matchesCondition(cond, txn(null)), "plaidConfidence rejects txn with no confidence");
   }
+
+  // Amount filter uses the DISPLAYED sign (income +, spending −). Stored amount is
+  // raw Plaid (+ = outflow), so the matcher negates it: `min 0` matches income
+  // (stored negative) and `max -100` matches a $100+ spend (stored +100+).
+  {
+    const txn = (amount: number) => ({
+      name: "x", merchantName: null, amount, accountId: "a", paymentChannel: "online", category: null,
+    });
+    const min0 = { amountMin: 0 } as unknown as VendorCondition;
+    check(matchesCondition(min0, txn(-50)), "amount min 0 matches income (stored −50 → displayed +50)");
+    check(!matchesCondition(min0, txn(50)), "amount min 0 rejects spending (stored +50 → displayed −50)");
+    const bill = { amountMax: -100 } as unknown as VendorCondition;
+    check(matchesCondition(bill, txn(120)), "amount max −100 matches a $120 spend (displayed −120)");
+    check(!matchesCondition(bill, txn(-120)), "amount max −100 rejects $120 income (displayed +120)");
+  }
   await reset();
 
   // Baseline: no vendors → the txn is unmatched and sits in the queue.

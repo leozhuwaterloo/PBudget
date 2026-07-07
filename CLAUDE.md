@@ -29,9 +29,13 @@ PlaidBudget is a **Next.js + React full-stack application**.
 Deploy through the **Setups** infrastructure-as-code repo (~/Setups — config-first,
 make-driven); never by one-off commands on a host. Wire this app as a deploy step and
 apply it with a single command: make deploy run=<app>.
-- **One pod**: a Deployment with replicas: 1 and strategy: Recreate, scheduled on any
-  of **leozhu / leoec2 / leodb2** (nodeAffinity In those three nodes — never leoml).
-  Build the image locally and import it to the nodes (imagePullPolicy: Never).
+- **Two pods, zero-downtime deploys**: a Deployment with strategy: RollingUpdate
+  (maxUnavailable: 1, maxSurge: 1) and NO fixed replicas — an HPA owns the count
+  (minReplicas: 2, maxReplicas: 4, CPU 70%), so ≥1 pod always serves during a deploy
+  (no 502 window). The deploy `kubectl apply`s then `kubectl rollout restart`s — it
+  must NOT `delete` the Deployment (a delete tears down every pod = outage).
+  Scheduled on the app nodes (nodeAffinity NotIn **leoml / leodb2**). The image is
+  pushed to the in-cluster registry (leoml:7000) and pulled with imagePullPolicy: Always.
 - **Secrets via Vault sidecar injection**: annotate the pod with
   vault.hashicorp.com/agent-inject plus a role and a read-only policy; render secrets
   into /vault/secrets/ (perms 0644) and source them at container startup. Never

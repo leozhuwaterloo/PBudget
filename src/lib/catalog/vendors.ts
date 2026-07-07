@@ -290,9 +290,11 @@ const MERCHANTS: EntryDef[] = [
   { name: "Rogers", rows: [n("Recurring", "ROGERS")] },
   { name: "Bell Canada", rows: [n("Recurring", "Bell Canada")] },
   { name: "Unica", rows: [n("Recurring", "UNICA")] },
-  // Fido / Virgin Plus: funnel splits by amount — >= $100 is a Fee, else Recurring.
-  { name: "Fido", rows: [m("Fee", "Fido", { amountMin: 100 }), m("Recurring", "Fido")] },
-  { name: "Virgin Plus", rows: [m("Fee", "Virgin Plus", { amountMin: 100 }), m("Recurring", "Virgin Plus")] },
+  // Fido / Virgin Plus: funnel splits by amount — a >= $100 charge is a Fee, else
+  // Recurring. Amount is in the displayed sign (spending negative), so a $100+
+  // charge is <= -100.
+  { name: "Fido", rows: [m("Fee", "Fido", { amountMax: -100 }), m("Recurring", "Fido")] },
+  { name: "Virgin Plus", rows: [m("Fee", "Virgin Plus", { amountMax: -100 }), m("Recurring", "Virgin Plus")] },
 
   // -- Fee (services/government/medical) --
   feeM("Toronto Services (TSD)", "Tsd So"),
