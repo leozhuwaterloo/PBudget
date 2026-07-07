@@ -14,6 +14,7 @@
 //  - the counters row reflects open items across every section.
 import { prisma } from "../src/lib/db";
 import { reviewData, dismissFlag } from "../src/lib/review";
+import { deleteCategory, updateCategory, CategoryError } from "../src/lib/categories";
 import { createVendor, deleteVendor } from "../src/lib/vendors";
 import { rematchUser } from "../src/lib/analysis/match";
 import { analyzeUser } from "../src/lib/analysis/analyze";
@@ -228,6 +229,24 @@ async function main(): Promise<void> {
   await deleteSplit(USER, SPLIT);
   data = await reviewData(USER);
   check(data.splits.length === 0, "AC7: unsplit removes the split");
+
+  // --- Ignore category: hidden from Review + protected --------------------
+  // Route the dup merchant to Ignore (via a vendor rule); its still-open
+  // duplicate_charge row must drop out of Review, and Ignore must be un-deletable
+  // / un-renameable so the name Review keys on can't drift.
+  await prisma.transactionCategory.create({ data: { userId: USER, name: "Ignore", excludeFromTotals: true } });
+  const dupVendor = await prisma.vendor.findFirst({ where: { userId: USER, name: "rt-dup-vendor" } });
+  await deleteVendor(USER, dupVendor!.id);
+  await createVendor(USER, { name: "rt-ignore", categoryName: "Ignore", matchConditions: [{ merchantOp: "contains", merchantValue: "Zdup Mart" }] });
+  await analyzeUser(USER);
+  data = await reviewData(USER);
+  check((data.suspicion["duplicate_charge"] ?? []).length === 0, "ignore: routing the dup merchant to Ignore hides its duplicate_charge rows from Review");
+
+  const ignoreCat = await prisma.transactionCategory.findFirst({ where: { userId: USER, name: "Ignore" } });
+  const delErr = await deleteCategory(USER, ignoreCat!.id).then(() => null, (e) => e);
+  check(delErr instanceof CategoryError && delErr.status === 400, "ignore: the Ignore category cannot be deleted");
+  const renErr = await updateCategory(USER, ignoreCat!.id, { name: "Ignored" }).then(() => null, (e) => e);
+  check(renErr instanceof CategoryError && renErr.status === 400, "ignore: the Ignore category cannot be renamed");
 
   // Teardown: leave the shared dev DB clean.
   await prisma.transactionFlag.deleteMany({ where: { userId: USER } });

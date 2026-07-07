@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gate, num } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { plaidCategoryName } from "@/lib/categories";
+import { plaidCategoryName, ignoredTxnIds } from "@/lib/categories";
 import { normalizeVendor, plaidPrimary } from "@/lib/analysis/vendor";
 import { splitParentIds } from "@/lib/splits";
 
@@ -26,14 +26,23 @@ export async function GET(req: Request) {
   );
   // Split parents can never be merged (FR5) — drop them from the picker.
   const splitParents = await splitParentIds(userId);
-  const txns = await prisma.plaidTransaction.findMany({
-    where: { pending: false, account: { item: { userId } } },
-    orderBy: { datetime: "desc" },
-  });
+  const [txns, vendors] = await Promise.all([
+    prisma.plaidTransaction.findMany({
+      where: { pending: false, account: { item: { userId } } },
+      orderBy: { datetime: "desc" },
+    }),
+    prisma.vendor.findMany({ where: { userId }, include: { conditions: true } }),
+  ]);
+  // Ignored txns (routed to the Ignore category) are never mergeable.
+  const ignored = ignoredTxnIds(txns, vendors);
 
   const candidates = txns
     .filter(
-      (t) => !legIds.has(t.transactionId) && !splitParents.has(t.transactionId) && !exclude.has(t.transactionId)
+      (t) =>
+        !legIds.has(t.transactionId) &&
+        !splitParents.has(t.transactionId) &&
+        !exclude.has(t.transactionId) &&
+        !ignored.has(t.transactionId)
     )
     .map((t) => {
       const pp = plaidPrimary(t.category);
