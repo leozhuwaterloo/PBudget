@@ -26,7 +26,7 @@ export type DashboardData = {
   month: string; // selected "YYYY-MM" (drives budget + vendors widgets)
   currency: string | null; // modal currency, for display labels
   trend: { month: string; spend: number }[]; // (a) last 12 months, oldest → newest
-  budget: { name: string; budget: number; actual: number }[]; // (b) selected month
+  budget: { id: string | null; name: string; budget: number; actual: number }[]; // (b) selected month
   review: { unmatched: number; conflicts: number; suspicion: number; pending: number }; // (c)
   vendors: { key: string; name: string; link: string | null; icon: string | null; spend: number }[]; // (d) selected month
 };
@@ -52,6 +52,7 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
 
   const excluded = new Set(categories.filter((c) => c.excludeFromTotals).map((c) => c.name));
   const budgetOf = new Map(categories.map((c) => [c.name, Number(c.budget)]));
+  const idOf = new Map(categories.map((c) => [c.name, c.id]));
   const isExcluded = (cat: string | null) => cat != null && excluded.has(cat);
   const inSelMonth = (d: Date) => monthKey(d) === selMonth;
 
@@ -82,7 +83,7 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
     ...categories.filter((c) => Number(c.budget) > 0).map((c) => c.name),
   ]);
   const budget = [...budgetNames]
-    .map((name) => ({ name, budget: budgetOf.get(name) ?? 0, actual: actualByCat.get(name) ?? 0 }))
+    .map((name) => ({ id: idOf.get(name) ?? null, name, budget: budgetOf.get(name) ?? 0, actual: actualByCat.get(name) ?? 0 }))
     .filter((r) => r.budget > 0 || r.actual > 0)
     .sort((a, b) => b.actual - a.actual || b.budget - a.budget);
 
