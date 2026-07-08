@@ -303,18 +303,28 @@ export default function Review() {
   // Review row actions each remove their row: drop it from the local data
   // immediately (so it vanishes on click), then run the mutation + reload. Restore
   // the snapshot on failure so a failed action doesn't leave the row wrongly gone.
-  const actOptimistic = async (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => {
+  const actOptimistic = async (
+    remove: (d: ReviewData) => ReviewData,
+    fn: () => Promise<unknown>,
+    opts?: { silent?: boolean }
+  ) => {
     const snapshot = data;
-    setBusy(true);
+    if (!opts?.silent) setBusy(true); // silent = non-blocking: don't lock the page
     setError("");
     setData((d) => (d ? remove(d) : d));
     try {
       await fn();
-      reload();
+      if (!opts?.silent) reload();
     } catch (e: any) {
-      setData(snapshot);
       setError(e.message);
-      setBusy(false);
+      // Silent actions don't lock the page, so several can be in flight at once —
+      // restoring one's stale snapshot would resurrect the others' already-dropped
+      // rows. Reconcile against the server instead. Blocking actions just restore.
+      if (opts?.silent) reload();
+      else {
+        setData(snapshot);
+        setBusy(false);
+      }
     }
   };
   const afterSave = () => {
@@ -659,25 +669,46 @@ function SuspicionSection({
   suspicion: Record<string, SuspicionEntry[]>;
   categories: string[];
   busy: boolean;
-  actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
+  actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>, opts?: { silent?: boolean }) => void;
   onMerge: (transactionId: string) => void;
   onSplit: (entry: SuspicionEntry) => void;
   onView: (transactionId: string) => void;
 }) {
   const t = useT();
+  // Which row is awaiting a category-override reason (drives the reason dialog).
+  const [reasonFor, setReasonFor] = useState<{ e: SuspicionEntry; categoryName: string } | null>(null);
   // Remove a set of flags from every rule's list (optimistic drop). Bulk mark-valid
   // reuses it with the whole duplicate cluster's ids.
   const dropFlags = (flagIds: string[]) => {
     const gone = new Set(flagIds);
-    return (d: ReviewData): ReviewData => ({
-      ...d,
-      suspicion: Object.fromEntries(
-        Object.entries(d.suspicion).map(([rule, entries]) => [rule, entries.filter((e) => !gone.has(e.flagId))])
-      ),
-    });
+    return (d: ReviewData): ReviewData => {
+      // Counters span every open item by date; drop the removed suspicion rows from
+      // them too so totalOpen (which gates "all clear") and today/this-month stay
+      // right with no reload. UTC boundaries mirror the server's day/month ranges.
+      const now = new Date();
+      const removed = Object.values(d.suspicion).flat().filter((e) => gone.has(e.flagId));
+      const sameMonth = (iso: string) => {
+        const x = new Date(iso);
+        return x.getUTCFullYear() === now.getUTCFullYear() && x.getUTCMonth() === now.getUTCMonth();
+      };
+      const sameDay = (iso: string) => sameMonth(iso) && new Date(iso).getUTCDate() === now.getUTCDate();
+      return {
+        ...d,
+        counters: {
+          today: d.counters.today - removed.filter((e) => sameDay(e.date)).length,
+          thisMonth: d.counters.thisMonth - removed.filter((e) => sameMonth(e.date)).length,
+          totalOpen: d.counters.totalOpen - removed.length,
+        },
+        suspicion: Object.fromEntries(
+          Object.entries(d.suspicion).map(([rule, entries]) => [rule, entries.filter((e) => !gone.has(e.flagId))])
+        ),
+      };
+    };
   };
+  // Mark valid: silent (non-blocking) so the row vanishes on click and other
+  // Mark-valid buttons stay live for rapid dismissal — no page-wide busy lock.
   const dismiss = (flagIds: string[]) =>
-    actOptimistic(dropFlags(flagIds), () => Promise.all(flagIds.map((id) => postJson(`/api/flags/${id}/dismiss`))));
+    actOptimistic(dropFlags(flagIds), () => Promise.all(flagIds.map((id) => postJson(`/api/flags/${id}/dismiss`))), { silent: true });
 
   // Actions shared by every suspicion row. Unmatched-transfer rows also get an
   // "override category" dropdown: picking a (non-Transfer) category resolves the flag.
@@ -701,12 +732,7 @@ function SuspicionSection({
           disabled={busy}
           onChange={(ev) => {
             const cat = ev.target.value;
-            if (!cat) return;
-            const reason = window.prompt(t("review.categoryReasonPrompt", { category: cat }));
-            if (reason == null || !reason.trim()) return; // cancelled or blank → no change
-            actOptimistic(dropFlags([e.flagId]), () =>
-              patchJson(`/api/transactions/${e.transactionId}`, { categoryName: cat, reason: reason.trim() })
-            );
+            if (cat) setReasonFor({ e, categoryName: cat }); // open the reason dialog
           }}
         >
           <option value="">{t("review.setCategory")}</option>
@@ -732,24 +758,86 @@ function SuspicionSection({
   const anything = SUSPICION_RULES.some((rule) => (suspicion[rule] ?? []).length > 0);
   if (!anything) return null;
   return (
-    <Section id="suspicion" title={t("review.suspicionTitle")} help={t("review.suspicionHelp")}>
-      {SUSPICION_RULES.map((rule) => {
-        const entries = suspicion[rule] ?? [];
-        if (!entries.length) return null;
-        return (
-          <div key={rule} style={{ marginBottom: 14 }}>
-            <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>
-              {t(`rule.${rule}`)} ({entries.length})
-            </h3>
-            {rule === "duplicate_charge" ? (
-              <DuplicateGroups entries={entries} busy={busy} rowActions={(e) => rowActions(rule, e)} onMarkAllValid={dismiss} />
-            ) : (
-              <SuspicionTable entries={entries} rowActions={(e) => rowActions(rule, e)} />
-            )}
-          </div>
-        );
-      })}
-    </Section>
+    <>
+      <Section id="suspicion" title={t("review.suspicionTitle")} help={t("review.suspicionHelp")}>
+        {SUSPICION_RULES.map((rule) => {
+          const entries = suspicion[rule] ?? [];
+          if (!entries.length) return null;
+          return (
+            <div key={rule} style={{ marginBottom: 14 }}>
+              <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>
+                {t(`rule.${rule}`)} ({entries.length})
+              </h3>
+              {rule === "duplicate_charge" ? (
+                <DuplicateGroups entries={entries} busy={busy} rowActions={(e) => rowActions(rule, e)} onMarkAllValid={dismiss} />
+              ) : (
+                <SuspicionTable entries={entries} rowActions={(e) => rowActions(rule, e)} />
+              )}
+            </div>
+          );
+        })}
+      </Section>
+      {reasonFor && (
+        <Overlay onClose={() => setReasonFor(null)} maxWidth={460}>
+          <ReasonDialog
+            categoryName={reasonFor.categoryName}
+            onCancel={() => setReasonFor(null)}
+            onConfirm={(reason) => {
+              const { e, categoryName } = reasonFor;
+              setReasonFor(null);
+              actOptimistic(
+                dropFlags([e.flagId]),
+                () => patchJson(`/api/transactions/${e.transactionId}`, { categoryName, reason }),
+                { silent: true }
+              );
+            }}
+          />
+        </Overlay>
+      )}
+    </>
+  );
+}
+
+// Custom dialog capturing the required reason for a manual category override
+// (replaces a window.prompt). Confirm stays disabled until a non-blank reason.
+function ReasonDialog({
+  categoryName,
+  onCancel,
+  onConfirm,
+}: {
+  categoryName: string;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const t = useT();
+  const [reason, setReason] = useState("");
+  const trimmed = reason.trim();
+  const submit = () => trimmed && onConfirm(trimmed);
+  return (
+    <div className="card" style={{ margin: 0 }}>
+      <div className="card-header" style={{ marginTop: 0 }}>
+        {t("review.categoryReasonPrompt", { category: categoryName })}
+      </div>
+      <textarea
+        className="input"
+        style={{ width: "100%", minHeight: 90, resize: "vertical" }}
+        value={reason}
+        autoFocus
+        placeholder={t("review.categoryReasonPlaceholder")}
+        onChange={(ev) => setReason(ev.target.value)}
+        onKeyDown={(ev) => {
+          if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) submit();
+        }}
+      />
+      <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+        <button className="btn btn-sm btn-ghost" onClick={onCancel}>
+          {t("common.cancel")}
+        </button>
+        <button className="btn btn-sm btn-primary" disabled={!trimmed} onClick={submit}>
+          {t("review.setCategory")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -882,7 +970,7 @@ function MergeSplitSection({
 }: {
   data: ReviewData;
   busy: boolean;
-  actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
+  actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>, opts?: { silent?: boolean }) => void;
 }) {
   const dropPending = (id: string) => (d: ReviewData) => ({ ...d, pendingGroups: d.pendingGroups.filter((g) => g.id !== id) });
   const dropSplit = (parentTransactionId: string) => (d: ReviewData) => ({ ...d, splits: d.splits.filter((s) => s.parentTransactionId !== parentTransactionId) });
