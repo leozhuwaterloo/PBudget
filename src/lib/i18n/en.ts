@@ -273,6 +273,9 @@ const en = {
   "dash.review.pending": "Pending merges",
   "dash.budget.title": "Budget vs actual",
   "dash.budget.empty": "No budgets or spend this month.",
+  "dash.budget.budgetLabel": "Monthly budget",
+  "dash.budget.txns": "Transactions",
+  "dash.budget.noTxns": "No transactions in this category this month.",
   "dash.vendors.title": "Top vendors",
   "dash.vendors.empty": "No vendor spend this month.",
   // (end V2 page regions)

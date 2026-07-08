@@ -87,6 +87,16 @@ h2 { font-family: var(--serif); font-weight: 600; }
   font-size: 20px; line-height: 1; font-family: var(--serif);
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* Clickable Budget-vs-actual row (opens the detail dialog). Resets button chrome
+   to look like the plain rows it replaced; a hover tint hints it's interactive. */
+.budget-row {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: none; font: inherit; color: inherit;
+  padding: 6px 8px; margin: 0 -8px; border-radius: 7px;
+  transition: background 0.12s ease;
+}
+.budget-row:hover { background: var(--bg-3); }
+
 .row { display: flex; align-items: center; gap: 8px; }
 .wrap { flex-wrap: wrap; }
 
