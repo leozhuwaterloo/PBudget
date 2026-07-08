@@ -699,10 +699,15 @@ function SuspicionSection({
           style={{ width: "auto", maxWidth: 160 }}
           value=""
           disabled={busy}
-          onChange={(ev) =>
-            ev.target.value &&
-            actOptimistic(dropFlags([e.flagId]), () => patchJson(`/api/transactions/${e.transactionId}`, { categoryName: ev.target.value }))
-          }
+          onChange={(ev) => {
+            const cat = ev.target.value;
+            if (!cat) return;
+            const reason = window.prompt(t("review.categoryReasonPrompt", { category: cat }));
+            if (reason == null || !reason.trim()) return; // cancelled or blank → no change
+            actOptimistic(dropFlags([e.flagId]), () =>
+              patchJson(`/api/transactions/${e.transactionId}`, { categoryName: cat, reason: reason.trim() })
+            );
+          }}
         >
           <option value="">{t("review.setCategory")}</option>
           {categories.map((c) => (
@@ -710,9 +715,12 @@ function SuspicionSection({
           ))}
         </select>
       )}
-      <button className="btn btn-sm btn-success" disabled={busy} onClick={() => dismiss([e.flagId])}>
-        {t("review.markValid")}
-      </button>
+      {/* Unmatched transfers can't be dismissed — the user must assign a category. */}
+      {rule !== "unmatched_transfer" && (
+        <button className="btn btn-sm btn-success" disabled={busy} onClick={() => dismiss([e.flagId])}>
+          {t("review.markValid")}
+        </button>
+      )}
       {e.level === "transaction" && e.transactionId && (
         <button className="btn btn-sm btn-ghost" onClick={() => onView(e.transactionId!)}>
           {t("review.viewTransaction")}
@@ -1095,6 +1103,7 @@ type RawTxn = {
   plaidPrimary: string | null;
   plaidDetailed: string | null;
   plaidConfidence: string | null;
+  categoryOverrideReason: string | null; // why the category was manually set (audit)
 };
 function ViewTransaction({ transactionId, onClose }: { transactionId: string; onClose: () => void }) {
   const t = useT();
@@ -1121,6 +1130,7 @@ function ViewTransaction({ transactionId, onClose }: { transactionId: string; on
         // reads as a definitive state; category always shows (falls back to Plaid).
         [t("accounts.browser.colVendor"), txn.vendor ?? t("dash.review.unmatched")],
         [t("accounts.browser.colCategory"), txn.category],
+        [t("review.categoryReason"), txn.categoryOverrideReason],
         [t("review.pending"), txn.pending ? t("review.pendingYes") : t("review.pendingNo")],
         [t("cust.vendors.plaidPrimary"), txn.plaidPrimary],
         [t("cust.vendors.plaidDetailed"), txn.plaidDetailed],

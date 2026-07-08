@@ -45,6 +45,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     plaidDetailed: plaidDetailed(t.category),
     plaidConfidence: plaidConfidence(t.category),
     categoryOverride: t.categoryOverride,
+    categoryOverrideReason: t.categoryOverrideReason,
   });
 }
 
@@ -65,6 +66,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "categoryName must be a string or null" }, { status: 400 });
   const override = raw == null || raw.trim() === "" ? null : raw.trim();
 
+  // A manual category override must carry a reason (audit trail). Clearing an
+  // override (override === null) needs none — the reason is cleared with it.
+  const rawReason = body?.reason;
+  if (rawReason != null && typeof rawReason !== "string")
+    return NextResponse.json({ error: "reason must be a string or null" }, { status: 400 });
+  const reason = rawReason == null ? "" : rawReason.trim();
+  if (override && !reason)
+    return NextResponse.json({ error: "A reason is required when setting a category" }, { status: 400 });
+
   const t = await prisma.plaidTransaction.findFirst({
     where: { transactionId: params.id, account: { item: { userId } } },
   });
@@ -77,7 +87,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   await prisma.plaidTransaction.update({
     where: { transactionId: t.transactionId },
-    data: { categoryOverride: override },
+    data: { categoryOverride: override, categoryOverrideReason: override ? reason : null },
   });
 
   const vendor = t.vendorId

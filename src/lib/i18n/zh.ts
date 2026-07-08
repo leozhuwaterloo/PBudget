@@ -356,6 +356,8 @@ const zh: Messages = {
   "review.markValid": "标记有效",
   "review.markAllValid": "全部标记有效（{n}）",
   "review.setCategory": "设为分类…",
+  "review.categoryReasonPrompt": "为什么将此交易设为“{category}”？（必填）",
+  "review.categoryReason": "分类原因",
   "review.duplicateCount": "{n} 笔",
   "review.viewTransaction": "查看交易",
   "review.pending": "待处理",

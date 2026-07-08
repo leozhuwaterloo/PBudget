@@ -361,6 +361,8 @@ const en = {
   "review.markValid": "Mark valid",
   "review.markAllValid": "Mark all valid ({n})",
   "review.setCategory": "Set category…",
+  "review.categoryReasonPrompt": "Why are you setting this transaction to “{category}”? (required)",
+  "review.categoryReason": "Category reason",
   "review.duplicateCount": "{n} charges",
   "review.viewTransaction": "View transaction",
   "review.pending": "Pending",
