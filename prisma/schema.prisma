@@ -147,6 +147,10 @@ model PlaidTransaction {
   // vendor rules). Set from Review for one-off txns — e.g. an e-transfer with a
   // random ref that no vendor rule should claim. null = resolve normally.
   categoryOverride     String?
+  // ponytail: user-authored justification captured when the override is set (audit
+  // trail — "why did this txn get this category?"). Plaintext like categoryOverride,
+  // not Plaid PII; encrypt via the Prisma extension if it ever holds sensitive notes.
+  categoryOverrideReason String?
   lastUpdated          DateTime     @updatedAt
 
   @@index([accountId])

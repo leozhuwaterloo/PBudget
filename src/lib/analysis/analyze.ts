@@ -68,10 +68,15 @@ export async function analyzeUser(userId: string): Promise<void> {
         open: it.isTransfer,
       }))
   );
-  for (const it of items) {
-    // duplicate_charge — same vendor + same signed amount within the window.
-    if (hasDuplicate(it, items)) await fire(userId, RULES.duplicateCharge, it.target);
-  }
+  // duplicate_charge — same vendor + same signed amount within the window. Driven
+  // through applyFlags (not the open-only fire()) so a charge whose duplicate
+  // partner later leaves the effective set (merged/split away, re-synced) auto-
+  // RESOLVES — a stale lone "1 charge" duplicate group can't linger. Dismissed
+  // flags stay dismissed.
+  await applyFlags(
+    userId,
+    items.map((it) => ({ rule: RULES.duplicateCharge, ...it.target, open: hasDuplicate(it, items) }))
+  );
   // unusual_amount — charges only, ≥3 priors (approval model gone: every vendor).
   await applyUnusualAmount(userId, items);
 }

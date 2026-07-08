@@ -270,8 +270,15 @@ async function checkDupClustering(): Promise<void> {
   const U = "review-dup-user";
   const IT = "rt2-item";
   const AC = "rt2-acct";
+  const IDS = ["rt2-bzz", "rt2-kyu", "rt2-abc", "rt2-xxx", "rt2-yyy"];
   const teardown = async () => {
     await prisma.transactionFlag.deleteMany({ where: { userId: U } });
+    await prisma.mergeGroupLeg.deleteMany({ where: { transactionId: { in: IDS } } });
+    await prisma.mergeGroup.deleteMany({ where: { userId: U } });
+    await prisma.plaidTransaction.deleteMany({ where: { accountId: AC } });
+    await prisma.plaidAccount.deleteMany({ where: { itemId: IT } });
+    await prisma.plaidItem.deleteMany({ where: { itemId: IT } });
+    await prisma.transactionCategory.deleteMany({ where: { userId: U } });
     await prisma.vendor.deleteMany({ where: { userId: U } });
     await prisma.user.deleteMany({ where: { id: U } });
   };
@@ -306,6 +313,16 @@ async function checkDupClustering(): Promise<void> {
   const sizes = [...clusters.values()].map((g) => g.length).sort();
   check(clusters.size === 2 && sizes[0] === 2 && sizes[1] === 3, "dup-cluster: two windows form two clusters (3 + 2), not five singletons by name");
   check(dup.every((e) => e.vendorName === "Self Transfer"), "dup-cluster: cluster header uses the matched vendor name, not the raw ***ref");
+
+  // Merge two of the Jan 10-12 triple together, orphaning rt2-abc: its former
+  // partners are now group legs (out of the effective set), so rt2-abc no longer
+  // has a duplicate and its flag must auto-RESOLVE — no stale lone "1 charge"
+  // group. (Old open-only fire() left it open forever.)
+  await createMergeGroup(U, ["rt2-bzz", "rt2-kyu"], { status: "confirmed" });
+  await analyzeUser(U);
+  const after = (await reviewData(U)).suspicion["duplicate_charge"] ?? [];
+  check(!after.some((e) => e.transactionId === "rt2-abc"), "dup-resolve: orphaned survivor's stale duplicate flag auto-resolves after its partners merge away");
+  check(after.length === 2, "dup-resolve: the untouched Jan 30-31 pair stays flagged (only rt2-abc clears)");
 
   await teardown();
 }
