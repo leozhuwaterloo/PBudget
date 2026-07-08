@@ -259,6 +259,8 @@ const en = {
   // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
   "dash.title": "Dashboard",
   "dash.month": "Month",
+  "dash.prevMonth": "Previous month",
+  "dash.nextMonth": "Next month",
   "dash.empty": "Connect a bank on the Accounts page to see your spending here.",
   "dash.trend.title": "Monthly spend",
   "dash.trend.sub": "last 12 months",
