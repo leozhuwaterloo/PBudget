@@ -43,7 +43,18 @@ export type MatchTxn = {
   accountId: string;
   paymentChannel: string;
   category: string | null; // Plaid pfc JSON text
+  datetime: Date; // for the day-of-month filter (read in UTC, the app's display TZ)
 };
+
+// Concrete day a dayOfMonth filter targets within `d`'s month, in UTC (the app
+// displays dates in UTC). >0 → that calendar day; 0 → the month's last day; -n →
+// n days before the last. An out-of-range positive (day 31 in a 30-day month) just
+// won't equal any real getUTCDate(), so it silently matches nothing — no clamping.
+function targetDayOfMonth(dayOfMonth: number, d: Date): number {
+  if (dayOfMonth > 0) return dayOfMonth;
+  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  return lastDay + dayOfMonth; // 0 → last, -1 → last-1
+}
 
 // Case-insensitive text op against an already-normalized target. Returns null when
 // the field is unset (so it contributes no predicate to the row's AND).
@@ -95,6 +106,8 @@ export function matchesCondition(c: VendorCondition, txn: MatchTxn): boolean {
   if (c.amountMax != null) preds.push(amt <= cents(c.amountMax));
 
   if (c.accountId) preds.push(txn.accountId === c.accountId);
+  if (c.dayOfMonth != null)
+    preds.push(txn.datetime.getUTCDate() === targetDayOfMonth(c.dayOfMonth, txn.datetime));
   if (c.paymentChannel)
     preds.push(normalizeStr(txn.paymentChannel) === normalizeStr(c.paymentChannel));
   if (c.plaidPrimary) preds.push(plaidPrimary(txn.category) === c.plaidPrimary);

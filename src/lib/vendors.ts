@@ -33,6 +33,7 @@ export type ConditionInput = {
   amountMin?: number | null;
   amountMax?: number | null;
   accountId?: string | null;
+  dayOfMonth?: number | null;
   paymentChannel?: string | null;
   plaidPrimary?: string | null;
   plaidDetailed?: string | null;
@@ -82,6 +83,15 @@ function amount(v: unknown, field: string): number | undefined {
   return n;
 }
 
+// Day-of-month filter: an integer in [-30, 31]. >0 is that calendar day; 0 = last
+// day; -n = n days before last (see match.ts targetDayOfMonth).
+function dayOfMonth(v: unknown, field: string): number | undefined {
+  if (v == null) return undefined;
+  if (typeof v !== "number" || !Number.isInteger(v)) bad(`${field} must be an integer`);
+  if ((v as number) > 31 || (v as number) < -30) bad(`${field} must be between -30 and 31`);
+  return v as number;
+}
+
 // --- Validation --------------------------------------------------------------
 
 // Validate a raw condition list into Prisma create-data for one ROLE. Enforces:
@@ -115,6 +125,8 @@ function buildRows(
     const accountId = str(c.accountId, `${where} account`);
     if (accountId) accountIds.add(accountId);
 
+    const dom = dayOfMonth(c.dayOfMonth, `${where} day of month`);
+
     let paymentChannel = str(c.paymentChannel, `${where} payment channel`);
     if (paymentChannel) {
       paymentChannel = normalizeStr(paymentChannel);
@@ -128,8 +140,8 @@ function buildRows(
     // ≥1 matching field. The row's category is an outcome, so it never counts.
     const fieldCount =
       (name ? 1 : 0) + (merchant ? 1 : 0) + (amountMin !== undefined ? 1 : 0) +
-      (amountMax !== undefined ? 1 : 0) + (accountId ? 1 : 0) + (paymentChannel ? 1 : 0) +
-      (plaidPrimary ? 1 : 0) + (plaidDetailed ? 1 : 0) + (plaidConfidence ? 1 : 0);
+      (amountMax !== undefined ? 1 : 0) + (accountId ? 1 : 0) + (dom !== undefined ? 1 : 0) +
+      (paymentChannel ? 1 : 0) + (plaidPrimary ? 1 : 0) + (plaidDetailed ? 1 : 0) + (plaidConfidence ? 1 : 0);
     if (fieldCount === 0) bad(`${where} needs at least one matching field`);
 
     const categoryName = str(c.categoryName, `${where} category`);
@@ -147,6 +159,7 @@ function buildRows(
       amountMin: amountMin ?? null,
       amountMax: amountMax ?? null,
       accountId: accountId ?? null,
+      dayOfMonth: dom ?? null,
       paymentChannel: paymentChannel ?? null,
       plaidPrimary: plaidPrimary ?? null,
       plaidDetailed: plaidDetailed ?? null,
@@ -246,6 +259,7 @@ function serializeRow(c: VendorWithConditions["conditions"][number]) {
     amountMin: numOrNull(c.amountMin),
     amountMax: numOrNull(c.amountMax),
     accountId: c.accountId,
+    dayOfMonth: c.dayOfMonth,
     paymentChannel: c.paymentChannel,
     plaidPrimary: c.plaidPrimary,
     plaidDetailed: c.plaidDetailed,

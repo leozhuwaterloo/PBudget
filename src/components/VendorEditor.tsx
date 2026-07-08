@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { useT } from "@/lib/i18n/context";
+import { domLabel } from "./vendorSummary";
 
 // Shared vendor shapes (the /api/vendors serialization + refs the editor needs).
 // Two-stage model: `matchConditions` decide identity (any match → the vendor claims
@@ -16,6 +17,7 @@ export type Condition = {
   amountMin: number | null;
   amountMax: number | null;
   accountId: string | null;
+  dayOfMonth: number | null;
   paymentChannel: string | null;
   plaidPrimary: string | null;
   plaidDetailed: string | null;
@@ -39,6 +41,8 @@ export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaile
 // equals/starts_with are retired (the matcher still honors any legacy rows).
 const TEXT_OPS = ["contains", "regex"];
 const CHANNELS = ["online", "in store", "other"];
+// Day-of-month options: calendar days 1–31, then "last day" (0) and a few before it.
+const DOM_VALUES = [...Array.from({ length: 31 }, (_, i) => i + 1), 0, -1, -2, -3, -4, -5];
 
 // Row form state: everything a string (inputs), converted at save.
 type RowForm = {
@@ -51,6 +55,7 @@ type RowForm = {
   amountMin: string;
   amountMax: string;
   accountId: string;
+  dayOfMonth: string;
   paymentChannel: string;
   plaidPrimary: string;
   plaidDetailed: string;
@@ -71,6 +76,7 @@ function toRowForm(c: Condition): RowForm {
     amountMin: c.amountMin == null ? "" : String(c.amountMin),
     amountMax: c.amountMax == null ? "" : String(c.amountMax),
     accountId: c.accountId ?? "",
+    dayOfMonth: c.dayOfMonth == null ? "" : String(c.dayOfMonth),
     paymentChannel: c.paymentChannel ?? "",
     plaidPrimary: c.plaidPrimary ?? "",
     plaidDetailed: c.plaidDetailed ?? "",
@@ -80,7 +86,7 @@ function toRowForm(c: Condition): RowForm {
 
 const emptyRow = (): RowForm => toRowForm({
   categoryName: null, nameOp: null, nameValue: null, merchantOp: null, merchantValue: null,
-  amountMin: null, amountMax: null, accountId: null, paymentChannel: null, plaidPrimary: null, plaidDetailed: null,
+  amountMin: null, amountMax: null, accountId: null, dayOfMonth: null, paymentChannel: null, plaidPrimary: null, plaidDetailed: null,
   plaidConfidence: null,
 });
 
@@ -98,6 +104,7 @@ function rowBody(r: RowForm, withCategory: boolean) {
     amountMin: num(r.amountMin),
     amountMax: num(r.amountMax),
     accountId: r.accountId || null,
+    dayOfMonth: r.dayOfMonth === "" ? null : Number(r.dayOfMonth),
     paymentChannel: r.paymentChannel || null,
     plaidPrimary: r.plaidPrimary.trim() || null,
     plaidDetailed: r.plaidDetailed.trim() || null,
@@ -352,6 +359,16 @@ function RowEditor({
               <option key={a.accountId} value={a.accountId}>
                 {a.name}{a.subtype ? ` (${a.subtype})` : ""}
               </option>
+            ))}
+          </select>
+        </div>
+        {/* day of month — matches the txn's UTC day; 0 = last day, negatives count back */}
+        <div>
+          <label>{t("cust.vendors.dayOfMonth")}</label>
+          <select value={row.dayOfMonth} onChange={(e) => onChange({ dayOfMonth: e.target.value })}>
+            <option value="">{t("cust.vendors.anyOption")}</option>
+            {DOM_VALUES.map((v) => (
+              <option key={v} value={v}>{domLabel(v, t)}</option>
             ))}
           </select>
         </div>

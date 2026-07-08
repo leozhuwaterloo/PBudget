@@ -12,6 +12,7 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "check:analysis": "tsx scripts/check-analysis.ts",
     "check:categories": "tsx scripts/check-categories.ts",
+    "check:dayofmonth": "tsx scripts/check-dayofmonth.ts",
     "check:rematch": "tsx scripts/check-rematch.ts",
     "check:vendors": "tsx scripts/check-vendors.ts",
     "check:crypto": "tsx scripts/check-crypto.ts",

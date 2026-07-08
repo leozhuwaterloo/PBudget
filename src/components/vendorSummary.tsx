@@ -13,6 +13,7 @@ export type AnyCondition = {
   amountMin?: number | null;
   amountMax?: number | null;
   accountId?: string | null;
+  dayOfMonth?: number | null;
   paymentChannel?: string | null;
   plaidPrimary?: string | null;
   plaidDetailed?: string | null;
@@ -27,11 +28,21 @@ const CHIP_HUE: Record<string, number> = {
   merchant: 145, // merchant name → green
   amount: 212, // amount → blue
   account: 268, // account → purple
+  dayOfMonth: 12, // day of month → red-orange
   channel: 190, // payment channel → cyan
   plaidPrimary: 248, // Plaid primary → indigo
   plaidDetailed: 322, // Plaid detailed → pink
   plaidConfidence: 88, // Plaid confidence → lime
 };
+
+// A day-of-month filter value as a label: >0 → the plain day; 0 → "Last day"; -n →
+// "Last day − n". Shared by the summary chip and the editor dropdown so both read
+// the encoding the same way (see match.ts targetDayOfMonth).
+export function domLabel(v: number, t: (k: string, p?: Record<string, string | number>) => string): string {
+  if (v > 0) return String(v);
+  if (v === 0) return t("cust.vendors.dom.last");
+  return t("cust.vendors.dom.lastMinus", { n: -v });
+}
 
 export function Chip({ tone = "field", children }: { tone?: string; children: React.ReactNode }) {
   const base: React.CSSProperties = {
@@ -65,6 +76,7 @@ function fieldChips(c: AnyCondition, t: (k: string, p?: Record<string, string | 
   else if (c.amountMin != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ≥ ${c.amountMin}` });
   else if (c.amountMax != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ≤ ${c.amountMax}` });
   if (c.accountId) out.push({ tone: "account", text: `${t("cust.vendors.account")}: ${accountName(c.accountId)}` });
+  if (c.dayOfMonth != null) out.push({ tone: "dayOfMonth", text: `${t("cust.vendors.dayOfMonth")}: ${domLabel(c.dayOfMonth, t)}` });
   if (c.paymentChannel) out.push({ tone: "channel", text: `${t("cust.vendors.channel")}: ${c.paymentChannel}` });
   if (c.plaidPrimary) out.push({ tone: "plaidPrimary", text: `${t("cust.vendors.plaidPrimary")}: ${c.plaidPrimary}` });
   if (c.plaidDetailed) out.push({ tone: "plaidDetailed", text: `${t("cust.vendors.plaidDetailed")}: ${c.plaidDetailed}` });
