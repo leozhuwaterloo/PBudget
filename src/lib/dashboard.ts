@@ -71,20 +71,23 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   }
   const trend = months.map((m) => ({ month: m, spend: spendByMonth.get(m)! }));
 
-  // (b) budget vs actual for the selected month. No excludeFromTotals filter —
-  // PRD scopes that exclusion to (a)/(d). Show a category with a budget or spend.
+  // (b) budget vs actual for the selected month. Mirrors the trend's category set
+  // — same excludeFromTotals exclusion — so the rows RECONCILE with monthly spend:
+  // Σ actual == this month's trend bar. Net-inflow categories (actual < 0, e.g. a
+  // refund/credit pulling the category negative) are kept, not hidden, so the total
+  // still adds up and the money-in is visible.
   const actualByCat = new Map<string, number>();
   for (const e of effective) {
-    if (!inSelMonth(e.date) || !e.categoryName) continue;
+    if (!inSelMonth(e.date) || !e.categoryName || isExcluded(e.categoryName)) continue;
     actualByCat.set(e.categoryName, (actualByCat.get(e.categoryName) ?? 0) + e.amount);
   }
   const budgetNames = new Set<string>([
     ...actualByCat.keys(),
-    ...categories.filter((c) => Number(c.budget) > 0).map((c) => c.name),
+    ...categories.filter((c) => Number(c.budget) > 0 && !excluded.has(c.name)).map((c) => c.name),
   ]);
   const budget = [...budgetNames]
     .map((name) => ({ id: idOf.get(name) ?? null, name, budget: budgetOf.get(name) ?? 0, actual: actualByCat.get(name) ?? 0 }))
-    .filter((r) => r.budget > 0 || r.actual > 0)
+    .filter((r) => r.budget > 0 || r.actual !== 0)
     .sort((a, b) => b.actual - a.actual || b.budget - a.budget);
 
   // (d) top vendors for the selected month — same exclusion as (a) so bucket
