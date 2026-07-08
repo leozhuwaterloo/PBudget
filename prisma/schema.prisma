@@ -143,6 +143,10 @@ model PlaidTransaction {
   // not portable. We derive this from Plaid's personal_finance_category at sync.
   predictedCategory    String?
   vendorId             String? // FR1: materialized winning-vendor match (null = unmatched/queue)
+  // Per-transaction category override (top of the read-time waterfall, above the
+  // vendor rules). Set from Review for one-off txns — e.g. an e-transfer with a
+  // random ref that no vendor rule should claim. null = resolve normally.
+  categoryOverride     String?
   lastUpdated          DateTime     @updatedAt
 
   @@index([accountId])

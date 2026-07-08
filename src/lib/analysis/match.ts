@@ -45,6 +45,7 @@ export type MatchTxn = {
   paymentChannel: string;
   category: string | null; // Plaid pfc JSON text
   datetime: Date; // for the day-of-month filter (read in UTC, the app's display TZ)
+  categoryOverride?: string | null; // per-txn category override; top of the waterfall
 };
 
 // Case-insensitive text op against an already-normalized target. Returns null when
