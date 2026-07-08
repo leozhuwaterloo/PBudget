@@ -70,6 +70,14 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+// One row per rate-limit dimension (hashed "ip:<addr>" / "to:<email>"), holding the
+// last email-send time for that dimension. Lives in the DB (not memory) so the
+// 1/min cap holds across all pods. See lib/rateLimit.ts.
+model EmailRateLimit {
+  key        String   @id // sha256 of the prefixed dimension value (no raw PII stored)
+  lastSentAt DateTime
+}
+
 // ---- Plaid domain (ported from Portfolio's App/plaid/models.py) -----------
 
 model PlaidInstitution {

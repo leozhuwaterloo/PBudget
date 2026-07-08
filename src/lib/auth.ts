@@ -72,12 +72,3 @@ export async function createPasswordResetToken(userId: string): Promise<string> 
   });
   return token;
 }
-
-const EMAIL_THROTTLE_MS = 60 * 1000; // 1 verification/reset email per minute per user
-
-// True if the last token (→ email) was minted under a minute ago. Callers pass
-// the newest token's createdAt; keeps the time math in one place without fighting
-// Prisma's per-model delegate types.
-export function emailThrottled(lastCreatedAt: Date | null | undefined): boolean {
-  return !!lastCreatedAt && lastCreatedAt.getTime() > Date.now() - EMAIL_THROTTLE_MS;
-}
