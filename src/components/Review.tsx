@@ -949,6 +949,8 @@ type RawTxn = {
   paymentChannel: string;
   pending: boolean;
   website: string | null;
+  vendor: string | null; // matched vendor name; null = unmatched
+  category: string | null; // resolved via the category waterfall
   plaidPrimary: string | null;
   plaidDetailed: string | null;
   plaidConfidence: string | null;
@@ -974,6 +976,10 @@ function ViewTransaction({ transactionId, onClose }: { transactionId: string; on
         [t("review.colDate"), day(txn.date)],
         [t("cust.vendors.account"), txn.account],
         [t("cust.vendors.channel"), txn.paymentChannel],
+        // Derived layer: vendor renders "Unmatched" (not blank) so an unmatched txn
+        // reads as a definitive state; category always shows (falls back to Plaid).
+        [t("accounts.browser.colVendor"), txn.vendor ?? t("dash.review.unmatched")],
+        [t("accounts.browser.colCategory"), txn.category],
         [t("review.pending"), txn.pending ? t("review.pendingYes") : t("review.pendingNo")],
         [t("cust.vendors.plaidPrimary"), txn.plaidPrimary],
         [t("cust.vendors.plaidDetailed"), txn.plaidDetailed],

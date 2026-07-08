@@ -2,6 +2,7 @@ import type { TransactionCategory } from "@prisma/client";
 import { prisma, type Tx } from "./db";
 import { matchingCategoryRow, type MatchTxn, type MatchVendor } from "./analysis/match";
 import { plaidPrimary } from "./analysis/vendor";
+import { IGNORE_CATEGORY } from "./analysis/constants";
 
 // "FOOD_AND_DRINK" -> "Food And Drink"
 export function humanize(pfcPrimary: string): string {
@@ -48,11 +49,9 @@ export function resolveCategory(
   return pp ? plaidCategoryName(pp) : null;
 }
 
-// The built-in "ignore" category. Transactions the user routes here (via a vendor
-// rule → this category) are hidden from Review and the merge picker, and stay out
-// of Dashboard totals (seeded excludeFromTotals). Review/merge key on this exact
-// name, so it is protected from rename/delete below — the string must not drift.
-export const IGNORE_CATEGORY = "Ignore";
+// IGNORE_CATEGORY lives in ./analysis/constants (match.ts needs it too, without a
+// cycle); re-export for callers that reach it through this module.
+export { IGNORE_CATEGORY };
 
 // Posted-txn ids whose resolved category is Ignore. Pure over already-loaded rows so
 // hot callers (reviewData) don't re-query; `vendors` must include their conditions.
