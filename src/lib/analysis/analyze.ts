@@ -3,7 +3,7 @@
 // idempotent: re-running over unchanged data changes no flags or groups.
 import type { PlaidTransaction } from "@prisma/client";
 import { prisma } from "../db";
-import { normalizeVendor } from "./vendor";
+import { normalizeVendor, vendorIdentity } from "./vendor";
 import { ignoredTxnIds, resolveCategory } from "../categories";
 import { createMergeGroup } from "./merge";
 import { rematchUser, applyFlags } from "./match";
@@ -86,12 +86,6 @@ type Item = {
   isTransfer: boolean; // resolved category is Transfer; meaningful only for txns (groups never fire 5.2)
   isTxn: boolean;
 };
-
-// Vendor identity for the suspicion rules (FR1): the materialized vendorId when a
-// vendor matched, else the normalized string. Namespaced so a cuid can never
-// collide with a normalized name across the two identity spaces.
-const vendorIdentity = (vendorId: string | null, normalized: string): string =>
-  vendorId ? `v:${vendorId}` : `n:${normalized}`;
 
 // Ungrouped posted txns + net-≠0 groups (at their net, under the group vendor).
 // Net-0 groups and all group legs are exempt from every rule.
