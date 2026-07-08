@@ -201,6 +201,7 @@ model VendorCondition {
   accountId      String?
   account        PlaidAccount? @relation(fields: [accountId], references: [accountId], onDelete: SetNull)
   paymentChannel String? // online | in store | other
+  dayOfMonth     Int?    // txn's UTC day-of-month: >0 that day; 0 = last day; -n = n days before last
   plaidPrimary   String?
   plaidDetailed  String?
   plaidConfidence String? // Plaid personal_finance_category.confidence_level (VERY_HIGH…UNKNOWN)

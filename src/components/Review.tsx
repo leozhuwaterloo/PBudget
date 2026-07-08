@@ -128,6 +128,7 @@ function prefillCondition(row: UnmatchedRow): Condition {
     nameValue: useMerchant ? null : row.name,
     merchantOp: useMerchant ? "contains" : null,
     merchantValue: useMerchant ? merch! : null,
+    dayOfMonth: null,
     amountMin: null,
     amountMax: null,
     accountId: null,
