@@ -162,6 +162,8 @@ const zh: Messages = {
   "cust.vendors.max": "最大",
   "cust.vendors.account": "账户",
   "cust.vendors.dayOfMonth": "每月日期",
+  "cust.vendors.dayOfMonthPlaceholder": "例如 1, 15",
+  "cust.vendors.dayOfMonthHelp": "逗号分隔的日期。0 = 最后一天；−1 = 倒数第二天。留空 = 任意。",
   "cust.vendors.dom.last": "最后一天",
   "cust.vendors.dom.lastMinus": "最后一天减 {n}",
   "cust.vendors.anyOption": "任意",

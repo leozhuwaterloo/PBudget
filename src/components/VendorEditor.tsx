@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import { useT } from "@/lib/i18n/context";
-import { domLabel } from "./vendorSummary";
 
 // Shared vendor shapes (the /api/vendors serialization + refs the editor needs).
 // Two-stage model: `matchConditions` decide identity (any match → the vendor claims
@@ -41,8 +40,6 @@ export type Refs = { accounts: Account[]; plaidPrimaries: string[]; plaidDetaile
 // equals/starts_with are retired (the matcher still honors any legacy rows).
 const TEXT_OPS = ["contains", "regex"];
 const CHANNELS = ["online", "in store", "other"];
-// Day-of-month options: calendar days 1–31, then "last day" (0) and a few before it.
-const DOM_VALUES = [...Array.from({ length: 31 }, (_, i) => i + 1), 0, -1, -2, -3, -4, -5];
 
 // Row form state: everything a string (inputs), converted at save.
 type RowForm = {
@@ -55,7 +52,7 @@ type RowForm = {
   amountMin: string;
   amountMax: string;
   accountId: string;
-  daysOfMonth: number[];
+  daysOfMonth: string; // raw comma-separated input, e.g. "1, 15, 0"; parsed at save
   paymentChannel: string;
   plaidPrimary: string;
   plaidDetailed: string;
@@ -76,7 +73,7 @@ function toRowForm(c: Condition): RowForm {
     amountMin: c.amountMin == null ? "" : String(c.amountMin),
     amountMax: c.amountMax == null ? "" : String(c.amountMax),
     accountId: c.accountId ?? "",
-    daysOfMonth: c.daysOfMonth ?? [],
+    daysOfMonth: (c.daysOfMonth ?? []).join(", "),
     paymentChannel: c.paymentChannel ?? "",
     plaidPrimary: c.plaidPrimary ?? "",
     plaidDetailed: c.plaidDetailed ?? "",
@@ -104,7 +101,9 @@ function rowBody(r: RowForm, withCategory: boolean) {
     amountMin: num(r.amountMin),
     amountMax: num(r.amountMax),
     accountId: r.accountId || null,
-    daysOfMonth: r.daysOfMonth,
+    // "1, 15, 0" → [1,15,0]; blanks dropped, junk → NaN → server 400. Server also
+    // enforces the [-30,31] range and dedups (see vendors.ts daysOfMonthField).
+    daysOfMonth: r.daysOfMonth.split(",").map((s) => s.trim()).filter(Boolean).map(Number),
     paymentChannel: r.paymentChannel || null,
     plaidPrimary: r.plaidPrimary.trim() || null,
     plaidDetailed: r.plaidDetailed.trim() || null,
@@ -362,36 +361,16 @@ function RowEditor({
             ))}
           </select>
         </div>
-        {/* day of month — matches the txn's UTC day; 0 = last day, negatives count
-            back. Multi-select: the row matches if the day is ANY picked value; none
-            picked = no filter. Full-width so the 37 toggles wrap cleanly. */}
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label>
-            {t("cust.vendors.dayOfMonth")}
-            {row.daysOfMonth.length === 0 && (
-              <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> — {t("cust.vendors.anyOption")}</span>
-            )}
-          </label>
-          <div className="row" style={{ flexWrap: "wrap", gap: 4 }}>
-            {DOM_VALUES.map((v) => {
-              const on = row.daysOfMonth.includes(v);
-              return (
-                <button
-                  type="button"
-                  key={v}
-                  className={`btn btn-sm ${on ? "btn-primary" : "btn-ghost"}`}
-                  style={{ padding: "2px 8px", minWidth: 34 }}
-                  onClick={() =>
-                    onChange({
-                      daysOfMonth: on ? row.daysOfMonth.filter((x) => x !== v) : [...row.daysOfMonth, v],
-                    })
-                  }
-                >
-                  {domLabel(v, t)}
-                </button>
-              );
-            })}
-          </div>
+        {/* day of month — comma-separated days the txn's UTC day must be one of.
+            Blank = any. Encoding hint below covers the 0/negative special values. */}
+        <div>
+          <label>{t("cust.vendors.dayOfMonth")}</label>
+          <input
+            value={row.daysOfMonth}
+            onChange={(e) => onChange({ daysOfMonth: e.target.value })}
+            placeholder={t("cust.vendors.dayOfMonthPlaceholder")}
+          />
+          <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("cust.vendors.dayOfMonthHelp")}</p>
         </div>
         {/* payment channel */}
         <div>
