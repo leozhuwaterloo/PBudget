@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { gate } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { plaidPrimary, plaidDetailed, plaidConfidence } from "@/lib/analysis/vendor";
-import { resolveCategory } from "@/lib/categories";
+import { resolveCategory, TRANSFER_CATEGORY } from "@/lib/categories";
+import { RULES } from "@/lib/analysis/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -43,5 +44,52 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     plaidPrimary: plaidPrimary(t.category),
     plaidDetailed: plaidDetailed(t.category),
     plaidConfidence: plaidConfidence(t.category),
+    categoryOverride: t.categoryOverride,
   });
+}
+
+// PATCH /api/transactions/[id] — set (or clear) the per-transaction category
+// override. Backs Review's "override category" on unmatched transfers. A non-null
+// categoryName must reference one of the user's categories; "" / null clears it.
+// When the resolved category is no longer Transfer, any open unmatched_transfer
+// flag for this txn is resolved (mirrors the analyzer's applyFlags invariant, so a
+// re-analyze keeps it resolved).
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const g = await gate({ verified: true });
+  if (g.error) return g.error;
+  const userId = g.user!.id;
+
+  const body = await req.json().catch(() => ({}));
+  const raw = body?.categoryName;
+  if (raw != null && typeof raw !== "string")
+    return NextResponse.json({ error: "categoryName must be a string or null" }, { status: 400 });
+  const override = raw == null || raw.trim() === "" ? null : raw.trim();
+
+  const t = await prisma.plaidTransaction.findFirst({
+    where: { transactionId: params.id, account: { item: { userId } } },
+  });
+  if (!t) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (override) {
+    const cat = await prisma.transactionCategory.findFirst({ where: { userId, name: override } });
+    if (!cat) return NextResponse.json({ error: `Unknown category: ${override}` }, { status: 400 });
+  }
+
+  await prisma.plaidTransaction.update({
+    where: { transactionId: t.transactionId },
+    data: { categoryOverride: override },
+  });
+
+  const vendor = t.vendorId
+    ? await prisma.vendor.findUnique({ where: { id: t.vendorId }, include: { conditions: true } })
+    : null;
+  const resolved = resolveCategory(vendor, { ...t, categoryOverride: override });
+  if (resolved !== TRANSFER_CATEGORY) {
+    await prisma.transactionFlag.updateMany({
+      where: { userId, rule: RULES.unmatchedTransfer, transactionId: t.transactionId, status: "open" },
+      data: { status: "resolved", resolvedAt: new Date() },
+    });
+  }
+
+  return NextResponse.json({ ok: true, category: resolved });
 }

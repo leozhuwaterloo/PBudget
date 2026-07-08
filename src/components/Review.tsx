@@ -104,6 +104,16 @@ async function postJson(url: string) {
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
+async function patchJson(url: string, body: unknown) {
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
 async function delJson(url: string, body: unknown) {
   const res = await fetch(url, {
     method: "DELETE",
@@ -395,6 +405,7 @@ export default function Review() {
 
           <SuspicionSection
             suspicion={data.suspicion}
+            categories={categories}
             busy={busy}
             actOptimistic={actOptimistic}
             onMerge={(id) => setModal({ kind: "merge", seedId: id })}
@@ -636,6 +647,7 @@ function ConflictSection({ rows }: { rows: ConflictRow[] }) {
 
 function SuspicionSection({
   suspicion,
+  categories,
   busy,
   actOptimistic,
   onMerge,
@@ -643,6 +655,7 @@ function SuspicionSection({
   onView,
 }: {
   suspicion: Record<string, SuspicionEntry[]>;
+  categories: string[];
   busy: boolean;
   actOptimistic: (remove: (d: ReviewData) => ReviewData, fn: () => Promise<unknown>) => void;
   onMerge: (transactionId: string) => void;
@@ -650,12 +663,62 @@ function SuspicionSection({
   onView: (transactionId: string) => void;
 }) {
   const t = useT();
-  const dropFlag = (flagId: string) => (d: ReviewData) => ({
-    ...d,
-    suspicion: Object.fromEntries(
-      Object.entries(d.suspicion).map(([rule, entries]) => [rule, entries.filter((e) => e.flagId !== flagId)])
-    ),
-  });
+  // Remove a set of flags from every rule's list (optimistic drop). Bulk mark-valid
+  // reuses it with the whole duplicate cluster's ids.
+  const dropFlags = (flagIds: string[]) => {
+    const gone = new Set(flagIds);
+    return (d: ReviewData): ReviewData => ({
+      ...d,
+      suspicion: Object.fromEntries(
+        Object.entries(d.suspicion).map(([rule, entries]) => [rule, entries.filter((e) => !gone.has(e.flagId))])
+      ),
+    });
+  };
+  const dismiss = (flagIds: string[]) =>
+    actOptimistic(dropFlags(flagIds), () => Promise.all(flagIds.map((id) => postJson(`/api/flags/${id}/dismiss`))));
+
+  // Actions shared by every suspicion row. Unmatched-transfer rows also get an
+  // "override category" dropdown: picking a (non-Transfer) category resolves the flag.
+  const rowActions = (rule: string, e: SuspicionEntry) => (
+    <div className="row" style={{ flexWrap: "nowrap" }}>
+      {e.level === "transaction" && e.transactionId && (
+        <button className="btn btn-sm" disabled={busy} onClick={() => onMerge(e.transactionId!)}>
+          {t("review.merge")}
+        </button>
+      )}
+      {e.level === "transaction" && e.eligibleForSplit && (
+        <button className="btn btn-sm" disabled={busy} onClick={() => onSplit(e)}>
+          {t("review.split")}
+        </button>
+      )}
+      {rule === "unmatched_transfer" && e.level === "transaction" && e.transactionId && (
+        <select
+          className="btn-sm"
+          style={{ width: "auto", maxWidth: 160 }}
+          value=""
+          disabled={busy}
+          onChange={(ev) =>
+            ev.target.value &&
+            actOptimistic(dropFlags([e.flagId]), () => patchJson(`/api/transactions/${e.transactionId}`, { categoryName: ev.target.value }))
+          }
+        >
+          <option value="">{t("review.setCategory")}</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      )}
+      <button className="btn btn-sm btn-success" disabled={busy} onClick={() => dismiss([e.flagId])}>
+        {t("review.markValid")}
+      </button>
+      {e.level === "transaction" && e.transactionId && (
+        <button className="btn btn-sm btn-ghost" onClick={() => onView(e.transactionId!)}>
+          {t("review.viewTransaction")}
+        </button>
+      )}
+    </div>
+  );
+
   const anything = SUSPICION_RULES.some((rule) => (suspicion[rule] ?? []).length > 0);
   if (!anything) return null;
   return (
@@ -668,62 +731,136 @@ function SuspicionSection({
             <h3 style={{ fontSize: 14, margin: "8px 0 6px" }}>
               {t(`rule.${rule}`)} ({entries.length})
             </h3>
-            <div className="card" style={{ padding: 0 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("review.colItem")}</th>
-                    <th>{t("review.colAmount")}</th>
-                    <th>{t("review.colDate")}</th>
-                    <th>{t("review.colActions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((e) => (
-                    <tr key={e.flagId}>
-                      <td style={{ width: "100%" }}>
-                        <strong>{e.level === "group" ? e.title : e.vendor}</strong>
-                        <div className="muted" style={{ fontSize: 12 }}>
-                          {e.level === "group" ? `${t("review.mergedGroup")} · ${e.vendor ?? "—"}` : e.name}
-                        </div>
-                      </td>
-                      <td>{money(e.amount, e.currency)}</td>
-                      <td>{day(e.date)}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        <div className="row" style={{ flexWrap: "nowrap" }}>
-                          {e.level === "transaction" && e.transactionId && (
-                            <button className="btn btn-sm" disabled={busy} onClick={() => onMerge(e.transactionId!)}>
-                              {t("review.merge")}
-                            </button>
-                          )}
-                          {e.level === "transaction" && e.eligibleForSplit && (
-                            <button className="btn btn-sm" disabled={busy} onClick={() => onSplit(e)}>
-                              {t("review.split")}
-                            </button>
-                          )}
-                          <button
-                            className="btn btn-sm btn-success"
-                            disabled={busy}
-                            onClick={() => actOptimistic(dropFlag(e.flagId), () => postJson(`/api/flags/${e.flagId}/dismiss`))}
-                          >
-                            {t("review.markValid")}
-                          </button>
-                          {e.level === "transaction" && e.transactionId && (
-                            <button className="btn btn-sm btn-ghost" onClick={() => onView(e.transactionId!)}>
-                              {t("review.viewTransaction")}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {rule === "duplicate_charge" ? (
+              <DuplicateGroups entries={entries} busy={busy} rowActions={(e) => rowActions(rule, e)} onMarkAllValid={dismiss} />
+            ) : (
+              <SuspicionTable entries={entries} rowActions={(e) => rowActions(rule, e)} />
+            )}
           </div>
         );
       })}
     </Section>
+  );
+}
+
+// The flat suspicion table (unmatched_transfer, unusual_amount). Item + amount +
+// date + the shared per-row actions.
+function SuspicionTable({
+  entries,
+  rowActions,
+}: {
+  entries: SuspicionEntry[];
+  rowActions: (e: SuspicionEntry) => React.ReactNode;
+}) {
+  const t = useT();
+  return (
+    <div className="card" style={{ padding: 0 }}>
+      <table>
+        <thead>
+          <tr>
+            <th>{t("review.colItem")}</th>
+            <th>{t("review.colAmount")}</th>
+            <th>{t("review.colDate")}</th>
+            <th>{t("review.colActions")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.flagId}>
+              <td style={{ width: "100%" }}>
+                <strong>{e.level === "group" ? e.title : e.vendor}</strong>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {e.level === "group" ? `${t("review.mergedGroup")} · ${e.vendor ?? "—"}` : e.name}
+                </div>
+              </td>
+              <td>{money(e.amount, e.currency)}</td>
+              <td>{day(e.date)}</td>
+              <td style={{ whiteSpace: "nowrap" }}>{rowActions(e)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Duplicate charges clustered by vendor + signed amount + currency (the rule's own
+// duplicate key), so the actual duplicates sit together. Each cluster gets one
+// "Mark all valid" that dismisses every flag in it at once.
+function DuplicateGroups({
+  entries,
+  busy,
+  rowActions,
+  onMarkAllValid,
+}: {
+  entries: SuspicionEntry[];
+  busy: boolean;
+  rowActions: (e: SuspicionEntry) => React.ReactNode;
+  onMarkAllValid: (flagIds: string[]) => void;
+}) {
+  const t = useT();
+  const groups = useMemo(() => {
+    const m = new Map<string, SuspicionEntry[]>();
+    for (const e of entries) {
+      const label = (e.level === "group" ? e.title : e.vendor) ?? "";
+      const key = `${label}|${e.amount}|${e.currency ?? ""}`;
+      const arr = m.get(key);
+      if (arr) arr.push(e);
+      else m.set(key, [e]);
+    }
+    return [...m.values()];
+  }, [entries]);
+  return (
+    <>
+      {groups.map((g) => {
+        const first = g[0];
+        const label = first.level === "group" ? first.title : first.vendor;
+        return (
+          <div key={first.flagId} className="card" style={{ padding: 0, marginBottom: 10 }}>
+            <div
+              className="row"
+              style={{
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "10px 14px",
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg-3)",
+              }}
+            >
+              <strong>
+                {label} · {money(first.amount, first.currency)}
+                <span className="muted" style={{ fontWeight: 400 }}> · {t("review.duplicateCount", { n: g.length })}</span>
+              </strong>
+              {g.length > 1 && (
+                <button className="btn btn-sm btn-success" disabled={busy} onClick={() => onMarkAllValid(g.map((e) => e.flagId))}>
+                  {t("review.markAllValid", { n: g.length })}
+                </button>
+              )}
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("review.colItem")}</th>
+                  <th>{t("review.colDate")}</th>
+                  <th>{t("review.colActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.map((e) => (
+                  <tr key={e.flagId}>
+                    <td style={{ width: "100%" }}>
+                      <span className="muted" style={{ fontSize: 12 }}>{e.level === "group" ? e.title : e.name}</span>
+                    </td>
+                    <td>{day(e.date)}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{rowActions(e)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

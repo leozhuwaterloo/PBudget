@@ -27,19 +27,22 @@ export function plaidCategoryName(pfcPrimary: string): string {
 export type WaterfallVendor = MatchVendor & { categoryName: string | null };
 
 // The full read-time category waterfall (SPEC funnel step 3 / FR3). In order:
-//   split-part override → winning vendor's first matching CATEGORY row →
-//   vendor default category → humanized Plaid primary (raw last-resort fallback).
+//   split-part override → per-txn override → winning vendor's first matching CATEGORY
+//   row → vendor default category → humanized Plaid primary (raw last-resort fallback).
 // The old CategoryMapping override layer was removed — vendors solely determine
-// category (a seeded catch-all vendor covers the Plaid-category cases). Runs live
-// on every read so any config change retroactively moves spend (never snapshotted).
-// `vendor` is the txn's materialized winning vendor (null = unmatched); `partOverride`
-// is a split part's own categoryName (null for a whole txn).
+// category (a seeded catch-all vendor covers the Plaid-category cases), plus an
+// optional per-txn override (PlaidTransaction.categoryOverride) for one-off rows a
+// vendor rule shouldn't claim. Runs live on every read so any config change
+// retroactively moves spend (never snapshotted). `vendor` is the txn's materialized
+// winning vendor (null = unmatched); `partOverride` is a split part's own
+// categoryName (null for a whole txn).
 export function resolveCategory(
   vendor: WaterfallVendor | null,
   txn: MatchTxn,
   partOverride: string | null = null
 ): string | null {
   if (partOverride) return partOverride;
+  if (txn.categoryOverride) return txn.categoryOverride;
   if (vendor) {
     const row = matchingCategoryRow(vendor, txn);
     if (row?.categoryName) return row.categoryName;
