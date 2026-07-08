@@ -219,16 +219,19 @@ export async function updateCategory(
   });
 }
 
-// How many rows reference a category name across the cascade sites. Used to
-// reject deletes while the category is still in use.
+// How many USER-AUTHORED rows reference a category name. Used to reject deletes
+// while the category is still in use. Merge groups are deliberately excluded:
+// their categoryName is an auto-derived cache (set from Plaid at merge time,
+// re-computed live from the primary leg on read — see effective.ts), not an
+// editable rule, so blocking on it is an unactionable dead-end. deleteCategory
+// nulls those cached labels instead.
 export async function categoryRefCount(userId: string, name: string): Promise<number> {
-  const [vendor, cond, part, group] = await Promise.all([
+  const [vendor, cond, part] = await Promise.all([
     prisma.vendor.count({ where: { userId, categoryName: name } }),
     prisma.vendorCondition.count({ where: { categoryName: name, vendor: { userId } } }),
     prisma.splitPart.count({ where: { categoryName: name, split: { userId } } }),
-    prisma.mergeGroup.count({ where: { userId, categoryName: name } }),
   ]);
-  return vendor + cond + part + group;
+  return vendor + cond + part;
 }
 
 // Delete a category, rejected (409) while any row still references its name.
@@ -250,6 +253,9 @@ export async function deleteCategory(userId: string, id: string): Promise<void> 
   await prisma.$transaction(async (tx) => {
     // Reparent any children to top-level so no row points at a deleted parent.
     await tx.transactionCategory.updateMany({ where: { userId, parentName: cat.name }, data: { parentName: null } });
+    // Merge groups don't block the delete (see categoryRefCount) but carry the
+    // name as a cached label — null it so nothing dangles at the deleted category.
+    await tx.mergeGroup.updateMany({ where: { userId, categoryName: cat.name }, data: { categoryName: null } });
     await tx.transactionCategory.delete({ where: { id } });
   });
 }

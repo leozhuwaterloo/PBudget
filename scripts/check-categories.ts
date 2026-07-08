@@ -60,12 +60,15 @@ async function main(): Promise<void> {
   await prisma.vendorCondition.create({ data: { vendorId: vendor.id, order: 0, categoryName: "Grocery", nameOp: "equals", nameValue: "x" } });
   const split = await prisma.transactionSplit.create({ data: { userId: USER, parentTransactionId: "cat-test-ptxn-1" } });
   await prisma.splitPart.create({ data: { splitId: split.id, amount: 100, categoryName: "Grocery" } });
-  await prisma.mergeGroup.create({ data: { userId: USER, status: "confirmed", title: "g", categoryName: "Grocery", date: new Date(), netAmount: 0 } });
-  assert.equal(await categoryRefCount(USER, "Grocery"), 4, "4 references before rename");
+  const mg = await prisma.mergeGroup.create({ data: { userId: USER, status: "confirmed", title: "g", categoryName: "Grocery", date: new Date(), netAmount: 0 } });
+  // refCount counts only user-authored refs (vendor + condition + split); the
+  // merge group's derived label is excluded, but rename still keeps it coherent.
+  assert.equal(await categoryRefCount(USER, "Grocery"), 3, "3 user-authored references before rename");
 
   await updateCategory(USER, grocery.id, { name: "Groceries" });
   assert.equal(await categoryRefCount(USER, "Grocery"), 0, "no references remain under old name");
-  assert.equal(await categoryRefCount(USER, "Groceries"), 4, "all references moved to new name");
+  assert.equal(await categoryRefCount(USER, "Groceries"), 3, "all user-authored references moved to new name");
+  assert.equal((await prisma.mergeGroup.findUnique({ where: { id: mg.id } }))!.categoryName, "Groceries", "merge-group label also renamed");
   const renamed = await prisma.transactionCategory.findUnique({ where: { id: grocery.id } });
   assert.equal(renamed!.name, "Groceries", "category row renamed");
   assert.equal(Number(renamed!.budget), 500, "budget survives rename");
@@ -84,15 +87,16 @@ async function main(): Promise<void> {
     "delete rejected while referenced"
   );
 
-  // Remove every reference, then delete succeeds.
+  // Remove every user-authored reference, but LEAVE the merge group referencing
+  // "Groceries" — it must not block the delete (that was the unactionable dead-end).
   await prisma.vendor.updateMany({ where: { userId: USER, categoryName: "Groceries" }, data: { categoryName: null } });
   await prisma.vendorCondition.updateMany({ where: { vendorId: vendor.id, categoryName: "Groceries" }, data: { categoryName: null } });
   await prisma.splitPart.updateMany({ where: { splitId: split.id, categoryName: "Groceries" }, data: { categoryName: null } });
-  await prisma.mergeGroup.updateMany({ where: { userId: USER, categoryName: "Groceries" }, data: { categoryName: null } });
-  assert.equal(await categoryRefCount(USER, "Groceries"), 0, "references cleared");
+  assert.equal(await categoryRefCount(USER, "Groceries"), 0, "user-authored references cleared (merge group still points at it)");
 
   await deleteCategory(USER, grocery.id);
-  assert.equal(await prisma.transactionCategory.findUnique({ where: { id: grocery.id } }), null, "category deleted");
+  assert.equal(await prisma.transactionCategory.findUnique({ where: { id: grocery.id } }), null, "category deleted despite merge-group reference");
+  assert.equal((await prisma.mergeGroup.findUnique({ where: { id: mg.id } }))!.categoryName, null, "merge-group cached label nulled on delete");
 
   // Budgets on OTHER categories are untouched by the delete.
   const survivors = await prisma.transactionCategory.count({ where: { userId: USER } });
