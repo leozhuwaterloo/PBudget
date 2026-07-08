@@ -162,6 +162,8 @@ const en = {
   "cust.vendors.max": "max",
   "cust.vendors.account": "Account",
   "cust.vendors.dayOfMonth": "Day of month",
+  "cust.vendors.dayOfMonthPlaceholder": "e.g. 1, 15",
+  "cust.vendors.dayOfMonthHelp": "Comma-separated days. 0 = last day; −1 = day before last. Blank = any.",
   "cust.vendors.dom.last": "Last day",
   "cust.vendors.dom.lastMinus": "Last day − {n}",
   "cust.vendors.anyOption": "Any",
