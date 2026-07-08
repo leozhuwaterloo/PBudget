@@ -87,7 +87,9 @@ h2 { font-family: var(--serif); font-weight: 600; }
 /* Deterministic field layout — a fixed 4-column grid so a form's fields wrap the
    SAME way regardless of small container-width differences (flex-wrap fit-as-many
    made the same editor look different at slightly different widths). */
-.field-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: end; }
+/* Top-align cells: a field with help text below its input (day of month) must not
+   drag its row-mates down to match. Labels are single-line so inputs still align. */
+.field-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* The vendor editor breaks out wider than the 1100px content column so its 4-col
