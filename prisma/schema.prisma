@@ -289,6 +289,18 @@ model DissolvedGroupMemo {
   @@unique([userId, legKey])
 }
 
+// Tombstone for a category the user deleted. Sync's Plaid auto-create and the
+// default seed both skip a tombstoned name, so a deleted category stays deleted
+// instead of reappearing on the next sync/GET. Cleared when the user explicitly
+// (re-)creates or renames a category to that name. Mirrors DissolvedGroupMemo.
+model DeletedCategory {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+
+  @@unique([userId, name])
+}
+
 model CategoryMapping {
   id           String @id @default(cuid())
   userId       String

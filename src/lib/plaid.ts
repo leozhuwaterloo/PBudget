@@ -8,7 +8,7 @@ import {
 } from "plaid";
 import { prisma } from "./db";
 import { encrypt } from "./crypto";
-import { plaidCategoryName } from "./categories";
+import { plaidCategoryName, deletedCategoryNames } from "./categories";
 
 // ---- Client --------------------------------------------------------------
 
@@ -184,13 +184,17 @@ export async function syncItem(
 }
 
 async function saveTransactions(userId: string, txns: Transaction[]): Promise<void> {
-  // Ensure per-user category rows exist for every predicted category (budget 0).
+  // Ensure per-user category rows exist for every predicted category (budget 0),
+  // EXCEPT names the user has deleted — those stay deleted (see DeletedCategory).
+  // Transactions still display the Plaid name via resolveCategory's fallback.
   const seen = new Set<string>();
   for (const t of txns) {
     const pfc = t.personal_finance_category?.primary;
     if (pfc) seen.add(plaidCategoryName(pfc));
   }
+  const dead = await deletedCategoryNames(userId);
   for (const name of seen) {
+    if (dead.has(name)) continue;
     await prisma.transactionCategory.upsert({
       where: { userId_name: { userId, name } },
       create: { userId, name },
