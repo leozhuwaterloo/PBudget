@@ -63,3 +63,12 @@ export function normalizeVendor(
 ): string {
   return normalizeStr(merchantName ?? name);
 }
+
+// Vendor identity for the suspicion rules (FR1): the materialized vendorId when a
+// vendor matched, else the normalized string. Namespaced so a cuid can never collide
+// with a normalized name across the two identity spaces. Shared by the analyzer
+// (duplicate/unusual detection) and Review's duplicate-charge grouping so both key
+// duplicates on exactly the same identity.
+export function vendorIdentity(vendorId: string | null, normalized: string): string {
+  return vendorId ? `v:${vendorId}` : `n:${normalized}`;
+}

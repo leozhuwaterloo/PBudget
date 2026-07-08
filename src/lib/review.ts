@@ -5,11 +5,11 @@
 // (see scripts/check-review.ts). Amounts stay Plaid-convention (+ = outflow); the
 // UI renders them user-convention.
 import { prisma } from "./db";
-import { normalizeVendor, plaidPrimary, plaidDetailed, plaidConfidence } from "./analysis/vendor";
+import { normalizeVendor, vendorIdentity, plaidPrimary, plaidDetailed, plaidConfidence } from "./analysis/vendor";
 import { primaryLeg } from "./analysis/groups";
 import { matchesVendor } from "./analysis/match";
 import { ignoredTxnIds } from "./categories";
-import { RULES, ANALYSIS_WINDOW_DAYS } from "./analysis/constants";
+import { RULES, ANALYSIS_WINDOW_DAYS, DUPLICATE_WINDOW_DAYS } from "./analysis/constants";
 
 const num = (d: unknown): number | null => (d == null ? null : Number(d));
 
@@ -68,6 +68,12 @@ export type SuspicionEntry = {
   transactionId?: string;
   mergeGroupId?: string;
   vendor: string | null;
+  // The matched vendor's display name (or the normalized fallback) — the identity
+  // the analyzer groups duplicates under. Used as the duplicate-cluster header.
+  vendorName?: string;
+  // Duplicate-charge cluster id (set only on duplicate_charge rows): rows sharing it
+  // are the analyzer's duplicate set. See the grouping block in reviewData.
+  dupGroupId?: string;
   name?: string;
   title?: string;
   amount: number | null;
@@ -296,8 +302,12 @@ export async function reviewData(
     .sort(byDateDesc);
 
   // --- Suspicion rules: same entry shape the old queue used ---
+  const vendorNameById = new Map(vendorRows.map((v) => [v.id, v.name]));
   const suspicion: Record<string, SuspicionEntry[]> = {};
   for (const rule of SUSPICION) suspicion[rule] = [];
+  // Per duplicate_charge flag: the analyzer's identity + signed cents + time, so the
+  // rows can be clustered below with the exact hasDuplicate predicate.
+  const dupMeta = new Map<string, { identity: string; cents: number; time: number }>();
   for (const f of openFlags) {
     if (!(SUSPICION as readonly string[]).includes(f.rule)) continue;
     if (!inWindow(flagDate(f))) continue;
@@ -305,24 +315,58 @@ export async function reviewData(
     if (f.transactionId) {
       const t = txnById.get(f.transactionId);
       if (!t) continue;
+      const normalized = normalizeVendor(t.merchantName, t.name);
       suspicion[f.rule].push({
         flagId: f.id, level: "transaction", transactionId: t.transactionId,
-        vendor: normalizeVendor(t.merchantName, t.name), name: t.name,
-        amount: num(t.amount), currency: t.isoCurrencyCode, date: t.datetime,
+        vendor: normalized, vendorName: (t.vendorId && vendorNameById.get(t.vendorId)) || normalized,
+        name: t.name, amount: num(t.amount), currency: t.isoCurrencyCode, date: t.datetime,
         eligibleForSplit: eligibleTxn(t.transactionId),
       });
+      if (f.rule === RULES.duplicateCharge)
+        dupMeta.set(f.id, { identity: vendorIdentity(t.vendorId, normalized), cents: Math.round(Number(t.amount) * 100), time: t.datetime.getTime() });
     } else {
       const grp = groupById.get(f.mergeGroupId!);
       if (!grp) continue;
       suspicion[f.rule].push({
         flagId: f.id, level: "group", mergeGroupId: grp.id,
-        vendor: grp.vendorName, title: grp.title,
+        vendor: grp.vendorName, vendorName: grp.vendorName ?? "", title: grp.title,
         amount: num(grp.netAmount), currency: grp.currency, date: grp.date,
         eligibleForSplit: false,
       });
+      if (f.rule === RULES.duplicateCharge) {
+        const primary = flagTxn(f);
+        dupMeta.set(f.id, { identity: vendorIdentity(primary?.vendorId ?? null, grp.vendorName ?? ""), cents: Math.round(Number(grp.netAmount) * 100), time: grp.date.getTime() });
+      }
     }
   }
   for (const rule of SUSPICION) suspicion[rule].sort(byDateDesc);
+
+  // --- Duplicate-charge clustering (mirrors analyze.ts hasDuplicate exactly) -----
+  // Union rows the analyzer would call duplicates of each other: same vendor identity
+  // + same signed cents + within DUPLICATE_WINDOW_DAYS. Transitive (a 3-in-a-row
+  // chain stays one cluster). The UI groups by dupGroupId and offers one "Mark all
+  // valid" per cluster, dismissing exactly the analyzer's duplicate set — the raw
+  // per-txn name (e-transfer refs differ) never fragments a matched-vendor cluster.
+  {
+    const dup = suspicion[RULES.duplicateCharge];
+    const parent = new Map<string, string>(dup.map((e) => [e.flagId, e.flagId]));
+    const find = (x: string): string => {
+      let r = x;
+      while (parent.get(r) !== r) r = parent.get(r)!;
+      while (parent.get(x) !== r) { const n = parent.get(x)!; parent.set(x, r); x = n; }
+      return r;
+    };
+    const win = DUPLICATE_WINDOW_DAYS * 86400000;
+    for (let i = 0; i < dup.length; i++) {
+      for (let j = i + 1; j < dup.length; j++) {
+        const a = dupMeta.get(dup[i].flagId);
+        const b = dupMeta.get(dup[j].flagId);
+        if (a && b && a.identity === b.identity && a.cents === b.cents && Math.abs(a.time - b.time) <= win)
+          parent.set(find(dup[i].flagId), find(dup[j].flagId));
+      }
+    }
+    for (const e of dup) e.dupGroupId = find(e.flagId);
+  }
 
   // --- Merge groups (pending auto vs all confirmed) + splits ---
   const groupView = (grp: (typeof allGroups)[number]): GroupRow => ({

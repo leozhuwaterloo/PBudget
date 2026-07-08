@@ -48,6 +48,8 @@ type SuspicionEntry = {
   level: "transaction" | "group";
   transactionId?: string;
   vendor: string | null;
+  vendorName?: string; // matched-vendor label; duplicate-cluster header
+  dupGroupId?: string; // analyzer's duplicate set (duplicate_charge only)
   name?: string;
   title?: string;
   amount: number | null;
@@ -784,9 +786,11 @@ function SuspicionTable({
   );
 }
 
-// Duplicate charges clustered by vendor + signed amount + currency (the rule's own
-// duplicate key), so the actual duplicates sit together. Each cluster gets one
-// "Mark all valid" that dismisses every flag in it at once.
+// Duplicate charges clustered by the analyzer's own duplicate set (dupGroupId,
+// computed server-side with the exact hasDuplicate predicate — same vendor identity
+// + signed amount + window), so the display matches the backend and a matched-vendor
+// cluster never fragments on differing per-txn names. Each cluster gets one "Mark all
+// valid" that dismisses every flag in it at once.
 function DuplicateGroups({
   entries,
   busy,
@@ -802,8 +806,7 @@ function DuplicateGroups({
   const groups = useMemo(() => {
     const m = new Map<string, SuspicionEntry[]>();
     for (const e of entries) {
-      const label = (e.level === "group" ? e.title : e.vendor) ?? "";
-      const key = `${label}|${e.amount}|${e.currency ?? ""}`;
+      const key = e.dupGroupId ?? e.flagId;
       const arr = m.get(key);
       if (arr) arr.push(e);
       else m.set(key, [e]);
@@ -814,7 +817,7 @@ function DuplicateGroups({
     <>
       {groups.map((g) => {
         const first = g[0];
-        const label = first.level === "group" ? first.title : first.vendor;
+        const label = first.vendorName || (first.level === "group" ? first.title : first.vendor);
         return (
           <div key={first.flagId} className="card" style={{ padding: 0, marginBottom: 10 }}>
             <div

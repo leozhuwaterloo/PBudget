@@ -248,6 +248,8 @@ async function main(): Promise<void> {
   const renErr = await updateCategory(USER, ignoreCat!.id, { name: "Ignored" }).then(() => null, (e) => e);
   check(renErr instanceof CategoryError && renErr.status === 400, "ignore: the Ignore category cannot be renamed");
 
+  await checkDupClustering();
+
   // Teardown: leave the shared dev DB clean.
   await prisma.transactionFlag.deleteMany({ where: { userId: USER } });
   await prisma.mergeGroup.deleteMany({ where: { userId: USER } });
@@ -257,6 +259,55 @@ async function main(): Promise<void> {
 
   console.log(failures ? `\n✗ ${failures} check(s) failed\n` : "\n✓ all review checks passed\n");
   process.exit(failures ? 1 : 0);
+}
+
+// Review must cluster duplicate_charge rows the SAME way the analyzer detects them:
+// by vendor IDENTITY (matched vendorId) + signed amount + DUPLICATE_WINDOW_DAYS —
+// NOT by the raw per-txn name. The real bug: e-transfers matched to one vendor whose
+// names differ only by a random ref (***bzz / ***kyu) fragmented into "1 charges"
+// each. Two within-window batches far apart must also stay SEPARATE clusters.
+async function checkDupClustering(): Promise<void> {
+  const U = "review-dup-user";
+  const IT = "rt2-item";
+  const AC = "rt2-acct";
+  const teardown = async () => {
+    await prisma.transactionFlag.deleteMany({ where: { userId: U } });
+    await prisma.vendor.deleteMany({ where: { userId: U } });
+    await prisma.user.deleteMany({ where: { id: U } });
+  };
+  await teardown();
+  await prisma.user.create({ data: { id: U, email: `${U}@t.local`, passwordHash: "x" } });
+  await prisma.transactionCategory.create({ data: { userId: U, name: "Grocery" } });
+  await prisma.plaidInstitution.upsert({ where: { institutionId: "rt-inst" }, create: { institutionId: "rt-inst", name: "RT Bank" }, update: {} });
+  await prisma.plaidItem.create({ data: { itemId: IT, userId: U, institutionId: "rt-inst", accessToken: "x", lastForceRefreshed: new Date("2026-01-01") } });
+  await prisma.plaidAccount.create({ data: { accountId: AC, itemId: IT, name: "RT2 Chq", accountType: "depository" } });
+  const txn = (id: string, name: string, dayISO: string) =>
+    prisma.plaidTransaction.create({
+      data: {
+        transactionId: id, accountId: AC, amount: 49.11, isoCurrencyCode: "CAD",
+        category: JSON.stringify({ primary: "TRANSFER_IN" }),
+        datetime: new Date(dayISO), name, merchantName: null, paymentChannel: "other", pending: false,
+      },
+    });
+  // One matched vendor over all five (names differ only by ref); two windows: a
+  // 3-txn batch (Jan 10-12) and a 2-txn batch (Jan 30-31), > 3 days apart.
+  await txn("rt2-bzz", "E-TRANSFER ***bzz", "2026-01-10");
+  await txn("rt2-kyu", "E-TRANSFER ***kyu", "2026-01-11");
+  await txn("rt2-abc", "E-TRANSFER ***abc", "2026-01-12");
+  await txn("rt2-xxx", "E-TRANSFER ***xxx", "2026-01-30");
+  await txn("rt2-yyy", "E-TRANSFER ***yyy", "2026-01-31");
+  await createVendor(U, { name: "Self Transfer", categoryName: "Grocery", matchConditions: [{ nameOp: "contains", nameValue: "e-transfer" }] });
+  await analyzeUser(U);
+
+  const dup = (await reviewData(U)).suspicion["duplicate_charge"] ?? [];
+  check(dup.length === 5, "dup-cluster: all five same-vendor same-amount within-window rows flagged");
+  const clusters = new Map<string, typeof dup>();
+  for (const e of dup) (clusters.get(e.dupGroupId ?? e.flagId) ?? clusters.set(e.dupGroupId ?? e.flagId, []).get(e.dupGroupId ?? e.flagId)!).push(e);
+  const sizes = [...clusters.values()].map((g) => g.length).sort();
+  check(clusters.size === 2 && sizes[0] === 2 && sizes[1] === 3, "dup-cluster: two windows form two clusters (3 + 2), not five singletons by name");
+  check(dup.every((e) => e.vendorName === "Self Transfer"), "dup-cluster: cluster header uses the matched vendor name, not the raw ***ref");
+
+  await teardown();
 }
 
 main().catch((e) => {
