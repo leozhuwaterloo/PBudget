@@ -2,7 +2,7 @@ import type { TransactionCategory } from "@prisma/client";
 import { prisma, type Tx } from "./db";
 import { matchingCategoryRow, type MatchTxn, type MatchVendor } from "./analysis/match";
 import { plaidPrimary } from "./analysis/vendor";
-import { IGNORE_CATEGORY } from "./analysis/constants";
+import { IGNORE_CATEGORY, TRANSFER_CATEGORY } from "./analysis/constants";
 
 // "FOOD_AND_DRINK" -> "Food And Drink"
 export function humanize(pfcPrimary: string): string {
@@ -16,9 +16,9 @@ export function humanize(pfcPrimary: string): string {
 // The app category NAME a Plaid primary maps to (last-resort fallback + the auto
 // -created budget row). TRANSFER_IN/TRANSFER_OUT collapse to a single "Transfer" —
 // we don't surface Plaid's in/out split as two categories — so transfer txns
-// resolve to the one renameable "Transfer" category, not raw "Transfer In/Out".
+// resolve to the one (rename/delete-locked) "Transfer" category, not raw "Transfer In/Out".
 export function plaidCategoryName(pfcPrimary: string): string {
-  if (pfcPrimary === "TRANSFER_IN" || pfcPrimary === "TRANSFER_OUT") return "Transfer";
+  if (pfcPrimary === "TRANSFER_IN" || pfcPrimary === "TRANSFER_OUT") return TRANSFER_CATEGORY;
   return humanize(pfcPrimary);
 }
 
@@ -49,9 +49,13 @@ export function resolveCategory(
   return pp ? plaidCategoryName(pp) : null;
 }
 
-// IGNORE_CATEGORY lives in ./analysis/constants (match.ts needs it too, without a
-// cycle); re-export for callers that reach it through this module.
-export { IGNORE_CATEGORY };
+// These live in ./analysis/constants (match.ts / analyze.ts need them too, without a
+// cycle); re-export for callers that reach them through this module.
+export { IGNORE_CATEGORY, TRANSFER_CATEGORY };
+
+// Built-in categories the unmatched_transfer / Ignore rules key on by literal name;
+// rename/delete-locked below so the string can't drift out from under those rules.
+const LOCKED_CATEGORIES: readonly string[] = [IGNORE_CATEGORY, TRANSFER_CATEGORY];
 
 // Posted-txn ids whose resolved category is Ignore. Pure over already-loaded rows so
 // hot callers (reviewData) don't re-query; `vendors` must include their conditions.
@@ -186,10 +190,10 @@ export async function updateCategory(
   const cat = await prisma.transactionCategory.findFirst({ where: { id, userId } });
   if (!cat) throw new CategoryError(404, "Category not found");
   const rename = patch.name !== undefined && patch.name !== cat.name;
-  // Review/merge key on the literal "Ignore" name; renaming it would silently break
-  // the suppression, so it's locked (other edits — budget/exclude/parent — are fine).
-  if (rename && cat.name === IGNORE_CATEGORY)
-    throw new CategoryError(400, `The "${IGNORE_CATEGORY}" category is built-in and can't be renamed.`);
+  // Rules key on these literal names (Ignore suppression, unmatched_transfer); renaming
+  // would silently break them, so they're locked (budget/exclude/parent edits are fine).
+  if (rename && LOCKED_CATEGORIES.includes(cat.name))
+    throw new CategoryError(400, `The "${cat.name}" category is built-in and can't be renamed.`);
   // Validate against the POST-rename name so "rename + reparent" in one call is coherent.
   const selfName = rename ? patch.name! : cat.name;
   const parentName =
@@ -229,10 +233,10 @@ export async function categoryRefCount(userId: string, name: string): Promise<nu
 export async function deleteCategory(userId: string, id: string): Promise<void> {
   const cat = await prisma.transactionCategory.findFirst({ where: { id, userId } });
   if (!cat) throw new CategoryError(404, "Category not found");
-  // The built-in Ignore category is never deletable (checked before ref-count so the
-  // message is about being built-in, not about lingering references).
-  if (cat.name === IGNORE_CATEGORY)
-    throw new CategoryError(400, `The "${IGNORE_CATEGORY}" category is built-in and can't be deleted.`);
+  // Built-in categories are never deletable (checked before ref-count so the message
+  // is about being built-in, not about lingering references).
+  if (LOCKED_CATEGORIES.includes(cat.name))
+    throw new CategoryError(400, `The "${cat.name}" category is built-in and can't be deleted.`);
   const refs = await categoryRefCount(userId, cat.name);
   if (refs > 0) {
     throw new CategoryError(
