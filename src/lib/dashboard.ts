@@ -22,6 +22,16 @@ function last12Months(now: Date): string[] {
   return out;
 }
 
+// Default view = the PREVIOUS (complete) month, since early in a month the current
+// one is mostly empty. Exception: on the last day of the month the current month is
+// itself complete, so default to it.
+function defaultMonth(now: Date): string {
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const lastDay = tomorrow.getUTCMonth() !== now.getUTCMonth();
+  const d = lastDay ? now : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  return monthKey(d);
+}
+
 export type DashboardData = {
   month: string; // selected "YYYY-MM" (drives budget + vendors widgets)
   currency: string | null; // modal currency, for display labels
@@ -33,7 +43,7 @@ export type DashboardData = {
 
 export async function dashboardData(userId: string, month?: string): Promise<DashboardData> {
   const now = new Date();
-  const selMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : monthKey(now);
+  const selMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : defaultMonth(now);
 
   const [effective, categories, unmatched, conflicts, suspicion, pending] = await Promise.all([
     effectiveTransactions(userId),
