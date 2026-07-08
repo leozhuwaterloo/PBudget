@@ -3,10 +3,10 @@
 // idempotent: re-running over unchanged data changes no flags or groups.
 import type { PlaidTransaction } from "@prisma/client";
 import { prisma } from "../db";
-import { normalizeVendor, isTransferLike } from "./vendor";
-import { ignoredTxnIds } from "../categories";
+import { normalizeVendor } from "./vendor";
+import { ignoredTxnIds, resolveCategory } from "../categories";
 import { createMergeGroup } from "./merge";
-import { rematchUser } from "./match";
+import { rematchUser, applyFlags } from "./match";
 import { primaryLeg } from "./groups";
 import { splitParentIds } from "../splits";
 import {
@@ -15,6 +15,7 @@ import {
   DUPLICATE_WINDOW_DAYS,
   UNUSUAL_MIN_PRIORS,
   UNUSUAL_MULTIPLIER,
+  TRANSFER_CATEGORY,
   RULES,
 } from "./constants";
 
@@ -53,9 +54,21 @@ export async function analyzeUser(userId: string): Promise<void> {
   // 4. Suspicion rules over effective items + flag upsert invariant. Vendor
   //    identity is vendorId (fallback: normalized string for unmatched txns).
   const items = await buildEffectiveItems(userId, since);
+  // unmatched_transfer — individual txn whose RESOLVED category is Transfer, with no
+  // matching counter-leg (net-0 groups are exempt). Driven through applyFlags (not the
+  // open-only fire()) so a vendor recat or Plaid relabel that pulls a txn out of the
+  // Transfer category auto-RESOLVES its flag — dismissed flags stay dismissed.
+  await applyFlags(
+    userId,
+    items
+      .filter((it) => it.isTxn && "transactionId" in it.target)
+      .map((it) => ({
+        rule: RULES.unmatchedTransfer,
+        transactionId: (it.target as { transactionId: string }).transactionId,
+        open: it.isTransfer,
+      }))
+  );
   for (const it of items) {
-    // unmatched_transfer — transfer-like individual txn (never on groups).
-    if (it.isTxn && it.transferLike) await fire(userId, RULES.unmatchedTransfer, it.target);
     // duplicate_charge — same vendor + same signed amount within the window.
     if (hasDuplicate(it, items)) await fire(userId, RULES.duplicateCharge, it.target);
   }
@@ -70,7 +83,7 @@ type Item = {
   vendor: string;
   amount: number; // signed cents (Plaid convention: + = outflow/charge)
   date: Date;
-  transferLike: boolean; // meaningful only for txns; groups never fire rule 5.2
+  isTransfer: boolean; // resolved category is Transfer; meaningful only for txns (groups never fire 5.2)
   isTxn: boolean;
 };
 
@@ -90,18 +103,22 @@ async function buildEffectiveItems(userId: string, since: Date): Promise<Item[]>
     where: { userId },
     include: { legs: true },
   });
+  // Vendors for the read-time category waterfall (same load ignoredTxnIds needs).
+  const vendors = await prisma.vendor.findMany({ where: { userId }, include: { conditions: true } });
+  const vendorById = new Map(vendors.map((v) => [v.id, v]));
   const legIds = new Set(groups.flatMap((g) => g.legs.map((l) => l.transactionId)));
   const postedById = new Map(posted.map((t) => [t.transactionId, t]));
 
   const items: Item[] = [];
   for (const t of posted) {
     if (legIds.has(t.transactionId)) continue; // legs are represented by their group
+    const vendor = (t.vendorId && vendorById.get(t.vendorId)) || null;
     items.push({
       target: { transactionId: t.transactionId },
       vendor: vendorIdentity(t.vendorId, normalizeVendor(t.merchantName, t.name)),
       amount: cents(t.amount),
       date: t.datetime,
-      transferLike: isTransferLike(t),
+      isTransfer: resolveCategory(vendor, t) === TRANSFER_CATEGORY,
       isTxn: true,
     });
   }
@@ -116,7 +133,7 @@ async function buildEffectiveItems(userId: string, since: Date): Promise<Item[]>
       vendor: vendorIdentity(primary?.vendorId ?? null, g.vendorName ?? ""),
       amount: cents(g.netAmount),
       date: g.date,
-      transferLike: false,
+      isTransfer: false,
       isTxn: false,
     });
   }

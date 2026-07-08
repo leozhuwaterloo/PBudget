@@ -63,15 +63,3 @@ export function normalizeVendor(
 ): string {
   return normalizeStr(merchantName ?? name);
 }
-
-const TRANSFER_NAME = /e-?transfer|etfr|send money/i;
-
-// Plaid category primary TRANSFER_IN/TRANSFER_OUT, or an e-transfer-style name.
-export function isTransferLike(txn: {
-  category: string | null;
-  name: string;
-}): boolean {
-  const primary = plaidPrimary(txn.category);
-  if (primary === "TRANSFER_IN" || primary === "TRANSFER_OUT") return true;
-  return TRANSFER_NAME.test(txn.name);
-}

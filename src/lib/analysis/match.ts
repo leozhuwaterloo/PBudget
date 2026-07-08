@@ -148,12 +148,12 @@ export function matchingCategoryRow(
 // flag (its suppression is permanent), leaving already-correct flags alone. One
 // findMany + up to three bulk writes replaces the old per-flag findUnique+write,
 // which was thousands of sequential round-trips on a multi-thousand-txn account.
-type FlagWant = { rule: string; transactionId?: string; mergeGroupId?: string; open: boolean };
+export type FlagWant = { rule: string; transactionId?: string; mergeGroupId?: string; open: boolean };
 
 const flagKey = (rule: string, txnId: string | null, grpId: string | null) =>
   txnId ? `${rule}|t|${txnId}` : `${rule}|g|${grpId}`;
 
-async function applyFlags(userId: string, wants: FlagWant[]): Promise<void> {
+export async function applyFlags(userId: string, wants: FlagWant[]): Promise<void> {
   if (wants.length === 0) return;
   const rules = [...new Set(wants.map((w) => w.rule))];
   const existing = await prisma.transactionFlag.findMany({ where: { userId, rule: { in: rules } } });

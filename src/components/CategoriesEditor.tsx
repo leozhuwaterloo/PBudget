@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/context";
+import { IGNORE_CATEGORY, TRANSFER_CATEGORY } from "@/lib/analysis/constants";
 
 type Cat = { id: string; name: string; budget: number; excludeFromTotals: boolean; parentName: string | null };
 
@@ -176,9 +177,9 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
               </tr>
             )}
             {ordered.map(({ c, depth }) => {
-              // "Ignore" is a built-in category (Review/merge key on the name): its
-              // name is fixed and it can't be deleted. Other fields stay editable.
-              const locked = c.name === "Ignore";
+              // Built-in categories (rules key on the literal name — Ignore suppression,
+              // unmatched_transfer): name is fixed and can't be deleted. Other fields editable.
+              const locked = c.name === IGNORE_CATEGORY || c.name === TRANSFER_CATEGORY;
               return (
               <React.Fragment key={c.id}>
                 <tr>
