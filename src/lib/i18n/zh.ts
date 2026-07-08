@@ -256,6 +256,8 @@ const zh: Messages = {
   // --- dashboard v2 (F13) — add dashboard-v2 strings within this region ---
   "dash.title": "仪表板",
   "dash.month": "月份",
+  "dash.prevMonth": "上一个月",
+  "dash.nextMonth": "下一个月",
   "dash.empty": "请在“账户”页面连接银行，即可在此查看您的消费。",
   "dash.trend.title": "每月消费",
   "dash.trend.sub": "最近 12 个月",
