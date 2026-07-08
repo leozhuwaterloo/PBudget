@@ -21,8 +21,10 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<DashboardData["budget"][number] | null>(null);
 
+  // Never round for display — show the exact amount (at least cents), so a column
+  // of values and their total always agree (40.50 + 40.50 = 81.00, not 41+41=81).
   const money = (n: number) =>
-    `${data.currency ? data.currency + " " : ""}${Math.round(n).toLocaleString(numLocale)}`;
+    `${data.currency ? data.currency + " " : ""}${n.toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 20 })}`;
   const monthLabel = (key: string) => {
     const [y, m] = key.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, 1)).toLocaleString(numLocale, { month: "short", timeZone: "UTC" });
@@ -113,26 +115,31 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
             <p className="muted">{t("dash.budget.empty")}</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {(() => {
-                const scale = Math.max(1, ...data.budget.map((r) => Math.max(Math.abs(r.actual), r.budget)));
-                return data.budget.map((r) => {
-                  const inflow = r.actual < 0; // net money IN (refund/credit), not spend
-                  const over = r.budget > 0 && r.actual > r.budget;
-                  const color = inflow ? "var(--muted)" : r.budget === 0 || over ? "var(--warning)" : "var(--success)";
-                  return (
-                    <button key={r.name} className="budget-row" onClick={() => setDetail(r)}>
-                      <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                        <span>{r.name}</span>
-                        <span className="muted">
-                          {money(r.actual)}
-                          {r.budget > 0 ? ` / ${money(r.budget)}` : ""}
-                        </span>
-                      </div>
-                      <BarRow frac={Math.abs(r.actual) / scale} color={color} markerFrac={r.budget > 0 ? r.budget / scale : null} title={money(r.actual)} />
-                    </button>
-                  );
-                });
-              })()}
+              {data.budget.map((r) => {
+                const inflow = r.actual < 0; // net money IN (refund/credit), not spend
+                // Per-row scale: the track's 100% is THIS row's max(|actual|, budget).
+                // So actual==budget fills full; $10 spent against a $1 budget fills
+                // full with the budget marker at 1/10. Compare ROUNDED figures so the
+                // colour matches the displayed numbers (at/under budget = green).
+                const mag = Math.abs(r.actual);
+                const rowMax = Math.max(mag, r.budget) || 1;
+                const over = r.budget > 0 && Math.round(r.actual * 100) > Math.round(r.budget * 100);
+                // No budget set (budget 0) → neutral: just show the total, no alarm.
+                // Over budget → amber; at/under budget → green; money-in → muted.
+                const color = inflow ? "var(--muted)" : r.budget === 0 ? "var(--primary)" : over ? "var(--warning)" : "var(--success)";
+                return (
+                  <button key={r.name} className="budget-row" onClick={() => setDetail(r)}>
+                    <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                      <span>{r.name}</span>
+                      <span className="muted">
+                        {money(r.actual)}
+                        {r.budget > 0 ? ` / ${money(r.budget)}` : ""}
+                      </span>
+                    </div>
+                    <BarRow frac={mag / rowMax} color={color} markerFrac={r.budget > 0 ? r.budget / rowMax : null} title={money(r.actual)} />
+                  </button>
+                );
+              })}
             </div>
           )}
         </section>
@@ -179,9 +186,22 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
   );
 }
 
+type DialogTxn = {
+  id: string;
+  txnId: string | null; // whole-txn id for category override; null for groups/split parts
+  title: string;
+  vendorName: string;
+  vendorLink: string | null;
+  vendorIcon: string | null;
+  date: string;
+  amount: number;
+  currency: string | null;
+};
+
 // Modal for one Budget-vs-actual row: edit the monthly budget and list the
 // effective transactions behind the month's "actual" (same read model, so they
-// sum to it). Closes on overlay click / Escape / Close.
+// sum to it). Each plain transaction expands to re-categorise it (with a reason).
+// Closes on overlay click / Escape / Close.
 function BudgetDialog({
   row,
   month,
@@ -200,22 +220,33 @@ function BudgetDialog({
   onSaved: () => void;
 }) {
   const t = useT();
-  const [txns, setTxns] = useState<
-    { id: string; title: string; vendorName: string; vendorLink: string | null; vendorIcon: string | null; date: string; amount: number; currency: string | null }[] | null
-  >(null);
+  const [txns, setTxns] = useState<DialogTxn[] | null>(null);
+  const [cats, setCats] = useState<string[]>([]);
   const [budget, setBudget] = useState(String(row.budget || ""));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
+  const reloadTxns = () =>
     fetch(`/api/dashboard/category?month=${month}&name=${encodeURIComponent(row.name)}`)
       .then((r) => (r.ok ? r.json() : { transactions: [] }))
       .then((d) => setTxns(d.transactions))
       .catch(() => setTxns([]));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    reloadTxns();
+    fetch("/api/categories")
+      .then((r) => (r.ok ? r.json() : { categories: [] }))
+      .then((d) => setCats((d.categories ?? []).map((c: { name: string }) => c.name)))
+      .catch(() => {});
     return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, row.name, onClose]);
+
+  // Live actual = sum of the shown rows, so the header follows category overrides
+  // (a re-categorised txn leaves this list) without waiting on the parent reload.
+  const shownActual = txns ? txns.reduce((s, x) => s + x.amount, 0) : row.actual;
 
   const save = async () => {
     if (!row.id) return;
@@ -266,12 +297,12 @@ function BudgetDialog({
           <div className="row" style={{ alignItems: "flex-end", gap: 10, marginBottom: 16 }}>
             <div style={{ flex: "0 0 auto" }}>
               <label htmlFor="budget-edit" style={{ marginTop: 0 }}>{t("dash.budget.budgetLabel")}</label>
-              <input id="budget-edit" className="budget" type="number" min={0} step="1" value={budget} onChange={(e) => setBudget(e.target.value)} />
+              <input id="budget-edit" className="budget" type="number" min={0} step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} />
             </div>
             <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
               {saving ? t("common.saving") : t("common.save")}
             </button>
-            <span className="muted" style={{ fontSize: 13 }}>{money(row.actual)}{row.budget > 0 ? ` / ${money(row.budget)}` : ""}</span>
+            <span className="muted" style={{ fontSize: 13 }}>{money(shownActual)}{row.budget > 0 ? ` / ${money(row.budget)}` : ""}</span>
           </div>
         )}
         {err && <p className="error">{err}</p>}
@@ -284,16 +315,109 @@ function BudgetDialog({
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {txns.map((x) => (
-              <div key={x.id} className="row" style={{ gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <VendorIcon name={x.vendorName} link={x.vendorLink} icon={x.vendorIcon} size={18} />
-                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title}</span>
-                <span className="muted" style={{ flex: "0 0 auto", fontSize: 13 }}>{dateLabel(x.date)}</span>
-                <span style={{ flex: "0 0 auto", minWidth: 72, textAlign: "right" }}>{money(x.amount)}</span>
-              </div>
+              <TxnRow
+                key={x.id}
+                txn={x}
+                current={row.name}
+                cats={cats}
+                money={money}
+                dateLabel={dateLabel}
+                onSaved={() => {
+                  reloadTxns();
+                  onSaved();
+                }}
+              />
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// One transaction line in the budget dialog. Plain transactions (txnId != null)
+// expand to a category picker + required reason and PATCH /api/transactions/[id]
+// — the same per-transaction override the Review page sets. Merge groups and
+// split parts aren't single overridable transactions, so they don't expand.
+function TxnRow({
+  txn,
+  current,
+  cats,
+  money,
+  dateLabel,
+  onSaved,
+}: {
+  txn: DialogTxn;
+  current: string;
+  cats: string[];
+  money: (n: number) => string;
+  dateLabel: (iso: string) => string;
+  onSaved: () => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState(current);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const canEdit = txn.txnId != null;
+
+  const save = async () => {
+    if (!txn.txnId || !reason.trim()) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/transactions/${txn.txnId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ categoryName: cat, reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        setErr((await res.json().catch(() => null))?.error ?? t("common.genericError"));
+        return;
+      }
+      setOpen(false);
+      setReason("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ borderBottom: "1px solid var(--border)" }}>
+      <button
+        className="budget-row"
+        style={{ margin: 0, padding: "8px 0", cursor: canEdit ? "pointer" : "default" }}
+        onClick={() => canEdit && setOpen((o) => !o)}
+        disabled={!canEdit}
+      >
+        <div className="row" style={{ gap: 10 }}>
+          <VendorIcon name={txn.vendorName} link={txn.vendorLink} icon={txn.vendorIcon} size={18} />
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{txn.title}</span>
+          <span className="muted" style={{ flex: "0 0 auto", fontSize: 13 }}>{dateLabel(txn.date)}</span>
+          <span style={{ flex: "0 0 auto", minWidth: 72, textAlign: "right" }}>{money(txn.amount)}</span>
+        </div>
+      </button>
+      {open && (
+        <div className="row wrap" style={{ gap: 8, padding: "0 0 10px", alignItems: "flex-end" }}>
+          <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ width: "auto", flex: "0 0 auto" }} aria-label={t("review.setCategory")}>
+            {cats.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t("review.categoryReasonPlaceholder")}
+            style={{ flex: 1, minWidth: 140 }}
+          />
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !reason.trim()}>
+            {saving ? t("common.saving") : t("common.save")}
+          </button>
+          {err && <p className="error" style={{ width: "100%", margin: 0 }}>{err}</p>}
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,10 @@ export async function GET(req: Request) {
     .filter((e) => e.categoryName === name && monthKey(e.date) === month)
     .map((e) => ({
       id: e.id,
+      // The whole-transaction id to hang a category override on (PATCH
+      // /api/transactions/[id]). Only plain txns qualify — a merge group or a
+      // split part isn't a single overridable PlaidTransaction, so null there.
+      txnId: !e.isGroup && e.parentId == null ? e.id : null,
       title: e.title,
       vendorName: e.vendorName,
       vendorLink: e.vendorLink,
