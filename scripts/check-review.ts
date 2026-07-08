@@ -249,6 +249,7 @@ async function main(): Promise<void> {
   check(renErr instanceof CategoryError && renErr.status === 400, "ignore: the Ignore category cannot be renamed");
 
   await checkDupClustering();
+  await checkUnusualAmount();
 
   // Teardown: leave the shared dev DB clean.
   await prisma.transactionFlag.deleteMany({ where: { userId: USER } });
@@ -323,6 +324,74 @@ async function checkDupClustering(): Promise<void> {
   const after = (await reviewData(U)).suspicion["duplicate_charge"] ?? [];
   check(!after.some((e) => e.transactionId === "rt2-abc"), "dup-resolve: orphaned survivor's stale duplicate flag auto-resolves after its partners merge away");
   check(after.length === 2, "dup-resolve: the untouched Jan 30-31 pair stays flagged (only rt2-abc clears)");
+
+  await teardown();
+}
+
+// unusual_amount: a charge must clear BOTH 3× median AND 3× mean of the vendor's
+// ≥3 prior charges. Also checks the applyFlags auto-resolve (a charge that stops
+// being unusual because its baseline rose clears its flag).
+async function checkUnusualAmount(): Promise<void> {
+  const U = "review-unusual-user";
+  const IT = "ru-item";
+  const AC = "ru-acct";
+  const IDS = ["ua-a1", "ua-a2", "ua-a3", "ua-a4", "ua-amid", "ua-b1", "ua-b2", "ua-b3", "ua-b4", "ua-g1", "ua-g2", "ua-g3"];
+  const teardown = async () => {
+    await prisma.transactionFlag.deleteMany({ where: { userId: U } });
+    await prisma.mergeGroupLeg.deleteMany({ where: { transactionId: { in: IDS } } });
+    await prisma.mergeGroup.deleteMany({ where: { userId: U } });
+    await prisma.plaidTransaction.deleteMany({ where: { accountId: AC } });
+    await prisma.plaidAccount.deleteMany({ where: { itemId: IT } });
+    await prisma.plaidItem.deleteMany({ where: { itemId: IT } });
+    await prisma.transactionCategory.deleteMany({ where: { userId: U } });
+    await prisma.vendor.deleteMany({ where: { userId: U } });
+    await prisma.user.deleteMany({ where: { id: U } });
+  };
+  await teardown();
+  await prisma.user.create({ data: { id: U, email: `${U}@t.local`, passwordHash: "x" } });
+  await prisma.plaidInstitution.upsert({ where: { institutionId: "rt-inst" }, create: { institutionId: "rt-inst", name: "RT Bank" }, update: {} });
+  await prisma.plaidItem.create({ data: { itemId: IT, userId: U, institutionId: "rt-inst", accessToken: "x", lastForceRefreshed: new Date("2026-01-01") } });
+  await prisma.plaidAccount.create({ data: { accountId: AC, itemId: IT, name: "RU Chq", accountType: "depository" } });
+  // Distinct merchant names → distinct vendor identities (unmatched → normalized name).
+  const txn = (id: string, name: string, amount: number, dayISO: string) =>
+    prisma.plaidTransaction.create({
+      data: {
+        transactionId: id, accountId: AC, amount, isoCurrencyCode: "CAD",
+        category: JSON.stringify({ primary: "GENERAL_MERCHANDISE" }),
+        datetime: new Date(dayISO), name, merchantName: null, paymentChannel: "in store", pending: false,
+      },
+    });
+  // Alpha: three equal priors then a 4× charge — clears BOTH thresholds → flags.
+  await txn("ua-a1", "Alpha Store", 10, "2026-06-01");
+  await txn("ua-a2", "Alpha Store", 10, "2026-06-02");
+  await txn("ua-a3", "Alpha Store", 10, "2026-06-03");
+  await txn("ua-a4", "Alpha Store", 40, "2026-06-05");
+  // Beta: an earlier 100 lifts the mean, so 40 clears 3× median but NOT 3× mean.
+  await txn("ua-b1", "Beta Store", 10, "2026-06-01");
+  await txn("ua-b2", "Beta Store", 10, "2026-06-02");
+  await txn("ua-b3", "Beta Store", 100, "2026-06-03");
+  await txn("ua-b4", "Beta Store", 40, "2026-06-05");
+  // Gamma: only two priors (<3) — never flags.
+  await txn("ua-g1", "Gamma Store", 10, "2026-06-01");
+  await txn("ua-g2", "Gamma Store", 10, "2026-06-02");
+  await txn("ua-g3", "Gamma Store", 40, "2026-06-03");
+  await analyzeUser(U);
+
+  const u1 = (await reviewData(U)).suspicion["unusual_amount"] ?? [];
+  const ids1 = new Set(u1.map((e) => e.transactionId));
+  check(ids1.has("ua-a4"), "unusual: a charge ≥3× BOTH median and mean of ≥3 priors is flagged");
+  check(!ids1.has("ua-b4"), "unusual: a charge clearing 3× median but not 3× mean is NOT flagged (AND guard)");
+  check(!["ua-g1", "ua-g2", "ua-g3"].some((id) => ids1.has(id)), "unusual: a vendor with <3 priors never flags");
+  check(u1.length === 1, "unusual: exactly the one qualifying charge is flagged");
+
+  // Insert an earlier large Alpha charge: it lifts Alpha's mean so the 40 stops
+  // being unusual (auto-RESOLVES), while the new charge becomes the outlier.
+  await txn("ua-amid", "Alpha Store", 100, "2026-06-04");
+  await analyzeUser(U);
+  const u2 = (await reviewData(U)).suspicion["unusual_amount"] ?? [];
+  const ids2 = new Set(u2.map((e) => e.transactionId));
+  check(!ids2.has("ua-a4"), "unusual: a charge that stops being unusual (baseline rose) auto-resolves");
+  check(ids2.has("ua-amid"), "unusual: the newly-large charge becomes the outlier");
 
   await teardown();
 }
