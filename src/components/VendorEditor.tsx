@@ -17,7 +17,7 @@ export type Condition = {
   amountMin: number | null;
   amountMax: number | null;
   accountId: string | null;
-  dayOfMonth: number | null;
+  daysOfMonth: number[];
   paymentChannel: string | null;
   plaidPrimary: string | null;
   plaidDetailed: string | null;
@@ -55,7 +55,7 @@ type RowForm = {
   amountMin: string;
   amountMax: string;
   accountId: string;
-  dayOfMonth: string;
+  daysOfMonth: number[];
   paymentChannel: string;
   plaidPrimary: string;
   plaidDetailed: string;
@@ -76,7 +76,7 @@ function toRowForm(c: Condition): RowForm {
     amountMin: c.amountMin == null ? "" : String(c.amountMin),
     amountMax: c.amountMax == null ? "" : String(c.amountMax),
     accountId: c.accountId ?? "",
-    dayOfMonth: c.dayOfMonth == null ? "" : String(c.dayOfMonth),
+    daysOfMonth: c.daysOfMonth ?? [],
     paymentChannel: c.paymentChannel ?? "",
     plaidPrimary: c.plaidPrimary ?? "",
     plaidDetailed: c.plaidDetailed ?? "",
@@ -86,7 +86,7 @@ function toRowForm(c: Condition): RowForm {
 
 const emptyRow = (): RowForm => toRowForm({
   categoryName: null, nameOp: null, nameValue: null, merchantOp: null, merchantValue: null,
-  amountMin: null, amountMax: null, accountId: null, dayOfMonth: null, paymentChannel: null, plaidPrimary: null, plaidDetailed: null,
+  amountMin: null, amountMax: null, accountId: null, daysOfMonth: [], paymentChannel: null, plaidPrimary: null, plaidDetailed: null,
   plaidConfidence: null,
 });
 
@@ -104,7 +104,7 @@ function rowBody(r: RowForm, withCategory: boolean) {
     amountMin: num(r.amountMin),
     amountMax: num(r.amountMax),
     accountId: r.accountId || null,
-    dayOfMonth: r.dayOfMonth === "" ? null : Number(r.dayOfMonth),
+    daysOfMonth: r.daysOfMonth,
     paymentChannel: r.paymentChannel || null,
     plaidPrimary: r.plaidPrimary.trim() || null,
     plaidDetailed: r.plaidDetailed.trim() || null,
@@ -362,15 +362,36 @@ function RowEditor({
             ))}
           </select>
         </div>
-        {/* day of month — matches the txn's UTC day; 0 = last day, negatives count back */}
-        <div>
-          <label>{t("cust.vendors.dayOfMonth")}</label>
-          <select value={row.dayOfMonth} onChange={(e) => onChange({ dayOfMonth: e.target.value })}>
-            <option value="">{t("cust.vendors.anyOption")}</option>
-            {DOM_VALUES.map((v) => (
-              <option key={v} value={v}>{domLabel(v, t)}</option>
-            ))}
-          </select>
+        {/* day of month — matches the txn's UTC day; 0 = last day, negatives count
+            back. Multi-select: the row matches if the day is ANY picked value; none
+            picked = no filter. Full-width so the 37 toggles wrap cleanly. */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label>
+            {t("cust.vendors.dayOfMonth")}
+            {row.daysOfMonth.length === 0 && (
+              <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> — {t("cust.vendors.anyOption")}</span>
+            )}
+          </label>
+          <div className="row" style={{ flexWrap: "wrap", gap: 4 }}>
+            {DOM_VALUES.map((v) => {
+              const on = row.daysOfMonth.includes(v);
+              return (
+                <button
+                  type="button"
+                  key={v}
+                  className={`btn btn-sm ${on ? "btn-primary" : "btn-ghost"}`}
+                  style={{ padding: "2px 8px", minWidth: 34 }}
+                  onClick={() =>
+                    onChange({
+                      daysOfMonth: on ? row.daysOfMonth.filter((x) => x !== v) : [...row.daysOfMonth, v],
+                    })
+                  }
+                >
+                  {domLabel(v, t)}
+                </button>
+              );
+            })}
+          </div>
         </div>
         {/* payment channel */}
         <div>

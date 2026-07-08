@@ -13,7 +13,8 @@ export type AnyCondition = {
   amountMin?: number | null;
   amountMax?: number | null;
   accountId?: string | null;
-  dayOfMonth?: number | null;
+  daysOfMonth?: number[] | null;
+  dayOfMonth?: number | null; // legacy single value (still rendered for old rows)
   paymentChannel?: string | null;
   plaidPrimary?: string | null;
   plaidDetailed?: string | null;
@@ -76,7 +77,8 @@ function fieldChips(c: AnyCondition, t: (k: string, p?: Record<string, string | 
   else if (c.amountMin != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ≥ ${c.amountMin}` });
   else if (c.amountMax != null) out.push({ tone: "amount", text: `${t("cust.vendors.amount")} ≤ ${c.amountMax}` });
   if (c.accountId) out.push({ tone: "account", text: `${t("cust.vendors.account")}: ${accountName(c.accountId)}` });
-  if (c.dayOfMonth != null) out.push({ tone: "dayOfMonth", text: `${t("cust.vendors.dayOfMonth")}: ${domLabel(c.dayOfMonth, t)}` });
+  const domDays = c.daysOfMonth?.length ? c.daysOfMonth : c.dayOfMonth != null ? [c.dayOfMonth] : [];
+  if (domDays.length) out.push({ tone: "dayOfMonth", text: `${t("cust.vendors.dayOfMonth")}: ${domDays.map((v) => domLabel(v, t)).join(", ")}` });
   if (c.paymentChannel) out.push({ tone: "channel", text: `${t("cust.vendors.channel")}: ${c.paymentChannel}` });
   if (c.plaidPrimary) out.push({ tone: "plaidPrimary", text: `${t("cust.vendors.plaidPrimary")}: ${c.plaidPrimary}` });
   if (c.plaidDetailed) out.push({ tone: "plaidDetailed", text: `${t("cust.vendors.plaidDetailed")}: ${c.plaidDetailed}` });
