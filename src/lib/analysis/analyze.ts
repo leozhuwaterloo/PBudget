@@ -27,6 +27,7 @@ const median = (xs: number[]): number => {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
+const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 export async function analyzeUser(userId: string): Promise<void> {
   // 1. Scope: the user's POSTED transactions in the last ANALYSIS_WINDOW_DAYS
@@ -202,42 +203,27 @@ function hasDuplicate(it: Item, items: Item[]): boolean {
   );
 }
 
-// A charge ≥ 3× the median of that vendor's ≥3 prior posted charges. Charges
-// only — refunds neither trigger nor enter the median. Applies to every vendor
-// (the approval model is retired; identity is the normalized string until F1).
+// A charge that is BOTH ≥ 3× the median AND ≥ 3× the mean of that vendor's ≥3
+// prior posted charges. Requiring both (not median alone) makes the rule robust
+// both ways: the median ignores a single spike, while the mean requires the
+// charge to also dwarf the running average — so a vendor with one earlier big
+// charge (which lifts the mean) no longer re-flags every ordinary charge after
+// it. Charges only — refunds neither trigger nor enter the baseline. Every vendor
+// participates (approval model retired; identity is the normalized string until
+// F1). Driven through applyFlags (not an open-only fire) so a charge that stops
+// being unusual — its vendor's baseline rose, or the threshold tightened — auto-
+// RESOLVES; dismissed flags stay dismissed.
 async function applyUnusualAmount(userId: string, items: Item[]): Promise<void> {
   const charges = items.filter((it) => it.amount > 0);
-  for (const it of charges) {
+  const wants = charges.map((it) => {
     const priors = charges
       .filter((o) => o.vendor === it.vendor && o.date.getTime() < it.date.getTime())
       .map((o) => o.amount);
-    if (priors.length < UNUSUAL_MIN_PRIORS) continue;
-    if (it.amount >= UNUSUAL_MULTIPLIER * median(priors)) {
-      await fire(userId, RULES.unusualAmount, it.target);
-    }
-  }
-}
-
-// Flag upsert invariant (FR4): fires & no row → create open; fires & dismissed →
-// untouched (permanence); fires & resolved → reopen; fires & open → leave. The
-// analyzer never CLOSES a flag — only actions (approve/merge/dismiss) do.
-async function fire(
-  userId: string,
-  rule: string,
-  target: { transactionId: string } | { mergeGroupId: string }
-): Promise<void> {
-  const where =
-    "transactionId" in target
-      ? { rule_transactionId: { rule, transactionId: target.transactionId } }
-      : { rule_mergeGroupId: { rule, mergeGroupId: target.mergeGroupId } };
-  const existing = await prisma.transactionFlag.findUnique({ where });
-  if (!existing) {
-    await prisma.transactionFlag.create({ data: { userId, rule, ...target, status: "open" } });
-  } else if (existing.status === "resolved") {
-    await prisma.transactionFlag.update({
-      where: { id: existing.id },
-      data: { status: "open", resolvedAt: null },
-    });
-  }
-  // dismissed → untouched; open → leave as-is.
+    const open =
+      priors.length >= UNUSUAL_MIN_PRIORS &&
+      it.amount >= UNUSUAL_MULTIPLIER * median(priors) &&
+      it.amount >= UNUSUAL_MULTIPLIER * mean(priors);
+    return { rule: RULES.unusualAmount, ...it.target, open };
+  });
+  await applyFlags(userId, wants);
 }
