@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { gate } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { plaidPrimary, plaidDetailed, plaidConfidence } from "@/lib/analysis/vendor";
+import { resolveCategory } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!t) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Derived layer (mirrors the funnel): the materialized winning vendor + the live
+  // category waterfall. Unmatched txns have vendorId=null → vendor null, category
+  // falls back to the Plaid primary. Whole-txn view, so no split-part override.
+  const vendor = t.vendorId
+    ? await prisma.vendor.findUnique({ where: { id: t.vendorId }, include: { conditions: true } })
+    : null;
+
   return NextResponse.json({
     transactionId: t.transactionId,
     name: t.name,
@@ -30,6 +38,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     paymentChannel: t.paymentChannel,
     pending: t.pending,
     website: t.website,
+    vendor: vendor?.name ?? null,
+    category: resolveCategory(vendor, t),
     plaidPrimary: plaidPrimary(t.category),
     plaidDetailed: plaidDetailed(t.category),
     plaidConfidence: plaidConfidence(t.category),
