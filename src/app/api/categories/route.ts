@@ -4,6 +4,7 @@ import { gate, num } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import {
   CategoryError,
+  clearDeletedCategory,
   deleteCategory,
   ensureDefaultCategories,
   updateCategory,
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
     const cat = await prisma.transactionCategory.create({
       data: { userId, name, budget: budget ?? 0, excludeFromTotals, parentName },
     });
+    await clearDeletedCategory(userId, name); // deliberate re-create revives a deleted name
     return NextResponse.json(serialize(cat), { status: 201 });
   } catch (e) {
     if (e instanceof CategoryError) return NextResponse.json({ error: e.message }, { status: e.status });

@@ -116,7 +116,8 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
     select: { name: true },
   });
   const have = new Set(existing.map((c) => c.name));
-  const missing = names.filter((n) => !have.has(n));
+  const dead = await deletedCategoryNames(userId); // don't resurrect a default the user deleted
+  const missing = names.filter((n) => !have.has(n) && !dead.has(n));
   if (missing.length === 0) return;
   await prisma.transactionCategory.createMany({
     data: missing.map((name) => ({
@@ -132,6 +133,19 @@ export class CategoryError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+}
+
+// Names the user has deleted — sync auto-create and the default seed skip these
+// so a deleted category stays deleted (see DeletedCategory).
+export async function deletedCategoryNames(userId: string): Promise<Set<string>> {
+  const rows = await prisma.deletedCategory.findMany({ where: { userId }, select: { name: true } });
+  return new Set(rows.map((r) => r.name));
+}
+
+// Lift the tombstone when the user deliberately (re-)creates or renames into a
+// name they'd previously deleted. No-op if there was no tombstone.
+export async function clearDeletedCategory(userId: string, name: string): Promise<void> {
+  await prisma.deletedCategory.deleteMany({ where: { userId, name } });
 }
 
 // Cascade a category rename to every row that references the name by string
@@ -214,7 +228,11 @@ export async function updateCategory(
         ...(parentName !== undefined ? { parentName } : {}),
       },
     });
-    if (rename) await cascadeRename(tx, userId, cat.name, patch.name!);
+    if (rename) {
+      await cascadeRename(tx, userId, cat.name, patch.name!);
+      // Renaming INTO a previously-deleted name revives it — lift its tombstone.
+      await tx.deletedCategory.deleteMany({ where: { userId, name: patch.name! } });
+    }
     return updated;
   });
 }
@@ -256,6 +274,12 @@ export async function deleteCategory(userId: string, id: string): Promise<void> 
     // Merge groups don't block the delete (see categoryRefCount) but carry the
     // name as a cached label — null it so nothing dangles at the deleted category.
     await tx.mergeGroup.updateMany({ where: { userId, categoryName: cat.name }, data: { categoryName: null } });
+    // Tombstone the name so sync/seed won't auto-recreate it (deleted stays deleted).
+    await tx.deletedCategory.upsert({
+      where: { userId_name: { userId, name: cat.name } },
+      create: { userId, name: cat.name },
+      update: {},
+    });
     await tx.transactionCategory.delete({ where: { id } });
   });
 }

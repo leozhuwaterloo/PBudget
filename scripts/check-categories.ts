@@ -8,6 +8,8 @@ import {
   updateCategory,
   deleteCategory,
   categoryRefCount,
+  deletedCategoryNames,
+  clearDeletedCategory,
   plaidCategoryName,
   CategoryError,
 } from "../src/lib/categories";
@@ -21,6 +23,7 @@ async function reset(): Promise<void> {
   // else a leftover split's globally-unique parentTransactionId collides on re-run.
   await prisma.transactionSplit.deleteMany({ where: { userId: USER } });
   await prisma.mergeGroup.deleteMany({ where: { userId: USER } });
+  await prisma.deletedCategory.deleteMany({ where: { userId: USER } });
   await prisma.user.deleteMany({ where: { id: USER } });
   await prisma.user.create({ data: { id: USER, email: `${USER}@t.local`, passwordHash: "x" } });
 }
@@ -127,8 +130,31 @@ async function main(): Promise<void> {
   await deleteCategory(USER, food.id);
   assert.equal(await parentOf(dining.id), null, "child reparented to top level on parent delete");
 
+  // --- Deleted categories stay deleted (tombstone) ------------------------
+  // Delete a default → tombstoned → ensureDefaultCategories won't resurrect it.
+  const util = await prisma.transactionCategory.findFirst({ where: { userId: USER, name: "Utility" } });
+  await deleteCategory(USER, util!.id);
+  assert.ok((await deletedCategoryNames(USER)).has("Utility"), "deleted name is tombstoned");
+  await ensureDefaultCategories(USER);
+  assert.equal(await prisma.transactionCategory.count({ where: { userId: USER, name: "Utility" } }), 0, "tombstoned default not re-seeded");
+
+  // Deliberate re-create lifts the tombstone; the default then seeds again.
+  await clearDeletedCategory(USER, "Utility");
+  assert.ok(!(await deletedCategoryNames(USER)).has("Utility"), "tombstone lifted on re-create");
+  await ensureDefaultCategories(USER);
+  assert.equal(await prisma.transactionCategory.count({ where: { userId: USER, name: "Utility" } }), 1, "un-tombstoned default seeds again");
+
+  // Renaming a category INTO a tombstoned name also lifts the tombstone.
+  const gas = await prisma.transactionCategory.findFirst({ where: { userId: USER, name: "Gas" } });
+  await deleteCategory(USER, gas!.id);
+  assert.ok((await deletedCategoryNames(USER)).has("Gas"), "Gas tombstoned");
+  const tmp = await prisma.transactionCategory.create({ data: { userId: USER, name: "TmpRename" } });
+  await updateCategory(USER, tmp.id, { name: "Gas" });
+  assert.ok(!(await deletedCategoryNames(USER)).has("Gas"), "rename into a tombstoned name lifts it");
+
+  await prisma.deletedCategory.deleteMany({ where: { userId: USER } });
   await prisma.user.deleteMany({ where: { id: USER } });
-  console.log("\n  ✓ FR4 categories: seeding, rename cascade, delete rejection, subcategories all pass\n");
+  console.log("\n  ✓ FR4 categories: seeding, rename cascade, delete rejection, subcategories, tombstone all pass\n");
 }
 
 main()
