@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword, createSession, createVerificationToken } from "@/lib/auth";
 import { normalizeEmail, validatePassword } from "@/lib/validate";
 import { sendVerificationEmail } from "@/lib/email";
+import { emailRateLimited, emailDims, clientIp } from "@/lib/rateLimit";
 import { seedNewUserVendors } from "@/lib/catalog/instantiate";
 
 export async function POST(req: Request) {
@@ -22,7 +23,10 @@ export async function POST(req: Request) {
   });
   await seedNewUserVendors(user.id); // seeds default categories + the 3 catch-all vendors
   const token = await createVerificationToken(user.id);
-  await sendVerificationEmail(email, token);
+  // Cap verification sends per IP + recipient; if limited, skip the send (the user
+  // can request it later via /resend, which is capped the same way).
+  if (!(await emailRateLimited(emailDims(email, clientIp(req)))))
+    await sendVerificationEmail(email, token);
   await createSession(user.id);
   return NextResponse.json({ ok: true });
 }
