@@ -114,10 +114,11 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {(() => {
-                const scale = Math.max(1, ...data.budget.map((r) => Math.max(r.actual, r.budget)));
+                const scale = Math.max(1, ...data.budget.map((r) => Math.max(Math.abs(r.actual), r.budget)));
                 return data.budget.map((r) => {
+                  const inflow = r.actual < 0; // net money IN (refund/credit), not spend
                   const over = r.budget > 0 && r.actual > r.budget;
-                  const color = r.budget === 0 || over ? "var(--warning)" : "var(--success)";
+                  const color = inflow ? "var(--muted)" : r.budget === 0 || over ? "var(--warning)" : "var(--success)";
                   return (
                     <button key={r.name} className="budget-row" onClick={() => setDetail(r)}>
                       <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
@@ -127,7 +128,7 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
                           {r.budget > 0 ? ` / ${money(r.budget)}` : ""}
                         </span>
                       </div>
-                      <BarRow frac={r.actual / scale} color={color} markerFrac={r.budget > 0 ? r.budget / scale : null} title={money(r.actual)} />
+                      <BarRow frac={Math.abs(r.actual) / scale} color={color} markerFrac={r.budget > 0 ? r.budget / scale : null} title={money(r.actual)} />
                     </button>
                   );
                 });
