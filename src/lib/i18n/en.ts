@@ -87,6 +87,7 @@ const en = {
   "cust.nav.vendors": "Vendors",
   "cust.nav.merges": "Merged groups",
   "cust.nav.markedValid": "Marked valid",
+  "cust.nav.overrides": "Category overrides",
   "cust.nav.billing": "Billing",
   // merged groups tab — confirmed merges (pending ones stay in Review)
   "cust.merges.help": "Transactions you've merged into a single group (e.g. a transfer's two legs). Dissolve one to split it back into its original transactions.",
@@ -97,6 +98,12 @@ const en = {
   "cust.markedValid.loadFailed": "Failed to load marked-valid items.",
   "cust.markedValid.empty": "You haven't marked any flagged items valid yet.",
   "cust.markedValid.restore": "Restore",
+  // category overrides tab — transactions whose category you set by hand, with reason
+  "cust.overrides.help": "Transactions whose category you set manually, with the reason you gave. Clear one to revert it to its automatic category.",
+  "cust.overrides.loadFailed": "Failed to load category overrides.",
+  "cust.overrides.empty": "You haven't manually set any transaction categories yet.",
+  "cust.overrides.colCategory": "Category",
+  "cust.overrides.clear": "Clear",
   // categories & budgets (F9)
   "cust.cat.help":
     "Create your own categories, set a monthly budget for each, and exclude income and transfers from your spend totals.",

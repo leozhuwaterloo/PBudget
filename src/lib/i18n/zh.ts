@@ -89,6 +89,7 @@ const zh: Messages = {
   "cust.nav.vendors": "商户",
   "cust.nav.merges": "合并组",
   "cust.nav.markedValid": "已标记有效",
+  "cust.nav.overrides": "分类覆盖",
   "cust.nav.billing": "账单",
   // merged groups tab — confirmed merges (pending ones stay in Review)
   "cust.merges.help": "您已合并为单一组的交易（例如转账的两笔分录）。解散某组即可还原为原始交易。",
@@ -99,6 +100,12 @@ const zh: Messages = {
   "cust.markedValid.loadFailed": "加载已标记有效的项目失败。",
   "cust.markedValid.empty": "您尚未将任何可疑项标记为有效。",
   "cust.markedValid.restore": "恢复",
+  // category overrides tab — transactions whose category you set by hand, with reason
+  "cust.overrides.help": "您手动设置了分类的交易，以及您填写的原因。清除某项即可恢复为其自动分类。",
+  "cust.overrides.loadFailed": "加载分类覆盖失败。",
+  "cust.overrides.empty": "您尚未手动设置任何交易的分类。",
+  "cust.overrides.colCategory": "分类",
+  "cust.overrides.clear": "清除",
   // categories & budgets (F9)
   "cust.cat.help": "创建您自己的分类，为每个分类设置月度预算，并将收入和转账从支出总额中排除。",
   "cust.cat.loadFailed": "加载分类失败。",
