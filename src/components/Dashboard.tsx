@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useT, useLocale } from "@/lib/i18n/context";
 import { VendorIcon } from "./VendorIcon";
+import ReviewMergePicker from "./ReviewMergePicker";
 import type { DashboardData } from "@/lib/dashboard";
 
 // Graphs-only Dashboard (FR7): hand-rolled inline-SVG widgets in the Statement
@@ -356,6 +357,7 @@ function TxnRow({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [cat, setCat] = useState(current);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -415,8 +417,20 @@ function TxnRow({
           <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !reason.trim()}>
             {saving ? t("common.saving") : t("common.save")}
           </button>
+          <button className="btn btn-sm" onClick={() => setMerging(true)}>{t("review.merge")}</button>
           {err && <p className="error" style={{ width: "100%", margin: 0 }}>{err}</p>}
         </div>
+      )}
+      {merging && (
+        <ReviewMergePicker
+          seedId={txn.txnId!}
+          onClose={() => setMerging(false)}
+          onMerged={() => {
+            setMerging(false);
+            setOpen(false);
+            onSaved();
+          }}
+        />
       )}
     </div>
   );
