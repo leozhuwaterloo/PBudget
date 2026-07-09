@@ -32,6 +32,7 @@ export default function ReviewMergePicker({
   const t = useT();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set(seedId ? [seedId] : []));
+  const [query, setQuery] = useState("");
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -58,6 +59,15 @@ export default function ReviewMergePicker({
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+
+  // Case-insensitive filter over the vendor/raw name/merchant. Selection persists
+  // across searches (the Set isn't cleared), so you can search, pick, search again.
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? candidates.filter((c) =>
+        [c.vendorName, c.name, c.merchantName].some((s) => s?.toLowerCase().includes(q))
+      )
+    : candidates;
 
   const submit = async () => {
     setBusy(true);
@@ -107,6 +117,7 @@ export default function ReviewMergePicker({
         </p>
 
         <input placeholder={t("merge.optionalTitle")} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input placeholder={t("merge.search")} value={query} onChange={(e) => setQuery(e.target.value)} style={{ marginTop: 8 }} />
 
         <div
           style={{
@@ -125,8 +136,12 @@ export default function ReviewMergePicker({
             <p className="muted" style={{ padding: 12 }}>
               {t("merge.none")}
             </p>
+          ) : shown.length === 0 ? (
+            <p className="muted" style={{ padding: 12 }}>
+              {t("merge.noneMatch")}
+            </p>
           ) : (
-            candidates.map((c) => (
+            shown.map((c) => (
               <label
                 key={c.id}
                 style={{

@@ -22,10 +22,10 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<DashboardData["budget"][number] | null>(null);
 
-  // Never round for display — show the exact amount (at least cents), so a column
-  // of values and their total always agree (40.50 + 40.50 = 81.00, not 41+41=81).
+  // Fixed 2 decimals (%.2f) with locale thousands grouping. Real amounts are in
+  // cents, so a column and its total still agree (40.50 + 40.50 = 81.00).
   const money = (n: number) =>
-    `${data.currency ? data.currency + " " : ""}${n.toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 20 })}`;
+    `${data.currency ? data.currency + " " : ""}${n.toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const monthLabel = (key: string) => {
     const [y, m] = key.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, 1)).toLocaleString(numLocale, { month: "short", timeZone: "UTC" });
