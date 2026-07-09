@@ -97,14 +97,13 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
       ) : data && data.transactions.length === 0 ? (
         <p className="muted" style={{ padding: 8 }}>{t("accounts.browser.empty")}</p>
       ) : (
-        // The wide 9-col table must SCROLL, not stretch its container. Inside the
-        // Accounts table it sits in an auto-layout <td> that would otherwise grow to
-        // the table's min-content width (then .card's overflow:hidden clips the last
-        // columns). A flex wrapper with a min-width:0 scroll child breaks that: the
-        // child contributes 0 min-content, so the cell stays bounded and overflow-x
-        // scrolls instead. Same wrapper works in the slimmer vendor card.
-        <div style={{ display: "flex" }}>
-        <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
+        // overflow-x so the wide 9-col table scrolls (not clips) inside a narrow
+        // container. This works when the parent is normal flow (the vendor card).
+        // Inside the Accounts list the parent is a <td>, which grows to the table's
+        // content unless the OUTER accounts table is table-layout:fixed — which it is,
+        // so this stays bounded and scrolls. (A min-width:0 flex wrapper does NOT
+        // constrain an auto-layout table cell — verified it still clips.)
+        <div style={{ overflowX: "auto" }}>
         <table className="nested">
           <thead>
             <tr>
@@ -167,7 +166,6 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
             })}
           </tbody>
         </table>
-        </div>
         </div>
       )}
 

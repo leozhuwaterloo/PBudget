@@ -8,7 +8,8 @@ import { RULES } from "./analysis/constants";
 // convention, + = outflow; refunds subtract). Called from the server page for
 // first paint and from /api/dashboard on month change.
 
-const TOP_VENDORS = 8;
+const TOP_VENDORS = 20;
+const TOP_TXNS = 10;
 
 const monthKey = (d: Date) =>
   `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -39,6 +40,19 @@ export type DashboardData = {
   budget: { id: string | null; name: string; budget: number; actual: number }[]; // (b) selected month
   review: { unmatched: number; conflicts: number; suspicion: number; pending: number }; // (c)
   vendors: { key: string; name: string; link: string | null; icon: string | null; spend: number }[]; // (d) selected month
+  // (e) biggest transactions of the selected month
+  topTransactions: {
+    id: string;
+    txnId: string | null;
+    title: string;
+    categoryName: string | null;
+    vendorName: string;
+    vendorLink: string | null;
+    vendorIcon: string | null;
+    date: string;
+    amount: number;
+    currency: string | null;
+  }[];
 };
 
 export async function dashboardData(userId: string, month?: string): Promise<DashboardData> {
@@ -117,6 +131,26 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
     .sort((a, b) => b.spend - a.spend)
     .slice(0, TOP_VENDORS);
 
+  // (e) biggest transactions of the month — largest outflows first, same
+  // excludeFromTotals exclusion as (a). Each carries the whole-txn id so a row can
+  // be re-categorised / merged inline (null for a merge group or split part).
+  const topTransactions = effective
+    .filter((e) => inSelMonth(e.date) && !isExcluded(e.categoryName))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, TOP_TXNS)
+    .map((e) => ({
+      id: e.id,
+      txnId: !e.isGroup && e.parentId == null ? e.id : null,
+      title: e.title,
+      categoryName: e.categoryName,
+      vendorName: e.vendorName,
+      vendorLink: e.vendorLink,
+      vendorIcon: e.vendorIcon,
+      date: e.date.toISOString(),
+      amount: e.amount,
+      currency: e.currency,
+    }));
+
   return {
     month: selMonth,
     currency,
@@ -124,5 +158,6 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
     budget,
     review: { unmatched, conflicts, suspicion, pending },
     vendors,
+    topTransactions,
   };
 }

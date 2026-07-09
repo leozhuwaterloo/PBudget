@@ -206,13 +206,16 @@ export default function Accounts({
             </p>
           )}
 
-          <table>
+          {/* table-layout:fixed so an expanded TransactionBrowser (wide 9-col table
+              in a colSpan cell) can't stretch this table past the card — it scrolls
+              within its own overflow-x instead of being clipped by .card overflow:hidden. */}
+          <table style={{ tableLayout: "fixed" }}>
             <thead>
               <tr>
-                <th>{t("accounts.colAccount")}</th>
-                <th>{t("accounts.colCurrent")}</th>
-                <th>{t("accounts.colTxns")}</th>
-                <th></th>
+                <th style={{ width: "42%" }}>{t("accounts.colAccount")}</th>
+                <th style={{ width: "24%" }}>{t("accounts.colCurrent")}</th>
+                <th style={{ width: "18%" }}>{t("accounts.colTxns")}</th>
+                <th style={{ width: "16%" }}></th>
               </tr>
             </thead>
             <tbody>
