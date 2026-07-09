@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { VendorIcon } from "./VendorIcon";
 import SplitDialog from "./SplitDialog";
+import ReviewMergePicker from "./ReviewMergePicker";
 import { useT } from "@/lib/i18n/context";
 import type { Locale } from "@/lib/i18n";
 
@@ -43,6 +44,13 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [splitTarget, setSplitTarget] = useState<BrowserTxn | null>(null);
+  const [editTarget, setEditTarget] = useState<BrowserTxn | null>(null);
+
+  // A row is actionable when there's a whole-txn category to override (any
+  // non-split row) or it can seed a merge (posted, ungrouped, unsplit — same as
+  // split-eligibility). Split rows carry per-part categories, so no whole-txn edit.
+  const canEdit = (r: BrowserTxn) => !r.split;
+  const canMerge = (r: BrowserTxn) => r.eligibleForSplit;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,8 +115,15 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
             </tr>
           </thead>
           <tbody>
-            {data?.transactions.map((r) => (
-              <tr key={r.transactionId} className={r.pending ? "pending" : undefined}>
+            {data?.transactions.map((r) => {
+              const actionable = canEdit(r) || canMerge(r);
+              return (
+              <tr
+                key={r.transactionId}
+                className={r.pending ? "pending" : undefined}
+                style={actionable ? { cursor: "pointer" } : undefined}
+                onClick={actionable ? () => setEditTarget(r) : undefined}
+              >
                 <td>{r.name}</td>
                 <td>{r.merchantName ?? ""}</td>
                 <td>{money(-r.amount, r.currency)}</td>
@@ -132,18 +147,19 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
                       <span className="muted" style={{ fontSize: 11 }}>
                         {t("accounts.browser.splitBadge", { n: r.split.parts.length })}
                       </span>
-                      <button className="btn btn-sm" onClick={() => unsplit(r.transactionId)}>
+                      <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); unsplit(r.transactionId); }}>
                         {t("accounts.browser.unsplit")}
                       </button>
                     </span>
                   ) : r.eligibleForSplit ? (
-                    <button className="btn btn-sm" onClick={() => setSplitTarget(r)}>
+                    <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setSplitTarget(r); }}>
                       {t("accounts.browser.split")}
                     </button>
                   ) : null}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         </div>
@@ -171,6 +187,137 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
           }}
         />
       )}
+
+      {editTarget && (
+        <AccountTxnDialog
+          txn={editTarget}
+          canEdit={canEdit(editTarget)}
+          canMerge={canMerge(editTarget)}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => {
+            setEditTarget(null);
+            load();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Row-click editor for one raw transaction (Accounts): set a whole-txn category
+// override with a required reason (PATCH /api/transactions/[id], same as Review)
+// and/or seed an N-way merge (ReviewMergePicker → POST /api/merge). Closes on
+// overlay click / Escape / Close.
+function AccountTxnDialog({
+  txn,
+  canEdit,
+  canMerge,
+  onClose,
+  onSaved,
+}: {
+  txn: BrowserTxn;
+  canEdit: boolean;
+  canMerge: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const t = useT();
+  const [cats, setCats] = useState<string[]>([]);
+  const [cat, setCat] = useState(txn.category ?? "");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    fetch("/api/categories")
+      .then((r) => (r.ok ? r.json() : { categories: [] }))
+      .then((d) => {
+        const names: string[] = (d.categories ?? []).map((c: { name: string }) => c.name);
+        setCats(names);
+        // Ensure the select value is always a real category (txn.category can be a
+        // raw Plaid fallback that isn't one of the user's categories).
+        if (!names.includes(txn.category ?? "")) setCat(names[0] ?? "");
+      })
+      .catch(() => {});
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose]);
+
+  const save = async () => {
+    if (!reason.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/transactions/${txn.transactionId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ categoryName: cat, reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        setErr((await res.json().catch(() => null))?.error ?? t("common.genericError"));
+        return;
+      }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflow: "auto", zIndex: 50 }}
+        onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="card" style={{ maxWidth: 520, width: "100%", margin: 0 }} onClick={(e) => e.stopPropagation()}>
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+            <div className="row" style={{ gap: 10, minWidth: 0 }}>
+              <VendorIcon name={txn.vendorName} link={txn.vendorLink} icon={txn.vendorIcon} size={20} />
+              <div style={{ minWidth: 0 }}>
+                <div className="card-header" style={{ margin: 0 }}>{txn.name || txn.vendorName}</div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {new Date(txn.date).toLocaleDateString("en-ZA", { timeZone: "UTC" })} · {money(-txn.amount, txn.currency)}
+                </div>
+              </div>
+            </div>
+            <button className="btn btn-sm btn-ghost" onClick={onClose}>{t("common.close")}</button>
+          </div>
+
+          {canEdit && (
+            <div className="row wrap" style={{ gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
+              <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ width: "auto", flex: "0 0 auto" }} aria-label={t("review.setCategory")}>
+                {cats.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("review.categoryReasonPlaceholder")} style={{ flex: 1, minWidth: 140 }} />
+              <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !reason.trim()}>
+                {saving ? t("common.saving") : t("common.save")}
+              </button>
+            </div>
+          )}
+          {canMerge && (
+            <button className="btn btn-sm" onClick={() => setMerging(true)}>{t("review.merge")}</button>
+          )}
+          {err && <p className="error">{err}</p>}
+        </div>
+      </div>
+
+      {merging && (
+        <ReviewMergePicker
+          seedId={txn.transactionId}
+          onClose={() => setMerging(false)}
+          onMerged={() => {
+            setMerging(false);
+            onSaved();
+          }}
+        />
+      )}
+    </>
   );
 }
