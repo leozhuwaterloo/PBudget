@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { normalizeVendor } from "./vendor";
 import { primaryLeg } from "./groups";
 import { resolveCategory } from "../categories";
+import { UNCATEGORIZED_CATEGORY } from "./constants";
 
 export type EffectiveLeg = {
   id: string;
@@ -43,7 +44,7 @@ export async function effectiveTransactions(
   userId: string,
   range: { from?: Date; to?: Date } = {}
 ): Promise<EffectiveTransaction[]> {
-  const [posted, groups, vendors, splits] = await Promise.all([
+  const [posted, groups, vendors, splits, cats] = await Promise.all([
     prisma.plaidTransaction.findMany({
       where: { pending: false, account: { item: { userId } } },
     }),
@@ -53,7 +54,15 @@ export async function effectiveTransactions(
       where: { userId },
       include: { parts: { orderBy: { id: "asc" } } },
     }),
+    prisma.transactionCategory.findMany({ where: { userId }, select: { name: true } }),
   ]);
+
+  // Fold any resolved category the user doesn't actually have (a raw humanized Plaid
+  // primary like "Food And Drink" that no vendor rule / override claimed) into one
+  // "Uncategorized" bucket, so no phantom Plaid name shows up as a user category.
+  const userCats = new Set(cats.map((c) => c.name));
+  const toUserCat = (name: string | null) =>
+    name != null && !userCats.has(name) ? UNCATEGORIZED_CATEGORY : name;
 
   const postedById = new Map(posted.map((t) => [t.transactionId, t]));
   const legIds = new Set(groups.flatMap((g) => g.legs.map((l) => l.transactionId)));
@@ -89,7 +98,7 @@ export async function effectiveTransactions(
           vendorId: t.vendorId,
           vendorLink,
           vendorIcon,
-          categoryName: resolveCategory(vendor, t, part.categoryName),
+          categoryName: toUserCat(resolveCategory(vendor, t, part.categoryName)),
           date: t.datetime,
           amount: Number(part.amount),
           currency: t.isoCurrencyCode,
@@ -108,7 +117,7 @@ export async function effectiveTransactions(
       vendorId: t.vendorId,
       vendorLink,
       vendorIcon,
-      categoryName: resolveCategory(vendor, t, null),
+      categoryName: toUserCat(resolveCategory(vendor, t, null)),
       date: t.datetime,
       amount: Number(t.amount),
       currency: t.isoCurrencyCode,
@@ -132,9 +141,7 @@ export async function effectiveTransactions(
       vendorId: primary?.vendorId ?? null,
       vendorLink: vendor?.link ?? null,
       vendorIcon: vendor?.icon ?? null,
-      categoryName: primary
-        ? resolveCategory(vendor, primary, null)
-        : g.categoryName,
+      categoryName: toUserCat(primary ? resolveCategory(vendor, primary, null) : g.categoryName),
       date: g.date,
       amount: Number(g.netAmount),
       currency: g.currency,

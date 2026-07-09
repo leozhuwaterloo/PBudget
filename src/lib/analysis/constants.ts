@@ -22,6 +22,14 @@ export const IGNORE_CATEGORY = "Ignore";
 // (categories.ts) so that literal name can't drift out from under the rule.
 export const TRANSFER_CATEGORY = "Transfer";
 
+// Catch-all for spend that resolved to a category the user doesn't actually have —
+// i.e. the raw humanized Plaid primary fallback (e.g. "Food And Drink") when no
+// vendor rule / override claimed the txn. The read model (effective.ts) folds every
+// such non-user category into this one bucket so no raw Plaid name masquerades as a
+// user category. NOT excluded from totals (it's real spend) and NOT seeded — it
+// surfaces only when there's uncategorized spend, and drilling in re-categorises it.
+export const UNCATEGORIZED_CATEGORY = "Uncategorized";
+
 export const RULES = {
   // Queue-type items (engine lands in F1's match.ts): every effective item is
   // matched to a vendor or sits in one of these two queues.
