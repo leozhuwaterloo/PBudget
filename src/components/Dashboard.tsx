@@ -13,6 +13,19 @@ import type { DashboardData } from "@/lib/dashboard";
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
+// Bar geometry + colour for one budget line. Per-row scale: the track's 100% is
+// this line's own max(|actual|, budget), so actual==budget fills full and $10
+// against a $1 budget fills full with the marker at 1/10. Colour (rounded compare,
+// matching the shown numbers): over budget → amber; at/under → green; no budget
+// set → neutral primary; net money-in (refund/credit) → muted.
+function budgetBar(actual: number, budget: number) {
+  const mag = Math.abs(actual);
+  const rowMax = Math.max(mag, budget) || 1;
+  const over = budget > 0 && Math.round(actual * 100) > Math.round(budget * 100);
+  const color = actual < 0 ? "var(--muted)" : budget === 0 ? "var(--primary)" : over ? "var(--warning)" : "var(--success)";
+  return { frac: mag / rowMax, markerFrac: budget > 0 ? budget / rowMax : null, color };
+}
+
 export default function Dashboard({ initial }: { initial: DashboardData }) {
   const t = useT();
   const locale = useLocale();
@@ -21,6 +34,7 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
   const [month, setMonth] = useState(initial.month);
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<DashboardData["budget"][number] | null>(null);
+  const [vendorDetail, setVendorDetail] = useState<DashboardData["vendors"][number] | null>(null);
 
   // Fixed 2 decimals (%.2f) with locale thousands grouping. Real amounts are in
   // cents, so a column and its total still agree (40.50 + 40.50 = 81.00).
@@ -116,18 +130,28 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
             <p className="muted">{t("dash.budget.empty")}</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {(() => {
+                // Total budget vs total spend for the month. data.budget already
+                // reconciles with the trend (Σ actual == this month's bar), so these
+                // sums ARE the month's total spend and total set budget.
+                const totActual = data.budget.reduce((s, r) => s + r.actual, 0);
+                const totBudget = data.budget.reduce((s, r) => s + r.budget, 0);
+                const bar = budgetBar(totActual, totBudget);
+                return (
+                  <div style={{ paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
+                    <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginBottom: 4, fontWeight: 600 }}>
+                      <span>{t("dash.budget.total")}</span>
+                      <span className="muted">
+                        {money(totActual)}
+                        {totBudget > 0 ? ` / ${money(totBudget)}` : ""}
+                      </span>
+                    </div>
+                    <BarRow frac={bar.frac} color={bar.color} markerFrac={bar.markerFrac} title={money(totActual)} />
+                  </div>
+                );
+              })()}
               {data.budget.map((r) => {
-                const inflow = r.actual < 0; // net money IN (refund/credit), not spend
-                // Per-row scale: the track's 100% is THIS row's max(|actual|, budget).
-                // So actual==budget fills full; $10 spent against a $1 budget fills
-                // full with the budget marker at 1/10. Compare ROUNDED figures so the
-                // colour matches the displayed numbers (at/under budget = green).
-                const mag = Math.abs(r.actual);
-                const rowMax = Math.max(mag, r.budget) || 1;
-                const over = r.budget > 0 && Math.round(r.actual * 100) > Math.round(r.budget * 100);
-                // No budget set (budget 0) → neutral: just show the total, no alarm.
-                // Over budget → amber; at/under budget → green; money-in → muted.
-                const color = inflow ? "var(--muted)" : r.budget === 0 ? "var(--primary)" : over ? "var(--warning)" : "var(--success)";
+                const bar = budgetBar(r.actual, r.budget);
                 return (
                   <button key={r.name} className="budget-row" onClick={() => setDetail(r)}>
                     <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
@@ -137,7 +161,7 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
                         {r.budget > 0 ? ` / ${money(r.budget)}` : ""}
                       </span>
                     </div>
-                    <BarRow frac={mag / rowMax} color={color} markerFrac={r.budget > 0 ? r.budget / rowMax : null} title={money(r.actual)} />
+                    <BarRow frac={bar.frac} color={bar.color} markerFrac={bar.markerFrac} title={money(r.actual)} />
                   </button>
                 );
               })}
@@ -155,16 +179,16 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
               {(() => {
                 const scale = Math.max(1, ...data.vendors.map((v) => v.spend));
                 return data.vendors.map((v) => (
-                  <div key={v.key} className="row" style={{ alignItems: "center", gap: 8 }}>
+                  <button key={v.key} className="budget-row row" style={{ alignItems: "center", gap: 8 }} onClick={() => setVendorDetail(v)}>
                     <VendorIcon name={v.name} link={v.link} icon={v.icon} size={20} />
-                    <span style={{ flex: "0 0 90px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ flex: "0 0 90px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
                       {v.name}
                     </span>
                     <div style={{ flex: 1 }}>
                       <BarRow frac={v.spend / scale} color="var(--primary)" markerFrac={null} title={money(v.spend)} />
                     </div>
                     <span className="muted" style={{ flex: "0 0 auto", fontSize: 13 }}>{money(v.spend)}</span>
-                  </div>
+                  </button>
                 ));
               })()}
             </div>
@@ -183,6 +207,18 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
           onSaved={() => load(month)}
         />
       )}
+
+      {vendorDetail && (
+        <VendorDialog
+          vendor={vendorDetail}
+          month={month}
+          monthYearLabel={monthYearLabel}
+          money={money}
+          numLocale={numLocale}
+          onClose={() => setVendorDetail(null)}
+          onSaved={() => load(month)}
+        />
+      )}
     </div>
   );
 }
@@ -191,6 +227,7 @@ type DialogTxn = {
   id: string;
   txnId: string | null; // whole-txn id for category override; null for groups/split parts
   title: string;
+  categoryName?: string | null; // the txn's own category (vendor dialog spans categories)
   vendorName: string;
   vendorLink: string | null;
   vendorIcon: string | null;
@@ -320,6 +357,103 @@ function BudgetDialog({
                 key={x.id}
                 txn={x}
                 current={row.name}
+                cats={cats}
+                money={money}
+                dateLabel={dateLabel}
+                onSaved={() => {
+                  reloadTxns();
+                  onSaved();
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Modal for one Top-vendors row: lists the effective transactions behind the
+// vendor's monthly spend (same read model + exclusion, so they sum to it). Like
+// BudgetDialog but no budget to edit — reuses TxnRow, so each plain txn still
+// expands to re-categorise (with a reason) or merge. Closes on overlay/Escape/Close.
+function VendorDialog({
+  vendor,
+  month,
+  monthYearLabel,
+  money,
+  numLocale,
+  onClose,
+  onSaved,
+}: {
+  vendor: DashboardData["vendors"][number];
+  month: string;
+  monthYearLabel: (k: string) => string;
+  money: (n: number) => string;
+  numLocale: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const t = useT();
+  const [txns, setTxns] = useState<DialogTxn[] | null>(null);
+  const [cats, setCats] = useState<string[]>([]);
+
+  const reloadTxns = () =>
+    fetch(`/api/dashboard/vendor?month=${month}&key=${encodeURIComponent(vendor.key)}`)
+      .then((r) => (r.ok ? r.json() : { transactions: [] }))
+      .then((d) => setTxns(d.transactions))
+      .catch(() => setTxns([]));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    reloadTxns();
+    fetch("/api/categories")
+      .then((r) => (r.ok ? r.json() : { categories: [] }))
+      .then((d) => setCats((d.categories ?? []).map((c: { name: string }) => c.name)))
+      .catch(() => {});
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, vendor.key, onClose]);
+
+  // Live spend = sum of the shown rows, so the header follows overrides/merges
+  // (a re-categorised-out or merged txn changes the total) without a full reload.
+  const shownSpend = txns ? txns.reduce((s, x) => s + x.amount, 0) : vendor.spend;
+
+  const dateLabel = (iso: string) =>
+    new Date(iso).toLocaleDateString(numLocale, { month: "short", day: "numeric", timeZone: "UTC" });
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflow: "auto", zIndex: 50 }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="card" style={{ maxWidth: 560, width: "100%", margin: 0 }} onClick={(e) => e.stopPropagation()}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <div className="row" style={{ gap: 10, minWidth: 0 }}>
+            <VendorIcon name={vendor.name} link={vendor.link} icon={vendor.icon} size={20} />
+            <div style={{ minWidth: 0 }}>
+              <div className="card-header" style={{ margin: 0 }}>{vendor.name}</div>
+              <div className="muted" style={{ fontSize: 13 }}>{monthYearLabel(month)} · {money(shownSpend)}</div>
+            </div>
+          </div>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>{t("common.close")}</button>
+        </div>
+
+        <div className="card-header" style={{ fontSize: 14, marginBottom: 8 }}>{t("dash.budget.txns")}</div>
+        {txns == null ? (
+          <p className="muted">{t("common.loading")}</p>
+        ) : txns.length === 0 ? (
+          <p className="muted">{t("dash.budget.noTxns")}</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {txns.map((x) => (
+              <TxnRow
+                key={x.id}
+                txn={x}
+                current={x.categoryName ?? ""}
                 cats={cats}
                 money={money}
                 dateLabel={dateLabel}

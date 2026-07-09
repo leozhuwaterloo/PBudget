@@ -273,6 +273,7 @@ const en = {
   "dash.review.pending": "Pending merges",
   "dash.budget.title": "Budget vs actual",
   "dash.budget.empty": "No budgets or spend this month.",
+  "dash.budget.total": "Total",
   "dash.budget.budgetLabel": "Monthly budget",
   "dash.budget.txns": "Transactions",
   "dash.budget.noTxns": "No transactions in this category this month.",

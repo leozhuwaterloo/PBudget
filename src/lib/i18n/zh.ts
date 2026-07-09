@@ -270,6 +270,7 @@ const zh: Messages = {
   "dash.review.pending": "待合并",
   "dash.budget.title": "预算与实际",
   "dash.budget.empty": "本月暂无预算或消费。",
+  "dash.budget.total": "合计",
   "dash.budget.budgetLabel": "每月预算",
   "dash.budget.txns": "交易",
   "dash.budget.noTxns": "本月该分类没有交易。",
