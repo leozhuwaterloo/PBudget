@@ -37,7 +37,9 @@ export type DashboardData = {
   month: string; // selected "YYYY-MM" (drives budget + vendors widgets)
   currency: string | null; // modal currency, for display labels
   trend: { month: string; spend: number }[]; // (a) last 12 months, oldest → newest
-  budget: { id: string | null; name: string; budget: number; actual: number }[]; // (b) selected month
+  // (b) selected month; hierarchical — `parentName` set on a child row (indented
+  // under its parent), `actual` is rolled-up for a parent, own for a leaf.
+  budget: { id: string | null; name: string; parentName: string | null; budget: number; actual: number }[];
   review: { unmatched: number; conflicts: number; suspicion: number; pending: number }; // (c)
   vendors: { key: string; name: string; link: string | null; icon: string | null; spend: number }[]; // (d) selected month
   // (e) biggest transactions of the selected month
@@ -54,6 +56,60 @@ export type DashboardData = {
     currency: string | null;
   }[];
 };
+
+export type BudgetRow = DashboardData["budget"][number];
+type CategoryLite = { id: string; name: string; budget: unknown; parentName: string | null; excludeFromTotals: boolean };
+
+// Build the hierarchical budget-vs-actual rows from per-category OWN spend
+// (actualByCat: each txn counted once, excluded categories already dropped). A
+// parent category ROLLS UP its children's own spend (2-level cap: a parent has no
+// parent), so its `actual` covers the whole subtree; a leaf's `actual` is its own.
+// Rows are ordered parent-then-its-children and carry `parentName` for indenting.
+// Reconciliation: Σ over roots of `actual` == Σ own spend == this month's trend bar
+// (each txn once — never sum a parent AND its children). Exported for unit testing.
+export function buildBudgetRows(actualByCat: Map<string, number>, categories: CategoryLite[]): BudgetRow[] {
+  const excluded = new Set(categories.filter((c) => c.excludeFromTotals).map((c) => c.name));
+  const budgetOf = new Map(categories.map((c) => [c.name, Number(c.budget)]));
+  const idOf = new Map(categories.map((c) => [c.name, c.id]));
+  const parentOf = new Map(categories.map((c) => [c.name, c.parentName]));
+  const existsCat = new Set(categories.map((c) => c.name));
+  // Resolved parent: null unless it points at a real category (a dangling ref reads
+  // as top-level). The 2-level cap (validateParent) guarantees a parent has none.
+  const realParent = (name: string) => {
+    const p = parentOf.get(name);
+    return p && existsCat.has(p) ? p : null;
+  };
+
+  const rollupActual = new Map<string, number>(actualByCat);
+  for (const [name, amt] of actualByCat) {
+    const p = realParent(name);
+    if (p) rollupActual.set(p, (rollupActual.get(p) ?? 0) + amt);
+  }
+  // Show any category with rolled-up spend or its own budget, plus the parent of any
+  // shown child (a budgeted child never appears orphaned).
+  const shown = new Set<string>();
+  for (const [name, amt] of rollupActual) if (amt !== 0 && !excluded.has(name)) shown.add(name);
+  for (const c of categories) if (Number(c.budget) > 0 && !excluded.has(c.name)) shown.add(c.name);
+  for (const name of [...shown]) { const p = realParent(name); if (p) shown.add(p); }
+
+  const rowOf = (name: string): BudgetRow => ({
+    id: idOf.get(name) ?? null,
+    name,
+    parentName: realParent(name),
+    budget: budgetOf.get(name) ?? 0,
+    actual: rollupActual.get(name) ?? 0,
+  });
+  const byActual = (a: BudgetRow, b: BudgetRow) => b.actual - a.actual || b.budget - a.budget;
+  // Flatten to parent-then-its-children order; the client indents by parentName.
+  return [...shown]
+    .filter((n) => !realParent(n))
+    .map(rowOf)
+    .sort(byActual)
+    .flatMap((root) => [
+      root,
+      ...[...shown].filter((n) => realParent(n) === root.name).map(rowOf).sort(byActual),
+    ]);
+}
 
 export async function dashboardData(userId: string, month?: string): Promise<DashboardData> {
   const now = new Date();
@@ -75,8 +131,6 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   ]);
 
   const excluded = new Set(categories.filter((c) => c.excludeFromTotals).map((c) => c.name));
-  const budgetOf = new Map(categories.map((c) => [c.name, Number(c.budget)]));
-  const idOf = new Map(categories.map((c) => [c.name, c.id]));
   const isExcluded = (cat: string | null) => cat != null && excluded.has(cat);
   const inSelMonth = (d: Date) => monthKey(d) === selMonth;
 
@@ -95,24 +149,15 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   }
   const trend = months.map((m) => ({ month: m, spend: spendByMonth.get(m)! }));
 
-  // (b) budget vs actual for the selected month. Mirrors the trend's category set
-  // — same excludeFromTotals exclusion — so the rows RECONCILE with monthly spend:
-  // Σ actual == this month's trend bar. Net-inflow categories (actual < 0, e.g. a
-  // refund/credit pulling the category negative) are kept, not hidden, so the total
-  // still adds up and the money-in is visible.
+  // (b) budget vs actual for the selected month — HIERARCHICAL (see buildBudgetRows).
+  // Own spend per category, each txn counted once; the builder rolls children up into
+  // their parent and orders parent-then-children so Σ root rollups == this month's bar.
   const actualByCat = new Map<string, number>();
   for (const e of effective) {
     if (!inSelMonth(e.date) || !e.categoryName || isExcluded(e.categoryName)) continue;
     actualByCat.set(e.categoryName, (actualByCat.get(e.categoryName) ?? 0) + e.amount);
   }
-  const budgetNames = new Set<string>([
-    ...actualByCat.keys(),
-    ...categories.filter((c) => Number(c.budget) > 0 && !excluded.has(c.name)).map((c) => c.name),
-  ]);
-  const budget = [...budgetNames]
-    .map((name) => ({ id: idOf.get(name) ?? null, name, budget: budgetOf.get(name) ?? 0, actual: actualByCat.get(name) ?? 0 }))
-    .filter((r) => r.budget > 0 || r.actual !== 0)
-    .sort((a, b) => b.actual - a.actual || b.budget - a.budget);
+  const budget = buildBudgetRows(actualByCat, categories);
 
   // (d) top vendors for the selected month — same exclusion as (a) so bucket
   // vendors (Self / General Bank) don't dominate (assumption 7). Keyed by matched
