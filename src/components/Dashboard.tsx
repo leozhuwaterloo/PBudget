@@ -142,10 +142,11 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {(() => {
-                // Total budget vs total spend for the month. data.budget already
-                // reconciles with the trend (Σ actual == this month's bar), so these
-                // sums ARE the month's total spend and total set budget.
-                const totActual = data.budget.reduce((s, r) => s + r.actual, 0);
+                // Total budget vs total spend for the month. Rows are hierarchical:
+                // a parent's `actual` already rolls up its children, so summing only
+                // the roots (parentName == null) counts each txn once and still == the
+                // month's trend bar. Budgets are independent envelopes → sum them all.
+                const totActual = data.budget.filter((r) => !r.parentName).reduce((s, r) => s + r.actual, 0);
                 const totBudget = data.budget.reduce((s, r) => s + r.budget, 0);
                 const bar = budgetBar(totActual, totBudget);
                 return (
@@ -164,9 +165,9 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
               {data.budget.map((r) => {
                 const bar = budgetBar(r.actual, r.budget);
                 return (
-                  <button key={r.name} className="budget-row" onClick={() => setDetail(r)}>
+                  <button key={r.name} className="budget-row" style={r.parentName ? { paddingLeft: 20 } : undefined} onClick={() => setDetail(r)}>
                     <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                      <span>{r.name}</span>
+                      <span className={r.parentName ? "muted" : undefined}>{r.parentName ? `↳ ${r.name}` : r.name}</span>
                       <span className="muted">
                         {money(r.actual)}
                         {r.budget > 0 ? ` / ${money(r.budget)}` : ""}
@@ -390,7 +391,7 @@ function BudgetDialog({
               <TxnRow
                 key={x.id}
                 txn={x}
-                current={row.name}
+                current={x.categoryName ?? row.name}
                 cats={cats}
                 money={money}
                 dateLabel={dateLabel}
