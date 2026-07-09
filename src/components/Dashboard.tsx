@@ -35,6 +35,15 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<DashboardData["budget"][number] | null>(null);
   const [vendorDetail, setVendorDetail] = useState<DashboardData["vendors"][number] | null>(null);
+  const [cats, setCats] = useState<string[]>([]);
+
+  // Category list for inline re-categorise in the top-transactions section.
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => (r.ok ? r.json() : { categories: [] }))
+      .then((d) => setCats((d.categories ?? []).map((c: { name: string }) => c.name)))
+      .catch(() => {});
+  }, []);
 
   // Fixed 2 decimals (%.2f) with locale thousands grouping. Real amounts are in
   // cents, so a column and its total still agree (40.50 + 40.50 = 81.00).
@@ -48,6 +57,8 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
     const [y, m] = key.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, 1)).toLocaleString(numLocale, { month: "long", year: "numeric", timeZone: "UTC" });
   };
+  const dateLabel = (iso: string) =>
+    new Date(iso).toLocaleDateString(numLocale, { month: "short", day: "numeric", timeZone: "UTC" });
 
   const load = async (m: string) => {
     setBusy(true);
@@ -195,6 +206,29 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
           )}
         </section>
       </div>
+
+      {/* (e) biggest transactions of the selected month — each expands to
+          re-categorise (with a reason) or merge, same as the drilldowns. */}
+      <section className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">{t("dash.topTxns.title")}</div>
+        {data.topTransactions.length === 0 ? (
+          <p className="muted">{t("dash.topTxns.empty")}</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {data.topTransactions.map((x) => (
+              <TxnRow
+                key={x.id}
+                txn={x}
+                current={x.categoryName ?? ""}
+                cats={cats}
+                money={money}
+                dateLabel={dateLabel}
+                onSaved={() => load(month)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {detail && (
         <BudgetDialog

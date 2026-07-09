@@ -279,6 +279,8 @@ const en = {
   "dash.budget.noTxns": "No transactions in this category this month.",
   "dash.vendors.title": "Top vendors",
   "dash.vendors.empty": "No vendor spend this month.",
+  "dash.topTxns.title": "Top transactions",
+  "dash.topTxns.empty": "No transactions this month.",
   // (end V2 page regions)
 
   // common
