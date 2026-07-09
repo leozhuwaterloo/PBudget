@@ -163,6 +163,21 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
                 );
               })()}
               {data.budget.map((r) => {
+                // A top-level category with no budget is just a grouping/section header
+                // (a parent of budgeted children, or an unmatched Plaid-fallback bucket
+                // like "Food And Drink") — a bar with no target is meaningless, so show
+                // "Name ———— amount" instead. Still clickable to drill in / set a budget.
+                if (r.budget === 0 && !r.parentName) {
+                  return (
+                    <button key={r.name} className="budget-row" onClick={() => setDetail(r)}>
+                      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10, fontSize: 13, fontWeight: 600 }}>
+                        <span>{r.name}</span>
+                        <span aria-hidden style={{ flex: 1, borderBottom: "1px dashed var(--border)", transform: "translateY(-3px)" }} />
+                        <span className="muted" style={{ fontWeight: 400 }}>{money(r.actual)}</span>
+                      </div>
+                    </button>
+                  );
+                }
                 const bar = budgetBar(r.actual, r.budget);
                 return (
                   <button key={r.name} className="budget-row" style={r.parentName ? { paddingLeft: 20 } : undefined} onClick={() => setDetail(r)}>
