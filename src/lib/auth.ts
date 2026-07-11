@@ -65,8 +65,8 @@ export async function requireUser(): Promise<User> {
 // prior code is deleted first.
 export async function createVerificationToken(userId: string): Promise<string> {
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
-  await prisma.emailVerificationToken.deleteMany({ where: { userId } });
-  await prisma.emailVerificationToken.create({
+  await prisma.emailOtp.deleteMany({ where: { userId } });
+  await prisma.emailOtp.create({
     data: { userId, codeHash: hashCode(code), expiresAt: new Date(Date.now() + VERIFY_TTL_MS) },
   });
   return code;
@@ -80,19 +80,19 @@ export type VerifyResult = "ok" | "invalid" | "no_code";
 //  - correct code → mark emailVerified, consume the code, "ok"
 export async function verifyEmailCode(userId: string, code: string): Promise<VerifyResult> {
   const now = new Date();
-  const row = await prisma.emailVerificationToken.findFirst({
+  const row = await prisma.emailOtp.findFirst({
     where: { userId, expiresAt: { gt: now }, attempts: { lt: VERIFY_MAX_ATTEMPTS } },
   });
   if (!row) return "no_code";
   if (hashCode(code) !== row.codeHash) {
-    await prisma.emailVerificationToken.update({
+    await prisma.emailOtp.update({
       where: { id: row.id },
       data: { attempts: { increment: 1 } },
     });
     return "invalid";
   }
   await prisma.user.update({ where: { id: userId }, data: { emailVerified: now } });
-  await prisma.emailVerificationToken.deleteMany({ where: { userId } });
+  await prisma.emailOtp.deleteMany({ where: { userId } });
   return "ok";
 }
 
