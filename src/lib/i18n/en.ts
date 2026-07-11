@@ -40,6 +40,7 @@ const en = {
   "accounts.limitTitle": "Connection limit reached.",
   "accounts.limitBody": "You're using {used} of {limit} connections on the {plan} plan. Upgrade to connect another bank.",
   "accounts.upgrade": "Upgrade your plan",
+  "accounts.removed": "This connection was removed (your free trial ended or your subscription lapsed). Your data is preserved — subscribe and relink to sync it again.",
   "accounts.colAccount": "Account",
   "accounts.colCurrent": "Balance",
   "accounts.colTxns": "Transactions",
@@ -196,7 +197,10 @@ const en = {
   "cust.catalog.instantiating": "Instantiating…",
   // billing section (F11)
   "cust.billing.help":
-    "Your plan sets how many bank connections you can sync. Upgrade any time.",
+    "Free starts with a 1-month trial of 1 bank connection. Paid plans add more; if a plan lapses, connections over your limit are removed but their data is kept.",
+  "cust.billing.trial": "Free trial — {days} day(s) left · 1 connection.",
+  "cust.billing.trialEnded":
+    "Your free trial has ended. Subscribe to reconnect a bank — your data is preserved.",
   "cust.billing.loadFailed": "Failed to load billing.",
   "cust.billing.currentPlan": "Current plan",
   "cust.billing.usage": "{used} of {limit} connections",
@@ -302,6 +306,14 @@ const en = {
   "auth.haveAccount": "Already have an account?",
   "auth.newHere": "New here?",
   "auth.createAccount": "Create an account",
+  "auth.agreePre": "I understand that PBudget is not liable for any of my data, and I accept the",
+  "auth.termsLink": "Terms & Liability",
+  // Terms page
+  "terms.title": "Terms & Liability",
+  "terms.p1": "PBudget is provided on an “as is” and “as available” basis, without warranties of any kind, express or implied.",
+  "terms.p2": "PBudget is not liable for any of your data. You are solely responsible for your data, including any loss, corruption, inaccuracy, or unauthorized access. To the fullest extent permitted by law, PBudget and its operators disclaim all liability for any damages arising from your use of the service or from the storage, transmission, or loss of your data.",
+  "terms.p3": "By creating an account you acknowledge and accept these terms.",
+  "terms.back": "← Back to sign up",
   "auth.forgotPassword": "Forgot your password?",
   "auth.wechat": "Sign in with WeChat",
   "auth.wechatError": "WeChat sign-in failed. Please try again.",

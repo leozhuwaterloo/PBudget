@@ -30,6 +30,9 @@ export default function Landing({ locale }: { locale: Locale }) {
             </Link>
           </div>
           <p className={styles.trust}>{tr("landing.trust")}</p>
+          <p className={styles.trust} style={{ marginTop: 4 }}>
+            <Link href="/terms">{tr("auth.termsLink")}</Link> · {tr("terms.p3")}
+          </p>
         </div>
 
         <Statement tr={tr} />

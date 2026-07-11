@@ -18,6 +18,7 @@ export default function AuthForm({
   const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState(initialError ? t(initialError) : "");
   const [busy, setBusy] = useState(false);
 
@@ -28,7 +29,7 @@ export default function AuthForm({
     const res = await fetch(`/api/auth/${mode}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, agreed }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -60,13 +61,26 @@ export default function AuthForm({
         onChange={(e) => setPassword(e.target.value)}
         required
       />
+      {mode === "signup" && (
+        <label className="row" style={{ gap: 8, marginTop: 12, alignItems: "flex-start", fontSize: 13 }}>
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} required />
+          <span>
+            {t("auth.agreePre")}{" "}
+            <Link href="/terms" target="_blank">{t("auth.termsLink")}</Link>.
+          </span>
+        </label>
+      )}
       {error && <div className="error">{error}</div>}
       {mode === "login" && (
         <p className="muted" style={{ marginTop: 8, textAlign: "right" }}>
           <Link href="/forgot">{t("auth.forgotPassword")}</Link>
         </p>
       )}
-      <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} disabled={busy}>
+      <button
+        className="btn btn-primary"
+        style={{ marginTop: 16, width: "100%" }}
+        disabled={busy || (mode === "signup" && !agreed)}
+      >
         {busy ? "…" : mode === "signup" ? t("nav.signup") : t("nav.login")}
       </button>
       {wechatEnabled && (

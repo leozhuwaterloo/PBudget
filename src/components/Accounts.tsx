@@ -22,6 +22,7 @@ type ItemLite = {
   institutionLogo: string | null;
   lastUpdated: string;
   syncAllowed: boolean;
+  disconnected: boolean; // connection removed on billing expiry (data preserved)
   accounts: AccountLite[];
 };
 type Connect = { canAdd: boolean; cta: UpgradeCTA | null };
@@ -188,23 +189,30 @@ export default function Accounts({
               <button
                 className="btn btn-sm"
                 disabled={busy || !it.syncAllowed}
-                title={it.syncAllowed ? undefined : t("accounts.syncBlocked", { limit })}
+                title={it.syncAllowed ? undefined : it.disconnected ? t("accounts.removed") : t("accounts.syncBlocked", { limit })}
                 onClick={() => sync(it.itemId)}
               >
                 {t("accounts.sync")}
               </button>
-              <button className="btn btn-sm" disabled={busy} onClick={() => startReauth(it.itemId)}>
-                {t("accounts.reauth")}
-              </button>
+              {!it.disconnected && (
+                <button className="btn btn-sm" disabled={busy} onClick={() => startReauth(it.itemId)}>
+                  {t("accounts.reauth")}
+                </button>
+              )}
             </div>
           </div>
 
-          {!it.syncAllowed && (
+          {it.disconnected ? (
+            <p className="muted" style={{ marginTop: 0 }}>
+              ⚠ {t("accounts.removed")}{" "}
+              <Link href="/customizations">{t("accounts.upgrade")}</Link>
+            </p>
+          ) : !it.syncAllowed ? (
             <p className="muted" style={{ marginTop: 0 }}>
               ⚠ {t("accounts.syncBlocked", { limit })}{" "}
               <Link href="/customizations">{t("accounts.upgrade")}</Link>
             </p>
-          )}
+          ) : null}
 
           {/* table-layout:fixed so an expanded TransactionBrowser (wide 9-col table
               in a colSpan cell) can't stretch this table past the card — it scrolls

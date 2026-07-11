@@ -138,6 +138,11 @@ model PlaidItem {
   createdAt          DateTime         @default(now()) // FR10 downgrade ordering: first `limit` items by connection date keep syncing
   lastUpdated        DateTime         @updatedAt
   lastForceRefreshed DateTime
+  // Set when the connection is removed on billing expiry (trial ended / sub lapsed).
+  // The Plaid link is revoked + accessToken cleared, but the row (and its accounts +
+  // transactions) is KEPT so history stays viewable. null = live connection.
+  // Nullable/additive so `prisma db push` stays non-destructive (deploy schema guard).
+  disconnectedAt     DateTime?
   accounts           PlaidAccount[]
 
   @@index([userId])

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/server";
-import { canAddConnection, itemSyncAllowed, limitFor, upgradeCTA } from "@/lib/stripe";
+import { canAddConnection, entitledConnections, upgradeCTA } from "@/lib/stripe";
 import Accounts from "@/components/Accounts";
 
 export const dynamic = "force-dynamic";
@@ -28,14 +28,20 @@ export default async function AccountsPage() {
     orderBy: { createdAt: "asc" },
   });
   for (const i of items) i.accounts.sort((a, b) => a.name.localeCompare(b.name));
-  const orderedIds = items.map((i) => i.itemId);
+  // Only LIVE connections rank toward the entitlement; the first `entitlement` sync.
+  const entitlement = entitledConnections(user);
+  const liveOrderedIds = items.filter((i) => !i.disconnectedAt).map((i) => i.itemId);
 
-  const data = items.map((i) => ({
+  const data = items.map((i) => {
+    const disconnected = !!i.disconnectedAt;
+    const rank = liveOrderedIds.indexOf(i.itemId);
+    return {
     itemId: i.itemId,
     institutionName: i.institution.name,
     institutionLogo: i.institution.logo,
     lastUpdated: i.lastUpdated.toISOString(),
-    syncAllowed: itemSyncAllowed(orderedIds, i.itemId, user.plan, user.isAdmin),
+    disconnected,
+    syncAllowed: !disconnected && rank >= 0 && rank < entitlement,
     accounts: i.accounts.map((a) => ({
       accountId: a.accountId,
       name: a.name,
@@ -43,7 +49,8 @@ export default async function AccountsPage() {
       currency: a.isoCurrencyCode,
       transactionCount: a._count.transactions,
     })),
-  }));
+    };
+  });
 
   const add = await canAddConnection(user);
   const connect = add.ok
@@ -55,7 +62,7 @@ export default async function AccountsPage() {
       items={data}
       connect={connect}
       plan={user.plan}
-      limit={limitFor(user.plan)}
+      limit={Number.isFinite(entitlement) ? entitlement : 0}
       locale={await getLocale(user)}
     />
   );

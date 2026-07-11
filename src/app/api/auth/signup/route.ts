@@ -14,6 +14,10 @@ export async function POST(req: Request) {
   if (!password) {
     return NextResponse.json({ error: "Password must be 8–200 characters" }, { status: 400 });
   }
+  // Liability agreement: must accept the terms (PBudget is not liable for your data).
+  if (body.agreed !== true) {
+    return NextResponse.json({ error: "You must accept the terms to sign up" }, { status: 400 });
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return NextResponse.json({ error: "That email is already registered" }, { status: 409 });

@@ -7,7 +7,9 @@ import type Stripe from "stripe";
 import { prisma } from "../src/lib/db";
 import {
   limitFor,
-  itemSyncAllowed,
+  entitledConnections,
+  enforceEntitlement,
+  countConnections,
   canAddConnection,
   canSyncItem,
   upgradeCTA,
@@ -67,13 +69,6 @@ async function main(): Promise<void> {
   assert.equal(limitFor("pro"), 5, "pro = 5");
   assert.equal(limitFor("max"), 20, "max = 20");
   assert.equal(limitFor("bogus"), 1, "unknown plan falls back to free");
-
-  // --- Pure rank check (downgrade read-only ordering) ----------------------
-  const order = ["a", "b", "c"]; // oldest -> newest by createdAt
-  assert.ok(itemSyncAllowed(order, "a", "free"), "oldest syncs on free");
-  assert.ok(!itemSyncAllowed(order, "b", "free"), "2nd item read-only on free");
-  assert.ok(itemSyncAllowed(order, "c", "pro"), "all sync on pro");
-  assert.ok(!itemSyncAllowed(order, "z", "pro"), "unknown item never syncs");
 
   // --- Free user: 1 connection allowed, 2nd blocked -----------------------
   // With 0 items a free user may add their first connection (no subscription).
@@ -139,10 +134,39 @@ async function main(): Promise<void> {
   await applyWebhookEvent(subEvent("customer.subscription.updated", "price_unknown", "active"));
   assert.equal((await user()).plan, "free", "unknown price -> free");
 
+  // --- Expiry: trial ended / no sub -> connections REMOVED, data PRESERVED --
+  const EXP = "tier-expired-user";
+  await prisma.transactionFlag.deleteMany({ where: { userId: EXP } });
+  await prisma.user.deleteMany({ where: { id: EXP } });
+  await prisma.user.create({
+    data: { id: EXP, email: `${EXP}@t.local`, passwordHash: "x", createdAt: new Date(Date.now() - 40 * 86400000) },
+  });
+  const expUser = () => prisma.user.findUniqueOrThrow({ where: { id: EXP } });
+  assert.equal(entitledConnections(await expUser()), 0, "expired free trial (no sub) is entitled to 0 connections");
+
+  // One connection with an account + a transaction behind it.
+  await prisma.plaidItem.create({ data: { itemId: "exp-itm", userId: EXP, institutionId: INST, accessToken: "enc", lastForceRefreshed: new Date() } });
+  await prisma.plaidAccount.create({ data: { accountId: "exp-acct", itemId: "exp-itm", name: "Chq", accountType: "depository" } });
+  await prisma.plaidTransaction.create({
+    data: { transactionId: "exp-txn", accountId: "exp-acct", amount: 10, isoCurrencyCode: "CAD",
+      datetime: new Date(), name: "Coffee", paymentChannel: "online", pending: false },
+  });
+
+  const removed = await enforceEntitlement(await expUser());
+  assert.equal(removed, 1, "expiry removes the over-entitlement connection");
+  const gone = await prisma.plaidItem.findUniqueOrThrow({ where: { itemId: "exp-itm" } });
+  assert.ok(gone.disconnectedAt !== null && gone.accessToken === "", "connection soft-deleted: disconnected + token cleared");
+  assert.ok(await prisma.plaidAccount.findUnique({ where: { accountId: "exp-acct" } }), "account data is PRESERVED");
+  assert.ok(await prisma.plaidTransaction.findUnique({ where: { transactionId: "exp-txn" } }), "transaction data is PRESERVED");
+  assert.equal(await countConnections(EXP), 0, "removed connection no longer counts toward usage");
+  assert.deepEqual(await canAddConnection(await expUser()), { ok: false, used: 0 }, "expired user must subscribe before adding a connection");
+  assert.equal(await enforceEntitlement(await expUser()), 0, "enforceEntitlement is idempotent (no live items left)");
+
   // --- Cleanup -------------------------------------------------------------
   await prisma.user.deleteMany({ where: { id: USER } });
+  await prisma.user.deleteMany({ where: { id: EXP } });
   await prisma.plaidInstitution.deleteMany({ where: { institutionId: INST } });
-  console.log("\n  ✓ FR10 tiers: limits, downgrade read-only, and webhook plan mapping all pass\n");
+  console.log("\n  ✓ tiers: limits, entitlement, expiry-removal (data preserved), and webhook plan mapping all pass\n");
 }
 
 main()

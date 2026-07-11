@@ -11,10 +11,13 @@ type Plan = "free" | "pro" | "max";
 type Summary = {
   plan: Plan;
   used: number;
-  limit: number;
+  limit: number; // -1 = unlimited (admin)
   admin: boolean;
   active: boolean;
   hasCustomer: boolean;
+  onTrial: boolean;
+  trialEndsAt: string | null;
+  trialDaysLeft: number | null;
   tiers: { id: Plan; price: number; limit: number }[];
 };
 
@@ -78,9 +81,15 @@ export default function BillingSection() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div>{t("cust.billing.currentPlan")}: <strong>{planName(s.plan)}</strong></div>
         <div className="muted" style={{ marginTop: 4 }}>
-          {t("cust.billing.usage", { used: s.used, limit: s.admin ? "∞" : s.limit })}
+          {t("cust.billing.usage", { used: s.used, limit: s.limit < 0 ? "∞" : s.limit })}
         </div>
         {s.admin && <div style={{ marginTop: 4 }}>{t("cust.billing.admin")}</div>}
+        {s.onTrial && (
+          <div style={{ marginTop: 4 }}>{t("cust.billing.trial", { days: s.trialDaysLeft ?? 0 })}</div>
+        )}
+        {!s.admin && !s.active && !s.onTrial && (
+          <div className="error" style={{ marginTop: 4 }}>{t("cust.billing.trialEnded")}</div>
+        )}
       </div>
 
       <table>

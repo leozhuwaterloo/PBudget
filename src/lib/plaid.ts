@@ -7,7 +7,7 @@ import {
   type Transaction,
 } from "plaid";
 import { prisma } from "./db";
-import { encrypt } from "./crypto";
+import { encrypt, decrypt } from "./crypto";
 import { plaidCategoryName, deletedCategoryNames } from "./categories";
 
 // ---- Client --------------------------------------------------------------
@@ -146,7 +146,9 @@ export async function syncItem(
       accessToken: encrypted,
       lastForceRefreshed: now,
     },
-    update: { accessToken: encrypted, ...(institutionId ? { institutionId } : {}) },
+    // disconnectedAt: null reactivates a previously-removed connection when the user
+    // resubscribes and re-links the same bank (fresh token → live again).
+    update: { accessToken: encrypted, disconnectedAt: null, ...(institutionId ? { institutionId } : {}) },
   });
 
   // accounts
@@ -250,4 +252,25 @@ export async function refreshAndSync(
     await new Promise((r) => setTimeout(r, 5000));
   }
   return syncItem(userId, accessToken);
+}
+
+// ---- Remove a connection (billing expiry) --------------------------------
+
+// Remove a Plaid connection while PRESERVING its data. Revokes the item at Plaid
+// (best-effort — a fake/expired token or a network blip must not block the local
+// change), then soft-deletes: the PlaidItem row is KEPT (so its accounts +
+// transactions stay viewable) but marked disconnected with its dead token cleared.
+// Connection counting + sync skip disconnected items. `stored` is the encrypted
+// accessToken as held in the DB.
+export async function removeConnection(itemId: string, stored: string): Promise<void> {
+  try {
+    await client().itemRemove({ access_token: decrypt(stored) });
+  } catch {
+    // ponytail: swallow — the goal is to stop syncing locally; a live Plaid revoke
+    // is best-effort. Worst case the item lingers at Plaid until its token expires.
+  }
+  await prisma.plaidItem.update({
+    where: { itemId },
+    data: { disconnectedAt: new Date(), accessToken: "" },
+  });
 }

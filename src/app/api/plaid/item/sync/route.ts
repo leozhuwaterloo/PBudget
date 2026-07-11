@@ -16,6 +16,11 @@ export async function POST(req: Request) {
   if (!item || item.userId !== g.user!.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  // A removed connection (billing expiry) keeps its data but can't sync — resubscribe
+  // and relink to refresh it.
+  if (item.disconnectedAt) {
+    return NextResponse.json({ error: "This connection was removed. Subscribe and relink to sync it again." }, { status: 409 });
+  }
   // FR10: after a downgrade the oldest `limit` connections keep syncing; excess
   // items are read-only until upgrade or disconnect.
   const sync = await canSyncItem(g.user!, item.itemId);

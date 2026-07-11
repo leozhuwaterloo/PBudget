@@ -1,13 +1,15 @@
 import Stripe from "stripe";
 import type { User } from "@prisma/client";
 import { prisma } from "./db";
+import { removeConnection } from "./plaid";
 
-// Billing model (FR10): tiers priced per Plaid CONNECTION (a PlaidItem is one
-// bank login, NOT one account). Free = 1 connection (no card, no subscription),
-// Pro ($5/mo) = 5, Max ($15/mo) = 20. The two flat prices are created manually
-// in Stripe and referenced by env (STRIPE_PRICE_PRO / STRIPE_PRICE_MAX, seeded
-// in Vault by F15). The webhook maps a subscription's price id -> User.plan; the
-// connection limit is the ONLY billing gate (the global subscription gate is gone).
+// Billing model: tiers priced per Plaid CONNECTION (a PlaidItem is one bank login,
+// NOT one account). Free = a 1-month TRIAL of 1 connection (no card). Pro ($5/mo) = 5,
+// Max ($10/mo) = 20. The two flat prices are created manually in Stripe and referenced
+// by env (STRIPE_PRICE_PRO / STRIPE_PRICE_MAX, seeded in Vault). The webhook maps a
+// subscription's price id -> User.plan. When entitlement drops (trial ended, or a paid
+// sub lapses/cancels), connections over the new entitlement are REMOVED — the Plaid link
+// is revoked but the accounts + transactions are preserved (see enforceEntitlement).
 
 export type Plan = "free" | "pro" | "max";
 export type Tier = "pro" | "max";
@@ -15,16 +17,35 @@ export type Tier = "pro" | "max";
 export const TIER_LIMITS: Record<Plan, number> = { free: 1, pro: 5, max: 20 };
 
 // Display-only monthly USD price per tier (the actual charge is the Stripe price).
-export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 5, max: 15 };
+export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 5, max: 10 };
+
+// The free tier is a time-boxed trial of 1 connection, measured from signup.
+export const TRIAL_DAYS = 30;
+const DAY = 86400000;
+
+// When a user's free trial ends (signup + TRIAL_DAYS).
+export function trialEndsAt(user: Pick<User, "createdAt">): Date {
+  return new Date(user.createdAt.getTime() + TRIAL_DAYS * DAY);
+}
+// Is the user still inside their free trial window?
+export function trialActive(user: Pick<User, "createdAt">): boolean {
+  return trialEndsAt(user).getTime() > Date.now();
+}
 
 // Connection limit for a plan string (unknown/legacy -> free).
 export function limitFor(plan: string): number {
   return TIER_LIMITS[plan as Plan] ?? TIER_LIMITS.free;
 }
 
-// A user's connection limit — admins are uncapped (no subscription needed).
-export function limitForUser(user: Pick<User, "plan" | "isAdmin">): number {
-  return user.isAdmin ? Infinity : limitFor(user.plan);
+// How many live Plaid connections this user is entitled to right now:
+//   admin            -> unlimited (no subscription needed)
+//   active paid sub  -> the tier limit (pro 5 / max 20)
+//   free, in trial   -> 1
+//   otherwise        -> 0 (trial ended / sub lapsed -> excess connections are removed)
+export function entitledConnections(user: Pick<User, "plan" | "isAdmin" | "subscriptionStatus" | "createdAt">): number {
+  if (user.isAdmin) return Infinity;
+  if (user.subscriptionStatus && ACTIVE.has(user.subscriptionStatus)) return limitFor(user.plan);
+  return trialActive(user) ? TIER_LIMITS.free : 0;
 }
 
 // The tier a user could upgrade to next (null at the top).
@@ -69,9 +90,10 @@ export function planForSubscription(priceId: string | undefined, status: string)
 
 // ---- Connection counting / enforcement -----------------------------------
 
-// A connection is a PlaidItem (one bank login). This is the metered unit.
+// A connection is a LIVE PlaidItem (one bank login). Removed (disconnectedAt set)
+// items are excluded — they no longer sync and don't count toward the entitlement.
 export function countConnections(userId: string): Promise<number> {
-  return prisma.plaidItem.count({ where: { userId } });
+  return prisma.plaidItem.count({ where: { userId, disconnectedAt: null } });
 }
 
 // Legacy: per-account count, still read by the old /billing page (deleted in F14).
@@ -105,30 +127,43 @@ export async function canAddConnection(
   user: User
 ): Promise<{ ok: true } | { ok: false; used: number }> {
   const used = await countConnections(user.id);
-  return used < limitForUser(user) ? { ok: true } : { ok: false, used };
+  return used < entitledConnections(user) ? { ok: true } : { ok: false, used };
 }
 
-// Pure rank check: items are ordered by createdAt asc; the first `limit` sync.
-// Admins are uncapped, so every item syncs.
-export function itemSyncAllowed(orderedItemIds: string[], itemId: string, plan: string, isAdmin = false): boolean {
-  if (isAdmin) return true;
-  const rank = orderedItemIds.indexOf(itemId);
-  return rank >= 0 && rank < limitFor(plan);
-}
-
-// May this EXISTING item sync? On downgrade the oldest `limit` items keep
-// syncing; excess items are read-only until upgrade or disconnect.
+// May this EXISTING item sync? A removed (disconnected) item never syncs; among the
+// live items ordered by createdAt asc, the first `entitledConnections` may sync.
 export async function canSyncItem(
   user: User,
   itemId: string
 ): Promise<{ ok: true } | { ok: false; used: number }> {
   const items = await prisma.plaidItem.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, disconnectedAt: null },
     orderBy: { createdAt: "asc" },
     select: { itemId: true },
   });
-  const ok = itemSyncAllowed(items.map((i) => i.itemId), itemId, user.plan, user.isAdmin);
+  const rank = items.findIndex((i) => i.itemId === itemId);
+  const ok = rank >= 0 && rank < entitledConnections(user);
   return ok ? { ok: true } : { ok: false, used: items.length };
+}
+
+// Remove any LIVE connections beyond the user's current entitlement (oldest kept).
+// Called when entitlement can drop: the Stripe webhook (sub lapsed/canceled) and a
+// lazy check in the request guard (free trial elapsed). Each removed connection has
+// its Plaid link revoked + token cleared, but its accounts + transactions are KEPT.
+// Returns the number of connections removed. Idempotent (no-op when within limit).
+export async function enforceEntitlement(
+  user: Pick<User, "id" | "plan" | "isAdmin" | "subscriptionStatus" | "createdAt">
+): Promise<number> {
+  const limit = entitledConnections(user);
+  if (limit === Infinity) return 0;
+  const live = await prisma.plaidItem.findMany({
+    where: { userId: user.id, disconnectedAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { itemId: true, accessToken: true },
+  });
+  const excess = live.slice(limit); // keep the oldest `limit`, remove the rest
+  for (const item of excess) await removeConnection(item.itemId, item.accessToken);
+  return excess.length;
 }
 
 // ---- Billing summary (F11) ------------------------------------------------
@@ -138,21 +173,32 @@ export async function canSyncItem(
 export interface BillingSummary {
   plan: Plan;
   used: number;
-  limit: number;
+  limit: number; // current entitlement (live connections allowed right now)
   admin: boolean;
-  active: boolean;
+  active: boolean; // has an active/trialing PAID subscription
   hasCustomer: boolean;
+  onTrial: boolean; // free tier, still inside the 1-month trial window
+  trialEndsAt: string | null; // ISO; null for admins / paid subscribers
+  trialDaysLeft: number | null;
   tiers: { id: Plan; price: number; limit: number }[];
 }
 export async function billingSummary(user: User): Promise<BillingSummary> {
   const plan = (user.plan as Plan) in TIER_LIMITS ? (user.plan as Plan) : "free";
+  const active = isSubscriptionActive(user);
+  const onTrial = !user.isAdmin && !active && trialActive(user);
+  const showTrial = !user.isAdmin && !active; // trial matters only for unpaid non-admins
+  const ends = trialEndsAt(user);
+  const limit = entitledConnections(user);
   return {
     plan,
     used: await countConnections(user.id),
-    limit: limitFor(plan),
+    limit: limit === Infinity ? -1 : limit, // -1 = unlimited (admin); UI renders ∞
     admin: user.isAdmin,
-    active: isSubscriptionActive(user),
+    active,
     hasCustomer: !!user.stripeCustomerId,
+    onTrial,
+    trialEndsAt: showTrial ? ends.toISOString() : null,
+    trialDaysLeft: showTrial ? Math.max(0, Math.ceil((ends.getTime() - Date.now()) / DAY)) : null,
     tiers: (["free", "pro", "max"] as Plan[]).map((id) => ({
       id,
       price: TIER_PRICES[id],
@@ -234,7 +280,7 @@ export async function applyWebhookEvent(event: Stripe.Event): Promise<void> {
       if (!user) break;
       const status = event.type === "customer.subscription.deleted" ? "canceled" : sub.status;
       const plan = planForSubscription(sub.items.data[0]?.price?.id, status);
-      await prisma.user.update({
+      const updated = await prisma.user.update({
         where: { id: user.id },
         data: {
           stripeSubscriptionId: sub.id,
@@ -242,6 +288,9 @@ export async function applyWebhookEvent(event: Stripe.Event): Promise<void> {
           plan,
         },
       });
+      // Entitlement may have dropped (lapsed/canceled/downgraded) — remove any
+      // connections now over the limit. Idempotent no-op when still within it.
+      await enforceEntitlement(updated);
       break;
     }
   }

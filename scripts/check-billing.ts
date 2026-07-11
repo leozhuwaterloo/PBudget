@@ -43,10 +43,13 @@ async function main(): Promise<void> {
     [
       { id: "free", price: 0, limit: 1 },
       { id: "pro", price: 5, limit: 5 },
-      { id: "max", price: 15, limit: 20 },
+      { id: "max", price: 10, limit: 20 },
     ],
     "tier table lists free/pro/max with prices and connection limits"
   );
+  // Fresh free user is inside the 1-month trial (entitled to 1 connection).
+  assert.equal(s.onTrial, true, "fresh free user is on the 1-month trial");
+  assert.ok((s.trialDaysLeft ?? 0) > 27 && (s.trialDaysLeft ?? 0) <= 30, "trial has ~30 days left");
   // A free, non-subscribed user is the Checkout case (no active sub); the UI
   // offers Subscribe on the paid tiers and shows no portal link.
   assert.ok(!s.active && !s.hasCustomer, "free user: Checkout offered, no portal");
