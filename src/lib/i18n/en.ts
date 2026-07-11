@@ -329,8 +329,10 @@ const en = {
   "verify.alreadyTitle": "You're verified ✓",
   "verify.title": "Verify your email",
   "verify.body":
-    "We sent a verification link to {email}. Click it to activate your account. (In local dev, the link is printed to the server console.)",
+    "We sent a 6-digit code to {email}. Enter it below to activate your account — it expires in 30 minutes. (In local dev, the code is printed to the server console.)",
   "verify.yourInbox": "your inbox",
+  "verify.codeLabel": "6-digit code",
+  "verify.submit": "Verify",
 
   // resend
   "resend.button": "Resend verification email",

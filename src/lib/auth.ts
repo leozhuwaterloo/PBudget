@@ -7,8 +7,11 @@ import { prisma } from "./db";
 
 const COOKIE = "pb_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
-const VERIFY_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+const VERIFY_TTL_MS = 1000 * 60 * 30; // 30 minutes — email OTP codes are short-lived
+const VERIFY_MAX_ATTEMPTS = 5; // wrong-code tries before a code is invalidated
 const RESET_TTL_MS = 1000 * 60 * 60; // 1 hour — password reset links are short-lived
+
+const hashCode = (code: string) => crypto.createHash("sha256").update(code).digest("hex");
 
 export async function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, 12);
@@ -57,12 +60,40 @@ export async function requireUser(): Promise<User> {
   return user;
 }
 
+// Issue a fresh 6-digit email OTP for the user and return the PLAINTEXT code (the
+// caller emails it). Only the hash is persisted. One active code per user: any
+// prior code is deleted first.
 export async function createVerificationToken(userId: string): Promise<string> {
-  const token = crypto.randomBytes(32).toString("hex");
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+  await prisma.emailVerificationToken.deleteMany({ where: { userId } });
   await prisma.emailVerificationToken.create({
-    data: { token, userId, expiresAt: new Date(Date.now() + VERIFY_TTL_MS) },
+    data: { userId, codeHash: hashCode(code), expiresAt: new Date(Date.now() + VERIFY_TTL_MS) },
   });
-  return token;
+  return code;
+}
+
+export type VerifyResult = "ok" | "invalid" | "no_code";
+
+// Verify a submitted OTP for the logged-in user.
+//  - no active code (none / expired / 5 tries used up) → "no_code" (request a new one)
+//  - wrong code → increment attempts, "invalid"
+//  - correct code → mark emailVerified, consume the code, "ok"
+export async function verifyEmailCode(userId: string, code: string): Promise<VerifyResult> {
+  const now = new Date();
+  const row = await prisma.emailVerificationToken.findFirst({
+    where: { userId, expiresAt: { gt: now }, attempts: { lt: VERIFY_MAX_ATTEMPTS } },
+  });
+  if (!row) return "no_code";
+  if (hashCode(code) !== row.codeHash) {
+    await prisma.emailVerificationToken.update({
+      where: { id: row.id },
+      data: { attempts: { increment: 1 } },
+    });
+    return "invalid";
+  }
+  await prisma.user.update({ where: { id: userId }, data: { emailVerified: now } });
+  await prisma.emailVerificationToken.deleteMany({ where: { userId } });
+  return "ok";
 }
 
 export async function createPasswordResetToken(userId: string): Promise<string> {
