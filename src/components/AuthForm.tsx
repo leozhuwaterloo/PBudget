@@ -5,12 +5,20 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n/context";
 import PasswordInput from "@/components/PasswordInput";
 
-export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
+export default function AuthForm({
+  mode,
+  wechatEnabled = false,
+  initialError = "",
+}: {
+  mode: "login" | "signup";
+  wechatEnabled?: boolean;
+  initialError?: string;
+}) {
   const router = useRouter();
   const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError ? t(initialError) : "");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -61,6 +69,23 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} disabled={busy}>
         {busy ? "…" : mode === "signup" ? t("nav.signup") : t("nav.login")}
       </button>
+      {wechatEnabled && (
+        <a
+          href="/api/auth/wechat"
+          className="btn"
+          style={{
+            marginTop: 12,
+            width: "100%",
+            background: "#07C160", // WeChat green
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {t("auth.wechat")}
+        </a>
+      )}
       <p className="muted" style={{ marginTop: 16 }}>
         {mode === "signup" ? (
           <>{t("auth.haveAccount")} <Link href="/login">{t("nav.login")}</Link></>

@@ -19,6 +19,16 @@ model User {
   emailVerified        DateTime?
   createdAt            DateTime  @default(now())
 
+  // WeChat QR-scan login (additive, dormant). NULLABLE so deploy's `prisma db push`
+  // (no --accept-data-loss) stays non-destructive. wechatUnionId is the primary
+  // sign-in key. NOT @unique on purpose: Prisma flags *adding* a unique constraint
+  // as potential data loss, so db push would refuse it and crash-loop the pod —
+  // uniqueness is enforced in lib/wechat.ts (find-or-create; WeChat is the sole writer).
+  // ponytail: app-level uniqueness. Add a partial unique index out-of-band (CREATE
+  // UNIQUE INDEX ... WHERE wechatUnionId IS NOT NULL) if concurrent first-logins matter.
+  wechatUnionId        String?
+  wechatOpenId         String?
+
   // billing (V2: tier per Plaid connection — free|pro|max, set by the Stripe
   // webhook from the subscription price id, FR10). subscriptionStatus/ids stay
   // for the Stripe round-trip; the legacy $1/account quantity model is retired.

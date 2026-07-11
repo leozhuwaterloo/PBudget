@@ -300,6 +300,8 @@ const zh: Messages = {
   "auth.newHere": "第一次来？",
   "auth.createAccount": "创建账户",
   "auth.forgotPassword": "忘记密码？",
+  "auth.wechat": "微信登录",
+  "auth.wechatError": "微信登录失败，请重试。",
 
   // forgot / reset password
   "forgot.title": "重置您的密码",
