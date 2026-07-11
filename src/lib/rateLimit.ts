@@ -51,3 +51,39 @@ export async function emailRateLimited(dims: string[]): Promise<boolean> {
   );
   return false;
 }
+
+// ---- login attempt limiting -------------------------------------------------
+
+// Fixed-window attempted-login counter, DB-backed (one row per dimension: client
+// IP + email) so the cap holds across all pods. 10 attempts per 15 min; beyond
+// that the caller returns 429. Read-then-write, same accepted race as
+// emailRateLimited above — a rare cross-pod overlap leaks a couple of extra tries,
+// nothing against a brute-force cap. `count` resets in place when the window
+// rolls, so the table stays one row per active IP/email.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX = 10;
+
+export async function loginAllowed(dims: string[]): Promise<boolean> {
+  if (dims.length === 0) return true;
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - LOGIN_WINDOW_MS);
+  const counts = await Promise.all(
+    dims.map(hash).map(async (key) => {
+      const row = await prisma.loginThrottle.findUnique({ where: { key } });
+      if (!row || row.windowStart < cutoff) {
+        await prisma.loginThrottle.upsert({
+          where: { key },
+          create: { key, count: 1, windowStart: now },
+          update: { count: 1, windowStart: now },
+        });
+        return 1;
+      }
+      const updated = await prisma.loginThrottle.update({
+        where: { key },
+        data: { count: { increment: 1 } },
+      });
+      return updated.count;
+    }),
+  );
+  return counts.every((c) => c <= LOGIN_MAX);
+}

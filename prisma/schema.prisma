@@ -78,6 +78,14 @@ model EmailRateLimit {
   lastSentAt DateTime
 }
 
+// Fixed-window counter for login attempts (see loginAllowed in lib/rateLimit).
+// key = sha256 of the prefixed dimension (login:ip / login:email); no raw PII.
+model LoginThrottle {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
 // ---- Plaid domain (ported from Portfolio's App/plaid/models.py) -----------
 
 model PlaidInstitution {
