@@ -107,7 +107,7 @@ export default function Landing({ locale }: { locale: Locale }) {
       <footer className={styles.foot}>
         <span>{tr("landing.footer")}</span>
         <span>
-          <Link href="/login">{tr("nav.login")}</Link> · <Link href="/signup">{tr("nav.signup")}</Link>
+          <Link href="/login">{tr("nav.login")}</Link> · <Link href="/signup">{tr("nav.signup")}</Link> · <Link href="/terms">{tr("auth.termsLink")}</Link> · <Link href="/privacy">{tr("privacy.title")}</Link>
         </span>
       </footer>
     </div>
