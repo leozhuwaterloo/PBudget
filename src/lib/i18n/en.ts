@@ -345,8 +345,6 @@ const en = {
   "privacy.contactBody": "Questions about this policy or your data? Email support@ppvnx.com.",
   "privacy.back": "← Back to home",
   "auth.forgotPassword": "Forgot your password?",
-  "auth.wechat": "Sign in with WeChat",
-  "auth.wechatError": "WeChat sign-in failed. Please try again.",
 
   // forgot / reset password
   "forgot.title": "Reset your password",

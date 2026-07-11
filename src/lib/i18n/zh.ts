@@ -341,8 +341,6 @@ const zh: Messages = {
   "privacy.contactBody": "对本政策或您的数据有疑问？请发送邮件至 support@ppvnx.com。",
   "privacy.back": "← 返回首页",
   "auth.forgotPassword": "忘记密码？",
-  "auth.wechat": "微信登录",
-  "auth.wechatError": "微信登录失败，请重试。",
 
   // forgot / reset password
   "forgot.title": "重置您的密码",
