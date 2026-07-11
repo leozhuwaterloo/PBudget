@@ -34,6 +34,7 @@ model User {
 
   sessions           Session[]
   verificationTokens EmailVerificationToken[]
+  emailOtps          EmailOtp[]
   passwordResetTokens PasswordResetToken[]
   items              PlaidItem[]
   categories         TransactionCategory[]
@@ -53,14 +54,28 @@ model Session {
 // Email verification is a 6-digit OTP (see lib/auth). One row per user (issuing a
 // new code deletes the prior). We store only the sha256 hex of the code, never the
 // plaintext; `attempts` counts wrong tries and the code dies at 5 (or at expiry).
-model EmailVerificationToken {
+// A NEW table: the legacy magic-link EmailVerificationToken table below is left
+// intact so `prisma db push` stays non-destructive on existing databases.
+model EmailOtp {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   codeHash  String   // sha256 hex of the 6-digit code
   attempts  Int      @default(0) // wrong-code tries; code is invalid once this hits 5
   expiresAt DateTime // now + 30 min
-  createdAt DateTime @default(now()) // for 1/min email throttle
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Legacy magic-link token table — no longer written to (verification moved to
+// EmailOtp). Kept only so `prisma db push` doesn't drop the existing table/column.
+model EmailVerificationToken {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }
