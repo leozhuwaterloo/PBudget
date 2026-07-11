@@ -125,28 +125,29 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
         </button>
       </div>
 
+      {/* (c) spending distribution by category — full-width, big donut + legend */}
+      <section className="card" style={{ opacity: busy ? 0.6 : 1, transition: "opacity 0.12s ease" }}>
+        <div className="card-header">{t("dash.categories.title")}</div>
+        <CategoryDonut
+          budget={data.budget}
+          money={money}
+          totalLabel={t("dash.categories.total")}
+          otherLabel={t("dash.categories.other")}
+          emptyText={t("dash.categories.empty")}
+          ariaLabel={t("dash.categories.aria")}
+        />
+      </section>
+
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
           gap: 16,
+          marginTop: 16,
           opacity: busy ? 0.6 : 1,
           transition: "opacity 0.12s ease",
         }}
       >
-        {/* (c) spending distribution by category — selected month */}
-        <section className="card">
-          <div className="card-header">{t("dash.categories.title")}</div>
-          <CategoryDonut
-            budget={data.budget}
-            money={money}
-            otherLabel={t("dash.categories.other")}
-            spentLabel={t("dash.categories.spent")}
-            emptyText={t("dash.categories.empty")}
-            ariaLabel={t("dash.categories.aria")}
-          />
-        </section>
-
         {/* (b) budget vs actual — selected month */}
         <section className="card">
           <div className="card-header">{t("dash.budget.title")}</div>
@@ -635,54 +636,65 @@ function TxnRow({
 
 // ---- widgets ---------------------------------------------------------------
 
-// Categorical palette for the donut — distinguishable on the light paper bg,
-// leading with the ledger green. "Other" uses --muted (assigned separately).
+// Categorical palette for the donut — distinguishable on the light paper bg.
+// "Everything else" uses --muted (assigned separately).
 const DONUT_COLORS = [
-  "#15684a", "#4b6bfb", "#b45309", "#8b5cf6", "#0ea5e9",
-  "#2f8f6a", "#d98b3a", "#e11d48", "#5bb98b", "#6366f1",
+  "#2f6fed", "#15684a", "#e0791f", "#8b5cf6", "#0ea5e9",
+  "#e11d48", "#16a34a", "#d4a017", "#db2777", "#6366f1",
+  "#0891b2", "#65a30d",
 ];
 
 // (c) Spending-by-category donut + legend, hand-rolled SVG in the same no-library
-// style as the other widgets. Data reuses the budget rows: ROOTS only (parentName
-// == null) sum to the month's total without double-counting, and positive actual =
-// outflow (Plaid convention) so refunds/income drop out. Top 8 slices; the rest
-// fold into "Other". Hovering a slice or legend row focuses it and swaps the
-// center label to that slice's amount + share.
+// style as the other widgets. Full-width: a big donut on the left, a multi-column
+// legend on the right, the month's total in the hole. Data reuses the budget rows:
+// ROOTS only (parentName == null) sum to the month's total without double-counting,
+// and positive actual = outflow (Plaid convention) so refunds/income drop out. Top
+// 11 slices; the rest fold into "Everything else". Hovering a slice floats a tooltip
+// and highlights its legend row; hovering a legend row highlights the slice.
 function CategoryDonut({
   budget,
   money,
+  totalLabel,
   otherLabel,
-  spentLabel,
   emptyText,
   ariaLabel,
 }: {
   budget: DashboardData["budget"];
   money: (n: number) => string;
+  totalLabel: string;
   otherLabel: string;
-  spentLabel: string;
   emptyText: string;
   ariaLabel: string;
 }) {
-  const [hover, setHover] = useState<number | null>(null);
+  const [hi, setHi] = useState<number | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   const roots = budget.filter((r) => !r.parentName && r.actual > 0).sort((a, b) => b.actual - a.actual);
   const total = roots.reduce((s, r) => s + r.actual, 0);
   if (total <= 0) return <p className="muted">{emptyText}</p>;
 
-  const TOP = 8;
+  const TOP = 11;
   const slices = roots.slice(0, TOP).map((r, i) => ({ name: r.name, value: r.actual, color: DONUT_COLORS[i % DONUT_COLORS.length] }));
   const tail = roots.slice(TOP);
   if (tail.length) slices.push({ name: otherLabel, value: tail.reduce((s, r) => s + r.actual, 0), color: "var(--muted)" });
 
-  const R = 45, SW = 18, C = 2 * Math.PI * R;
-  const pct = (v: number) => Math.round((v / total) * 100);
-  const active = hover != null ? slices[hover] : null;
+  const R = 42, SW = 15, C = 2 * Math.PI * R;
+  const pct = (v: number) => ((v / total) * 100).toFixed(1);
+  const active = hi != null ? slices[hi] : null;
   let acc = 0;
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-        <svg viewBox="0 0 120 120" width={176} height={176} role="img" aria-label={ariaLabel} style={{ overflow: "visible" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "center", justifyContent: "center" }}>
+      {/* donut + cursor-following tooltip */}
+      <div
+        style={{ position: "relative", flex: "0 0 auto" }}
+        onMouseMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+        }}
+        onMouseLeave={() => { setHi(null); setPos(null); }}
+      >
+        <svg viewBox="0 0 120 120" width={260} height={260} role="img" aria-label={ariaLabel} style={{ display: "block", overflow: "visible" }}>
           <g transform="rotate(-90 60 60)">
             {slices.map((s, i) => {
               const frac = s.value / total;
@@ -694,42 +706,72 @@ function CategoryDonut({
                   r={R}
                   fill="none"
                   stroke={s.color}
-                  strokeWidth={hover === i ? SW + 4 : SW}
+                  strokeWidth={hi === i ? SW + 3 : SW}
                   strokeDasharray={`${frac * C} ${C}`}
                   strokeDashoffset={-acc * C}
-                  opacity={hover == null || hover === i ? 1 : 0.35}
-                  onMouseEnter={() => setHover(i)}
-                  onMouseLeave={() => setHover(null)}
+                  opacity={hi == null || hi === i ? 1 : 0.4}
+                  onMouseEnter={() => setHi(i)}
+                  onMouseLeave={() => setHi(null)}
                   style={{ transition: "opacity 0.1s ease, stroke-width 0.1s ease" }}
-                >
-                  <title>{`${s.name} · ${money(s.value)}`}</title>
-                </circle>
+                />
               );
               acc += frac;
               return seg;
             })}
           </g>
-          <text x={60} y={58} textAnchor="middle" fontSize={11} fontWeight={600} fill="var(--fg)">
-            {money(active ? active.value : total)}
+          <text x={60} y={57} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--fg)">
+            {money(total)}
           </text>
-          <text x={60} y={71} textAnchor="middle" fontSize={7.5} fill="var(--muted)">
-            {active ? `${active.name} · ${pct(active.value)}%` : spentLabel}
+          <text x={60} y={69} textAnchor="middle" fontSize={7} fill="var(--muted)">
+            {totalLabel}
           </text>
         </svg>
+        {active && pos && (
+          <div
+            style={{
+              position: "absolute", left: pos.x + 14, top: pos.y + 14, pointerEvents: "none",
+              background: "var(--fg)", color: "var(--bg-2)", padding: "7px 10px", borderRadius: 8,
+              fontSize: 12, whiteSpace: "nowrap", zIndex: 5, boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div className="row" style={{ gap: 7, alignItems: "center", fontWeight: 600 }}>
+              <span aria-hidden style={{ width: 9, height: 9, borderRadius: "50%", background: active.color }} />
+              {active.name}
+            </div>
+            <div style={{ opacity: 0.85, marginTop: 2 }}>{money(active.value)} ({pct(active.value)}%)</div>
+          </div>
+        )}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+
+      {/* legend — multi-column grid, mirrors the screenshot */}
+      <div
+        style={{
+          flex: "1 1 340px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+          gap: "6px 12px",
+          alignSelf: "center",
+        }}
+      >
         {slices.map((s, i) => (
           <div
             key={s.name}
             className="row"
-            style={{ gap: 8, alignItems: "center", opacity: hover == null || hover === i ? 1 : 0.5, transition: "opacity 0.1s ease" }}
-            onMouseEnter={() => setHover(i)}
-            onMouseLeave={() => setHover(null)}
+            style={{
+              gap: 10, alignItems: "flex-start", padding: "7px 10px", borderRadius: 8,
+              border: `1px solid ${hi === i ? "var(--border)" : "transparent"}`,
+              background: hi === i ? "var(--bg-3)" : "transparent",
+              opacity: hi == null || hi === i ? 1 : 0.55,
+              transition: "opacity 0.1s ease, background 0.1s ease",
+            }}
+            onMouseEnter={() => { setHi(i); setPos(null); }}
+            onMouseLeave={() => setHi(null)}
           >
-            <span aria-hidden style={{ flex: "0 0 auto", width: 10, height: 10, borderRadius: 2, background: s.color }} />
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{s.name}</span>
-            <span className="muted" style={{ flex: "0 0 auto", fontSize: 12 }}>{pct(s.value)}%</span>
-            <span style={{ flex: "0 0 auto", fontSize: 13, minWidth: 72, textAlign: "right" }}>{money(s.value)}</span>
+            <span aria-hidden style={{ flex: "0 0 auto", width: 10, height: 10, borderRadius: "50%", background: s.color, marginTop: 4 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, fontWeight: 500 }}>{s.name}</div>
+              <div className="muted" style={{ fontSize: 12.5 }}>{money(s.value)} <span style={{ opacity: 0.8 }}>({pct(s.value)}%)</span></div>
+            </div>
           </div>
         ))}
       </div>

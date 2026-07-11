@@ -60,7 +60,9 @@ a:hover { text-decoration: underline; }
 .nav-side .brand { margin: 0 8px 16px; }
 .nav-side a { padding: 8px 10px; border-radius: 7px; font-size: 14px; }
 .nav-side a:hover { background: var(--bg-3); }
-.main-side { margin-left: 216px; }
+/* Fill the space to the right of the rail instead of capping at 1100px and
+   left-hugging (which left a big empty band on wide screens). */
+.main-side { margin-left: 216px; max-width: none; padding: 32px 44px 64px; }
 
 h1 {
   font-family: var(--serif); font-size: 26px; font-weight: 600;

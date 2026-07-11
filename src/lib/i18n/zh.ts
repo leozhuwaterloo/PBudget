@@ -282,7 +282,7 @@ const zh: Messages = {
   "dash.categories.title": "分类支出占比",
   "dash.categories.empty": "本月暂无已分类支出。",
   "dash.categories.other": "其他",
-  "dash.categories.spent": "支出",
+  "dash.categories.total": "总计",
   "dash.categories.aria": "按分类的支出占比环形图",
   "dash.topTxns.title": "热门交易",
   "dash.topTxns.empty": "本月暂无交易。",
