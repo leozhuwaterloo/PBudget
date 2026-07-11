@@ -134,6 +134,19 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
           transition: "opacity 0.12s ease",
         }}
       >
+        {/* (c) spending distribution by category — selected month */}
+        <section className="card">
+          <div className="card-header">{t("dash.categories.title")}</div>
+          <CategoryDonut
+            budget={data.budget}
+            money={money}
+            otherLabel={t("dash.categories.other")}
+            spentLabel={t("dash.categories.spent")}
+            emptyText={t("dash.categories.empty")}
+            ariaLabel={t("dash.categories.aria")}
+          />
+        </section>
+
         {/* (b) budget vs actual — selected month */}
         <section className="card">
           <div className="card-header">{t("dash.budget.title")}</div>
@@ -621,6 +634,108 @@ function TxnRow({
 }
 
 // ---- widgets ---------------------------------------------------------------
+
+// Categorical palette for the donut — distinguishable on the light paper bg,
+// leading with the ledger green. "Other" uses --muted (assigned separately).
+const DONUT_COLORS = [
+  "#15684a", "#4b6bfb", "#b45309", "#8b5cf6", "#0ea5e9",
+  "#2f8f6a", "#d98b3a", "#e11d48", "#5bb98b", "#6366f1",
+];
+
+// (c) Spending-by-category donut + legend, hand-rolled SVG in the same no-library
+// style as the other widgets. Data reuses the budget rows: ROOTS only (parentName
+// == null) sum to the month's total without double-counting, and positive actual =
+// outflow (Plaid convention) so refunds/income drop out. Top 8 slices; the rest
+// fold into "Other". Hovering a slice or legend row focuses it and swaps the
+// center label to that slice's amount + share.
+function CategoryDonut({
+  budget,
+  money,
+  otherLabel,
+  spentLabel,
+  emptyText,
+  ariaLabel,
+}: {
+  budget: DashboardData["budget"];
+  money: (n: number) => string;
+  otherLabel: string;
+  spentLabel: string;
+  emptyText: string;
+  ariaLabel: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+
+  const roots = budget.filter((r) => !r.parentName && r.actual > 0).sort((a, b) => b.actual - a.actual);
+  const total = roots.reduce((s, r) => s + r.actual, 0);
+  if (total <= 0) return <p className="muted">{emptyText}</p>;
+
+  const TOP = 8;
+  const slices = roots.slice(0, TOP).map((r, i) => ({ name: r.name, value: r.actual, color: DONUT_COLORS[i % DONUT_COLORS.length] }));
+  const tail = roots.slice(TOP);
+  if (tail.length) slices.push({ name: otherLabel, value: tail.reduce((s, r) => s + r.actual, 0), color: "var(--muted)" });
+
+  const R = 45, SW = 18, C = 2 * Math.PI * R;
+  const pct = (v: number) => Math.round((v / total) * 100);
+  const active = hover != null ? slices[hover] : null;
+  let acc = 0;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        <svg viewBox="0 0 120 120" width={176} height={176} role="img" aria-label={ariaLabel} style={{ overflow: "visible" }}>
+          <g transform="rotate(-90 60 60)">
+            {slices.map((s, i) => {
+              const frac = s.value / total;
+              const seg = (
+                <circle
+                  key={s.name}
+                  cx={60}
+                  cy={60}
+                  r={R}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={hover === i ? SW + 4 : SW}
+                  strokeDasharray={`${frac * C} ${C}`}
+                  strokeDashoffset={-acc * C}
+                  opacity={hover == null || hover === i ? 1 : 0.35}
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                  style={{ transition: "opacity 0.1s ease, stroke-width 0.1s ease" }}
+                >
+                  <title>{`${s.name} · ${money(s.value)}`}</title>
+                </circle>
+              );
+              acc += frac;
+              return seg;
+            })}
+          </g>
+          <text x={60} y={58} textAnchor="middle" fontSize={11} fontWeight={600} fill="var(--fg)">
+            {money(active ? active.value : total)}
+          </text>
+          <text x={60} y={71} textAnchor="middle" fontSize={7.5} fill="var(--muted)">
+            {active ? `${active.name} · ${pct(active.value)}%` : spentLabel}
+          </text>
+        </svg>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        {slices.map((s, i) => (
+          <div
+            key={s.name}
+            className="row"
+            style={{ gap: 8, alignItems: "center", opacity: hover == null || hover === i ? 1 : 0.5, transition: "opacity 0.1s ease" }}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          >
+            <span aria-hidden style={{ flex: "0 0 auto", width: 10, height: 10, borderRadius: 2, background: s.color }} />
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{s.name}</span>
+            <span className="muted" style={{ flex: "0 0 auto", fontSize: 12 }}>{pct(s.value)}%</span>
+            <span style={{ flex: "0 0 auto", fontSize: 13, minWidth: 72, textAlign: "right" }}>{money(s.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // (a) Vertical bar chart of monthly spend. One responsive <svg> (viewBox +
 // width 100%), Statement-green bars, month labels. Hovering a column highlights

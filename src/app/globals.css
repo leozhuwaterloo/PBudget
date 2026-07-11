@@ -49,6 +49,19 @@ a:hover { text-decoration: underline; }
 .nav .spacer { flex: 1; }
 .main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
 
+/* Sidebar variant (logged-in app): the letterhead pinned to the left rail. */
+.nav-side {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 216px; z-index: 20;
+  flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 3px;
+  padding: 20px 14px; overflow-y: auto;
+  border-top: 3px solid var(--primary);
+  border-right: 1px solid var(--border); border-bottom: none;
+}
+.nav-side .brand { margin: 0 8px 16px; }
+.nav-side a { padding: 8px 10px; border-radius: 7px; font-size: 14px; }
+.nav-side a:hover { background: var(--bg-3); }
+.main-side { margin-left: 216px; }
+
 h1 {
   font-family: var(--serif); font-size: 26px; font-weight: 600;
   letter-spacing: -0.015em; margin: 0 0 20px;
@@ -168,6 +181,14 @@ input.budget { width: 92px; padding: 5px 7px; }
 @media (max-width: 640px) {
   .nav { padding: 12px 16px; gap: 12px; }
   .main { padding: 20px 14px 48px; }
+  /* Sidebar collapses back to a top bar on narrow screens. */
+  .nav-side {
+    position: static; width: auto; flex-direction: row; flex-wrap: wrap;
+    align-items: center; gap: 12px; padding: 12px 16px;
+    border-right: none; border-bottom: 1px solid var(--border); overflow: visible;
+  }
+  .nav-side .brand { margin: 0; }
+  .main-side { margin-left: 0; }
   .card { overflow-x: auto; }
   .field-grid { grid-template-columns: 1fr; }
   th, td { padding: 8px 10px; white-space: nowrap; }

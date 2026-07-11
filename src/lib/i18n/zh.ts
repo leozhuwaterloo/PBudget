@@ -279,6 +279,11 @@ const zh: Messages = {
   "dash.budget.noTxns": "本月该分类没有交易。",
   "dash.vendors.title": "热门商户",
   "dash.vendors.empty": "本月暂无商户消费。",
+  "dash.categories.title": "分类支出占比",
+  "dash.categories.empty": "本月暂无已分类支出。",
+  "dash.categories.other": "其他",
+  "dash.categories.spent": "支出",
+  "dash.categories.aria": "按分类的支出占比环形图",
   "dash.topTxns.title": "热门交易",
   "dash.topTxns.empty": "本月暂无交易。",
   // (end V2 page regions)

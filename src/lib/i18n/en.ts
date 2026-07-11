@@ -283,6 +283,11 @@ const en = {
   "dash.budget.noTxns": "No transactions in this category this month.",
   "dash.vendors.title": "Top vendors",
   "dash.vendors.empty": "No vendor spend this month.",
+  "dash.categories.title": "Spending by category",
+  "dash.categories.empty": "No categorized spending this month.",
+  "dash.categories.other": "Other",
+  "dash.categories.spent": "spent",
+  "dash.categories.aria": "Donut chart of spending share by category",
   "dash.topTxns.title": "Top transactions",
   "dash.topTxns.empty": "No transactions this month.",
   // (end V2 page regions)

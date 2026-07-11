@@ -20,9 +20,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale}>
       <body>
         <I18nProvider locale={locale}>
-          <nav className="nav">
+          <nav className={user ? "nav nav-side" : "nav"}>
             <Link href="/" className="brand">PBudget</Link>
-            <div className="spacer" />
             {user ? (
               <>
                 <Link href="/dashboard">{t(locale, "nav.dashboard")}</Link>
@@ -30,17 +29,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/accounts">{t(locale, "nav.accounts")}</Link>
                 <Link href="/vendors">{t(locale, "cust.nav.vendors")}</Link>
                 <Link href="/customizations">{t(locale, "nav.customizations")}</Link>
+                <div className="spacer" />
                 <LogoutButton />
               </>
             ) : (
               <>
+                <div className="spacer" />
                 <Link href="/login">{t(locale, "nav.login")}</Link>
                 <Link href="/signup">{t(locale, "nav.signup")}</Link>
               </>
             )}
             <LanguageSwitcher />
           </nav>
-          <main className="main">{children}</main>
+          <main className={user ? "main main-side" : "main"}>{children}</main>
         </I18nProvider>
       </body>
     </html>
