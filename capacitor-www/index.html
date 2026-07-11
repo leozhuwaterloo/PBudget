@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PlaidBudget</title>
+<!-- Offline fallback only. The app normally loads https://pbudget.ppvnx.com (see
+     capacitor.config.ts server.url); this page shows only if that's unreachable. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #e9ebe5; color: #1b201a;
+    font-family: Georgia, "Times New Roman", serif; display: grid; place-items: center; text-align: center; }
+  .mark { font-size: 56px; font-weight: 600; color: #15684a; line-height: 1; margin-bottom: 12px; }
+  p { font-family: system-ui, sans-serif; margin: 6px 0; }
+  a { color: #15684a; }
+</style>
+<div>
+  <div class="mark">P</div>
+  <p>You're offline. PlaidBudget needs a connection.</p>
+  <p><a href="https://pbudget.ppvnx.com">Retry</a></p>
+</div>

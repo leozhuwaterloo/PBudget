@@ -12,3 +12,10 @@ prisma/dev.db*
 *.log
 .DS_Store
 README.md
+
+# Capacitor native shells — built on the desktop/Mac, never part of the server image.
+android
+ios
+capacitor-www
+capacitor.config.ts
+resources
