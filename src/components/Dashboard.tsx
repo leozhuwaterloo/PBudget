@@ -85,18 +85,89 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
 
   const empty = data.trend.every((d) => d.spend === 0) && data.vendors.length === 0;
 
+  // KPI tiles — all derived from data already on hand (trend / budget / review).
+  const totActual = data.budget.filter((r) => !r.parentName).reduce((s, r) => s + r.actual, 0);
+  const totBudget = data.budget.reduce((s, r) => s + r.budget, 0);
+  const spendThis = data.trend[idx]?.spend ?? totActual;
+  const spendPrev = idx > 0 ? data.trend[idx - 1]?.spend ?? null : null;
+  const momPct = spendPrev && spendPrev !== 0 ? ((spendThis - spendPrev) / Math.abs(spendPrev)) * 100 : null;
+  const activeSpends = data.trend.map((d) => d.spend).filter((v) => v > 0);
+  const avgSpend = activeSpends.length ? activeSpends.reduce((s, v) => s + v, 0) / activeSpends.length : 0;
+  const budgetPct = totBudget > 0 ? (totActual / totBudget) * 100 : null;
+  const reviewCount = data.review.unmatched + data.review.conflicts + data.review.suspicion + data.review.pending;
+
   return (
     <div>
       <h1>{t("dash.title")}</h1>
 
       {empty && <p className="muted">{t("dash.empty")}</p>}
 
-      {/* (a) monthly spend trend — fixed 12-month window */}
+      {/* KPI stat tiles — headline numbers for the selected month */}
+      <div className="stat-grid">
+        <div className="stat">
+          <div className="stat-label">{t("dash.stat.spent")}</div>
+          <div className="stat-value">{money(spendThis)}</div>
+          <div className="stat-sub">
+            {momPct == null ? (
+              <span className="muted">{monthYearLabel(month)}</span>
+            ) : (
+              <>
+                <span className={momPct > 0 ? "chip chip-up" : "chip chip-down"}>
+                  {momPct > 0 ? "↑" : "↓"} {Math.abs(momPct).toFixed(0)}%
+                </span>
+                <span className="muted">{t("dash.stat.vsPrev")}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">{t("dash.stat.avg")}</div>
+          <div className="stat-value">{money(avgSpend)}</div>
+          <div className="stat-sub muted">{t("dash.stat.avgSub")}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">{t("dash.stat.budget")}</div>
+          {budgetPct == null ? (
+            <>
+              <div className="stat-value">—</div>
+              <div className="stat-sub muted">{t("dash.stat.noBudget")}</div>
+            </>
+          ) : (
+            <>
+              <div className="stat-value">{budgetPct.toFixed(0)}%</div>
+              <div style={{ marginTop: 10 }}>
+                <BarRow
+                  frac={budgetPct / 100}
+                  color={budgetPct > 100 ? "var(--warning)" : "var(--success)"}
+                  markerFrac={budgetPct > 100 ? 100 / budgetPct : null}
+                  title={`${money(totActual)} / ${money(totBudget)}`}
+                />
+              </div>
+            </>
+          )}
+        </div>
+        <a className="stat" href="/review" style={{ display: "block", color: "inherit" }}>
+          <div className="stat-label">{t("dash.stat.review")}</div>
+          <div className="stat-value" style={{ color: reviewCount > 0 ? "var(--warning)" : "var(--success)" }}>{reviewCount}</div>
+          <div className="stat-sub muted">{reviewCount > 0 ? t("dash.stat.reviewSub") : t("dash.stat.reviewClear")}</div>
+        </a>
+      </div>
+
+      {/* (a) monthly spend trend — area+line over the fixed 12-month window */}
       <section className="card">
         <div className="card-header">
           {t("dash.trend.title")} <span className="muted" style={{ fontWeight: 400 }}>· {t("dash.trend.sub")}</span>
         </div>
-        <TrendChart data={data.trend} monthLabel={monthLabel} money={money} emptyText={t("dash.trend.empty")} ariaLabel={t("dash.trend.aria")} />
+        <TrendChart
+          data={data.trend}
+          monthLabel={monthLabel}
+          money={money}
+          emptyText={t("dash.trend.empty")}
+          ariaLabel={t("dash.trend.aria")}
+          selectedIndex={idx}
+          onPick={changeMonth}
+        />
+        <p className="muted" style={{ fontSize: 12, margin: "10px 0 0", textAlign: "center" }}>{t("dash.trend.click")}</p>
       </section>
 
       {/* shared month stepper for (b) and (d) */}
@@ -636,12 +707,13 @@ function TxnRow({
 
 // ---- widgets ---------------------------------------------------------------
 
-// Categorical palette for the donut — distinguishable on the light paper bg.
-// "Everything else" uses --muted (assigned separately).
+// Categorical palette for the donut — the dataviz skill's CVD-validated 8-hue
+// order (fixed order IS the colorblind-safety mechanism; validated ok on the
+// white surface). "Everything else" uses --muted (assigned separately), so we
+// show at most 7 named categories + the fold — never a cycled/generated 9th hue.
 const DONUT_COLORS = [
-  "#2f6fed", "#15684a", "#e0791f", "#8b5cf6", "#0ea5e9",
-  "#e11d48", "#16a34a", "#d4a017", "#db2777", "#6366f1",
-  "#0891b2", "#65a30d",
+  "#2a78d6", "#1baf7a", "#eda100", "#008300",
+  "#4a3aa7", "#e34948", "#e87ba4", "#eb6834",
 ];
 
 // (c) Spending-by-category donut + legend, hand-rolled SVG in the same no-library
@@ -673,7 +745,7 @@ function CategoryDonut({
   const total = roots.reduce((s, r) => s + r.actual, 0);
   if (total <= 0) return <p className="muted">{emptyText}</p>;
 
-  const TOP = 11;
+  const TOP = 7;
   const slices = roots.slice(0, TOP).map((r, i) => ({ name: r.name, value: r.actual, color: DONUT_COLORS[i % DONUT_COLORS.length] }));
   const tail = roots.slice(TOP);
   if (tail.length) slices.push({ name: otherLabel, value: tail.reduce((s, r) => s + r.actual, 0), color: "var(--muted)" });
@@ -779,98 +851,127 @@ function CategoryDonut({
   );
 }
 
-// (a) Vertical bar chart of monthly spend. One responsive <svg> (viewBox +
-// width 100%), Statement-green bars, month labels. Hovering a column highlights
-// it and floats its amount above the bar; the rest dim to focus attention.
+// (a) Monthly-spend trend as an area+line chart (dataviz "change over time" →
+// line). One responsive <svg>, ledger-green line over a gradient fill, a dashed
+// average reference line, the selected month marked, and a hover crosshair with
+// the month + amount. Clicking a month jumps the rest of the dashboard to it.
 function TrendChart({
   data,
   monthLabel,
   money,
   emptyText,
   ariaLabel,
+  selectedIndex,
+  onPick,
 }: {
   data: { month: string; spend: number }[];
   monthLabel: (k: string) => string;
   money: (n: number) => string;
   emptyText: string;
   ariaLabel: string;
+  selectedIndex: number;
+  onPick: (month: string) => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const vals = data.map((d) => d.spend);
   if (vals.every((v) => v === 0)) return <p className="muted">{emptyText}</p>;
 
-  // Signed scale around a zero baseline: net-inflow months (spend < 0) draw as
-  // bars dipping BELOW the axis instead of rendering as invisible negative height.
+  // Signed scale around a zero baseline so net-inflow months (spend < 0) dip below.
   const hi = Math.max(0, ...vals);
   const lo = Math.min(0, ...vals);
   const span = hi - lo || 1;
-  const W = 640, H = 210, padB = 26, padT = 26, padL = 4, padR = 4;
-  const chartH = H - padB - padT;
-  const y = (v: number) => padT + ((hi - v) / span) * chartH; // value → pixel Y
+  const W = 720, H = 240, padT = 26, padB = 30, padL = 14, padR = 16;
+  const chartH = H - padT - padB;
+  const y = (v: number) => padT + ((hi - v) / span) * chartH;
   const zeroY = y(0);
-  const step = (W - padL - padR) / data.length;
-  const bw = step * 0.6;
-  const barX = (i: number) => padL + i * step + (step - bw) / 2;
-  const colCx = (i: number) => padL + i * step + step / 2;
+  const n = data.length;
+  const x = (i: number) => (n === 1 ? padL : padL + (i / (n - 1)) * (W - padL - padR));
+  const active = vals.filter((v) => v > 0);
+  const avg = active.length ? active.reduce((s, v) => s + v, 0) / active.length : 0;
+
+  const pts = data.map((d, i) => [x(i), y(d.spend)] as const);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const area = `${line} L${x(n - 1).toFixed(1)},${zeroY.toFixed(1)} L${x(0).toFixed(1)},${zeroY.toFixed(1)} Z`;
+
+  const cur = hover; // annotate the hovered point
+  const showSel = selectedIndex >= 0 && selectedIndex < n;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel} style={{ display: "block", overflow: "visible" }}>
-      {/* hovered column highlight */}
-      {hover != null && (
-        <rect x={padL + hover * step} y={padT} width={step} height={chartH} fill="var(--bg-3)" rx={3} />
+      <defs>
+        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.20} />
+          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+
+      {/* average reference line */}
+      {avg > 0 && (
+        <>
+          <line x1={padL} y1={y(avg)} x2={W - padR} y2={y(avg)} stroke="var(--muted)" strokeWidth={1} strokeDasharray="4 4" opacity={0.55} />
+          <text x={W - padR} y={y(avg) - 4} textAnchor="end" fontSize={10} fill="var(--muted)">avg {money(avg)}</text>
+        </>
       )}
+
       <line x1={padL} y1={zeroY} x2={W - padR} y2={zeroY} stroke="var(--border)" />
+      <path d={area} fill="url(#trendFill)" />
+      <path d={line} fill="none" stroke="var(--primary)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* selected-month marker: subtle guide + filled dot */}
+      {showSel && (
+        <>
+          <line x1={x(selectedIndex)} y1={padT} x2={x(selectedIndex)} y2={zeroY} stroke="var(--primary)" strokeWidth={1} opacity={0.28} />
+          <circle cx={x(selectedIndex)} cy={y(data[selectedIndex].spend)} r={4} fill="var(--primary)" stroke="var(--bg-2)" strokeWidth={2} />
+        </>
+      )}
+
+      {/* month labels */}
+      {data.map((d, i) => (
+        <text
+          key={`lbl-${d.month}`}
+          x={x(i)} y={H - 9} textAnchor="middle" fontSize={10}
+          fontWeight={cur === i || (cur == null && i === selectedIndex) ? 600 : 400}
+          fill={cur === i ? "var(--fg)" : "var(--muted)"}
+        >
+          {monthLabel(d.month)}
+        </text>
+      ))}
+
+      {/* hover crosshair + emphasized point + floating month · amount */}
+      {cur != null && (
+        <>
+          <line x1={x(cur)} y1={padT} x2={x(cur)} y2={zeroY} stroke="var(--fg)" strokeWidth={1} opacity={0.18} />
+          <circle cx={x(cur)} cy={y(data[cur].spend)} r={4.5} fill="var(--primary)" stroke="var(--bg-2)" strokeWidth={2} />
+          <text
+            x={Math.min(Math.max(x(cur), padL + 46), W - padR - 46)}
+            y={Math.max(y(data[cur].spend) - 12, padT + 8)}
+            textAnchor="middle" fontSize={12} fontWeight={600}
+            fill="var(--fg)" stroke="var(--bg-2)" strokeWidth={3.5} paintOrder="stroke"
+            style={{ pointerEvents: "none" }}
+          >
+            {monthLabel(data[cur].month)} · {money(data[cur].spend)}
+          </text>
+        </>
+      )}
+
+      {/* full-height transparent hit targets — hover to inspect, click to select */}
       {data.map((d, i) => {
-        const neg = d.spend < 0;
-        const yv = y(d.spend);
+        const w = (W - padL - padR) / n;
         return (
-          <g key={d.month}>
-            <rect
-              x={barX(i)}
-              y={Math.min(yv, zeroY)}
-              width={bw}
-              height={Math.abs(yv - zeroY)}
-              fill={neg ? "var(--muted)" : "var(--primary)"}
-              opacity={hover == null || hover === i ? 1 : 0.4}
-              rx={1.5}
-              style={{ transition: "opacity 0.1s ease" }}
-            />
-            <text x={colCx(i)} y={H - 9} textAnchor="middle" fontSize={10} fontWeight={hover === i ? 600 : 400} fill={hover === i ? "var(--fg)" : "var(--muted)"}>
-              {monthLabel(d.month)}
-            </text>
-          </g>
+          <rect
+            key={`hit-${d.month}`}
+            x={x(i) - w / 2}
+            y={padT}
+            width={w}
+            height={chartH + 8}
+            fill="transparent"
+            style={{ cursor: "pointer" }}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            onClick={() => onPick(d.month)}
+          />
         );
       })}
-      {/* floating amount for the hovered column — above an up bar, below a down bar */}
-      {hover != null && (
-        <text
-          x={colCx(hover)}
-          y={data[hover].spend < 0 ? y(data[hover].spend) + 15 : y(data[hover].spend) - 8}
-          textAnchor="middle"
-          fontSize={12}
-          fontWeight={600}
-          fill="var(--fg)"
-          stroke="var(--bg-2)"
-          strokeWidth={3}
-          paintOrder="stroke"
-          style={{ pointerEvents: "none" }}
-        >
-          {money(data[hover].spend)}
-        </text>
-      )}
-      {/* full-height transparent hit targets so thin bars are easy to hover */}
-      {data.map((d, i) => (
-        <rect
-          key={`hit-${d.month}`}
-          x={padL + i * step}
-          y={padT}
-          width={step}
-          height={chartH}
-          fill="transparent"
-          onMouseEnter={() => setHover(i)}
-          onMouseLeave={() => setHover(null)}
-        />
-      ))}
     </svg>
   );
 }
