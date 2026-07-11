@@ -1,13 +1,11 @@
-// FR2 catalog quality gate — asserts the authored catalog's shape and the
-// instantiate → rematch path against a throwaway user in the dev SQLite DB.
-// Deterministic, no network. Run: npm run check:catalog
+// FR2 catalog quality gate — asserts the catalog's shape (generated merchants +
+// authored buckets, two-stage conditions, embedded icons) and the instantiate →
+// rematch path against a throwaway user in the dev SQLite DB. Run: npm run check:catalog
 import assert from "assert";
 import { prisma } from "../src/lib/db";
 import { CATALOG, searchCatalog, findCatalogEntry } from "../src/lib/catalog/vendors";
-import { BRAND_ICONS } from "../src/lib/catalog/icons";
 import { instantiateCatalogEntry } from "../src/lib/catalog/instantiate";
 import { rematchUser } from "../src/lib/analysis/match";
-import { DEFAULT_CATEGORIES } from "../src/lib/categories";
 import { RULES } from "../src/lib/analysis/constants";
 
 const USER = "catalog-test-user";
@@ -16,7 +14,6 @@ const ITEM = "catalog-test-item";
 const ACCT = "catalog-test-acct";
 const TXN = "catalog-test-tim-hortons";
 
-const SEEDED = new Set<string>([...DEFAULT_CATEGORIES, "Transfer In", "Transfer Out"]);
 const BUCKET_SLUGS = ["self-personal-transfers", "general-bank", "general-spending"];
 
 async function reset(): Promise<void> {
@@ -48,14 +45,17 @@ async function main(): Promise<void> {
   for (const s of BUCKET_SLUGS) assert.ok(findCatalogEntry(s), `bucket present: ${s}`);
 
   for (const e of CATALOG) {
-    assert.ok(e.conditions.length >= 1, `${e.slug} has ≥1 condition`);
-    for (const c of e.conditions) {
-      assert.ok(SEEDED.has(c.categoryName), `${e.slug} row category "${c.categoryName}" is seeded`);
+    const rows = [...e.matchConditions, ...e.categoryRules];
+    assert.ok(rows.length >= 1, `${e.slug} has ≥1 condition`);
+    assert.ok(e.categoryName, `${e.slug} has a default category`);
+    for (const c of rows) {
       const hasField = c.nameOp || c.merchantOp || c.paymentChannel || c.plaidPrimary || c.plaidDetailed || c.amountMin != null || c.amountMax != null;
       assert.ok(hasField, `${e.slug} row has ≥1 match field`);
     }
-    if (e.icon) assert.ok(BRAND_ICONS[e.icon], `${e.slug} icon "${e.icon}" is bundled`);
+    for (const c of e.categoryRules) assert.ok(c.categoryName, `${e.slug} category rule carries a category`);
+    if (e.icon) assert.ok(e.icon.startsWith("data:"), `${e.slug} icon is an embedded data URI`);
   }
+  assert.ok(CATALOG.some((e) => e.icon), "at least some entries embed an icon");
 
   // --- Text search ---------------------------------------------------------
   assert.ok(searchCatalog("tim").some((e) => e.slug === "tim-hortons"), "search 'tim' finds Tim Hortons");
@@ -65,34 +65,36 @@ async function main(): Promise<void> {
 
   // --- Instantiate → rematch (the core behaviour) --------------------------
   await reset();
-
-  // Before: an unmatched posted txn opens an unmatched_vendor queue item.
   await rematchUser(USER);
   let txn = await prisma.plaidTransaction.findUnique({ where: { transactionId: TXN } });
   assert.equal(txn!.vendorId, null, "txn starts unmatched");
   assert.equal((await flag(RULES.unmatchedVendor))?.status, "open", "unmatched_vendor open before instantiate");
 
-  // Instantiate Tim Hortons (no bundled icon → letter avatar).
+  // Instantiate Tim Hortons (an icon'd entry from the generated catalog).
+  const timEntry = findCatalogEntry("tim-hortons")!;
   const tim = await instantiateCatalogEntry(USER, "tim-hortons");
   const timVendor = await prisma.vendor.findUnique({ where: { id: tim.id }, include: { conditions: true } });
   assert.equal(timVendor!.name, "Tim Hortons", "vendor named from entry");
-  assert.equal(timVendor!.icon, null, "Tim Hortons falls back to letter avatar");
-  assert.equal(timVendor!.categoryName, "Restaurant", "vendor default category copied");
-  assert.equal(timVendor!.conditions.length, 1, "one condition row copied");
-  assert.equal(timVendor!.conditions[0].categoryName, "Restaurant", "row category copied");
-  assert.equal(timVendor!.conditions[0].merchantValue, "Tim Hortons", "row merchant copied");
-  assert.equal(timVendor!.conditions[0].paymentChannel, "in store", "row channel copied");
+  assert.equal(timVendor!.categoryName, timEntry.categoryName, "vendor default category copied from entry");
+  assert.ok(timVendor!.conditions.length >= 1, "≥1 condition row copied");
+  assert.ok(timVendor!.conditions.some((c) => c.merchantValue === "Tim Hortons"), "the merchant condition copied");
+  // Its custom category was ensured to exist for this user.
+  assert.ok(await prisma.transactionCategory.findUnique({ where: { userId_name: { userId: USER, name: timEntry.categoryName! } } }), "entry's category ensured for the user");
+  // The embedded icon (data URI) is carried onto the vendor.
+  assert.ok(timVendor!.icon?.startsWith("data:"), "embedded icon copied onto the vendor");
 
   // After: vendorId materialized on the matching txn, queue item closed.
   txn = await prisma.plaidTransaction.findUnique({ where: { transactionId: TXN } });
   assert.equal(txn!.vendorId, tim.id, "matching txn now points at the new vendor");
   assert.equal((await flag(RULES.unmatchedVendor))?.status, "resolved", "unmatched_vendor closed after instantiate");
 
-  // Second instantiate (an icon'd entry) appends at LOWER priority (higher int).
-  const sbucks = await instantiateCatalogEntry(USER, "starbucks");
-  const sbVendor = await prisma.vendor.findUnique({ where: { id: sbucks.id } });
-  assert.equal(sbVendor!.icon, "starbucks", "Starbucks keeps its bundled icon");
-  assert.ok(sbVendor!.priority! > timVendor!.priority!, "appended at lower priority (higher int)");
+  // A bucket has no embedded icon and no link → letter avatar (icon null), no network,
+  // and appends at LOWER priority (higher int).
+  const bucket = findCatalogEntry("general-spending")!;
+  const inst = await instantiateCatalogEntry(USER, bucket.slug);
+  const instVendor = await prisma.vendor.findUnique({ where: { id: inst.id } });
+  assert.equal(instVendor!.icon, null, "no icon + no link → letter avatar (icon null)");
+  assert.ok(instVendor!.priority! > timVendor!.priority!, "appended at lower priority (higher int)");
 
   // Re-instantiate Tim Hortons → suffixed name, does not collide.
   const tim2 = await instantiateCatalogEntry(USER, "tim-hortons");
@@ -101,7 +103,7 @@ async function main(): Promise<void> {
   await prisma.user.deleteMany({ where: { id: USER } });
   await prisma.plaidInstitution.deleteMany({ where: { institutionId: INST } });
 
-  console.log(`  OK — ${CATALOG.length} entries (${merchants.length} merchants + ${BUCKET_SLUGS.length} buckets), instantiate + rematch verified.`);
+  console.log(`  OK — ${CATALOG.length} entries (${merchants.length} merchants + ${BUCKET_SLUGS.length} buckets, ${CATALOG.filter((e) => e.icon).length} with icons), instantiate + rematch verified.`);
 }
 
 main()

@@ -475,7 +475,7 @@ const en = {
   "landing.bilingual": "Fully bilingual — 完整的简体中文界面。",
 
   "landing.finalTitle": "Open your ledger.",
-  "landing.finalBody": "Free to explore. $1 per managed account, per month once you connect a bank.",
+  "landing.finalBody": "Free for a month with 1 bank connection. Then $5/mo for up to 5 connections, or $10/mo for 20.",
   "landing.finalCta": "Get started",
   "landing.footer": "PBudget — personal budgeting, backed by Plaid.",
 };

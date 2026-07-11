@@ -463,7 +463,7 @@ const zh: Messages = {
   "landing.bilingual": "完整双语 — Fully bilingual interface.",
 
   "landing.finalTitle": "打开你的账本。",
-  "landing.finalBody": "免费探索。连接银行账户后，每个受管账户每月 $1。",
+  "landing.finalBody": "首月免费，含 1 个银行连接。之后 $5/月最多 5 个连接，或 $10/月 20 个连接。",
   "landing.finalCta": "开始使用",
   "landing.footer": "PBudget — 个人预算，由 Plaid 支持。",
 };

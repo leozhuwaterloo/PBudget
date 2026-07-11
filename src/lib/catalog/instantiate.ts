@@ -45,6 +45,20 @@ async function createVendorFromEntry(
   userId: string,
   entry: CatalogEntry
 ): Promise<{ id: string; name: string }> {
+  // The catalog uses the owner's category set, which a new user may not have — ensure
+  // the entry's default + row categories exist so the copied vendor resolves to a real
+  // category (not Uncategorized).
+  const catNames = new Set(
+    [entry.categoryName, ...entry.categoryRules.map((c) => c.categoryName)].filter((x): x is string => !!x)
+  );
+  for (const name of catNames) {
+    await prisma.transactionCategory.upsert({
+      where: { userId_name: { userId, name } },
+      create: { userId, name },
+      update: {},
+    });
+  }
+
   // Append at END: max existing priority + 1 (unique per user; NULL legacy rows
   // are ignored by _max, so the first real vendor gets priority 0).
   const { _max } = await prisma.vendor.aggregate({ where: { userId }, _max: { priority: true } });
@@ -59,7 +73,8 @@ async function createVendorFromEntry(
     ...entry.categoryRules.map((c) => rowFromCatalog(c, "category")),
   ];
 
-  const icon = await iconForLink(entry.link); // cache the icon once at copy time
+  // Prefer the catalog's embedded icon (owner's cached favicon); else derive from link.
+  const icon = entry.icon ?? (await iconForLink(entry.link));
 
   // A concurrent instantiate could grab our priority first (unique constraint);
   // bump and retry a handful of times before giving up.

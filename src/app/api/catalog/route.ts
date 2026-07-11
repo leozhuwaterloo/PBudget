@@ -17,6 +17,7 @@ export async function GET(req: Request) {
     slug: e.slug,
     name: e.name,
     link: e.link,
+    icon: e.icon ?? null,
     categoryName: e.categoryName,
     matchConditions: e.matchConditions,
     categoryRules: e.categoryRules,

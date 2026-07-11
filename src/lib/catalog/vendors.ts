@@ -1,26 +1,14 @@
-// PBudget V2 vendor catalog (F4, FR2) — a ONE-TIME authored artifact, not a build
-// step. Each entry is a ready-made vendor a user can instantiate (a one-time COPY
-// into their own editable vendor list; no live link back to the catalog).
+// PBudget V2 vendor catalog (F4, FR2) — ready-made vendors a user can instantiate
+// (a one-time COPY into their own editable vendor list; no live link back).
 //
-// PROVENANCE: every merchant/name string and its category outcome below is a
-// faithful translation of the OLD categorization funnel, read from the Portfolio
-// repo git history at commit e8e10b8~1, file:
-//   App/airflow_tasks/dags/transaction_processor/process_transaction.py
-// (funcs predicted_category_funnel / default_categories_funnel / name_funnel).
-// The funnel's `contains(merchant_name, {...})` -> a merchant "contains" row;
-// `contains(name, {...})` -> a name "contains" row; `payment_channel == X` ->
-// paymentChannel; `detailed_category`/`primary_category` -> plaidDetailed/
-// plaidPrimary; amount bounds -> amountMin/amountMax (signed dollars, Plaid
-// convention: + = outflow). The legacy `default_categories` gate (a coarse
-// pre-PFC label array with no V2 equivalent) is dropped — the merchant/name
-// contains-string is the real signal. Suggested categories use F6's seeded set
-// (src/lib/categories.ts DEFAULT_CATEGORIES); the funnel outcomes Ignore/Unknown/
-// BigPayment were never categories and map to Transfer / omitted / (n/a).
-//
-// Buckets (Self / General Bank / General Spending) fold the funnel's non-merchant
-// lines (overrides, e-transfer/transfer noise, bank fees & rebates, and the pure
-// PFC category rules) so every historical transaction has a catalog path and the
-// unmatched queue can reach zero (PRD assumption 4).
+// The MERCHANT entries are GENERATED from the owner's curated vendor list
+// (generated.json, rebuilt by scripts/gen-catalog.ts) so the catalog mirrors a real,
+// battle-tested set — each carrying its cached favicon (data URI) when small enough to
+// embed. The BUCKETS below (Self / General Bank / General Spending) stay hand-authored:
+// they are the 3 generic catch-alls new signups seed (CATALOG_BUCKET_SLUGS) so every
+// transaction gets a category path and the unmatched queue can reach zero.
+
+import GENERATED from "./generated.json";
 
 // ---- Public shape (what the API + instantiate consume) ----------------------
 
@@ -40,18 +28,18 @@ export type CatalogCondition = {
 
 // Two-stage vendor: `matchConditions` decide identity (any → the vendor claims the
 // txn); `categoryRules` refine the category (first match → its categoryName, else
-// the default). A single-category entry folds to match rows + a default; a
-// multi-category entry (e.g. Walmart online vs in-store) folds to category rules.
+// the default).
 export type CatalogEntry = {
   slug: string; // stable id (kebab of name); used by search + instantiate
   name: string; // display name
-  link: string | null; // Google Maps / website URL | null (seeded entries have none)
+  link: string | null; // Google Maps / website URL | null
+  icon?: string | null; // cached favicon data URI (embedded when small); null → letter avatar
   categoryName: string | null; // vendor DEFAULT category (FR3 fallback)
   matchConditions: CatalogCondition[]; // identity rows
   categoryRules: CatalogCondition[]; // refinement rows (each has a categoryName)
 };
 
-// ---- Authoring helpers (compact internal row builders) ----------------------
+// ---- Authoring helpers (compact internal row builders, used by the buckets) --
 
 type Row = {
   category: string;
@@ -63,264 +51,12 @@ type Row = {
   amountMin?: number;
   amountMax?: number;
 };
-type EntryDef = { name: string; icon?: string; category?: string; rows: Row[] };
+type EntryDef = { name: string; category?: string; rows: Row[] };
 
 // merchant-contains row
 const m = (category: string, merchant: string, extra: Partial<Row> = {}): Row => ({ category, merchant, ...extra });
 // name-contains row
 const n = (category: string, name: string, extra: Partial<Row> = {}): Row => ({ category, name, ...extra });
-
-// A plain in-store merchant entry (funnel required payment_channel == "in store").
-const inStore = (category: string) => (name: string, merchant = name): EntryDef => ({ name, rows: [m(category, merchant, { channel: "in store" })] });
-// A plain merchant entry with no channel constraint.
-const plain = (category: string) => (name: string, merchant = name): EntryDef => ({ name, rows: [m(category, merchant)] });
-
-const resto = inStore("Restaurant");
-const store = inStore("In-Store Shopping");
-const grocery = plain("Grocery");
-const pet = plain("Pet");
-const feeM = plain("Fee");
-const income = plain("Other Income");
-
-// ---- Merchant entries -------------------------------------------------------
-
-const MERCHANTS: EntryDef[] = [
-  // -- Food delivery (predicted_category_funnel: FOOD_AND_DRINK + merchant/name) --
-  { name: "Uber Eats", icon: "ubereats", rows: [m("Food Delivery", "Uber Eats", { plaidPrimary: "FOOD_AND_DRINK" }), n("Food Delivery", "Uber Eats")] },
-  { name: "Domino's", rows: [m("Food Delivery", "Domino's", { plaidPrimary: "FOOD_AND_DRINK" })] },
-  plain("Food Delivery")("Antalya Charcoal Kebab"),
-  plain("Food Delivery")("Gyubee Japanese Grill"),
-  plain("Food Delivery")("Uncle Tetsu"),
-  { name: "Fantuan", rows: [n("Food Delivery", "Fantuan")] },
-
-  // -- Coffee/Restaurant --
-  { name: "Starbucks", icon: "starbucks", rows: [m("Restaurant", "Starbucks", { plaidDetailed: "FOOD_AND_DRINK_COFFEE" })] },
-  { name: "McDonald's", icon: "mcdonalds", rows: [m("Restaurant", "McDonald's", { channel: "in store" })] },
-  resto("Coco"),
-  resto("Yunshangrice"),
-  resto("Zoup"),
-  resto("NYF"),
-  resto("Shaoshao Hotpot"),
-  resto("Top Chicken"),
-  resto("Ben Thanh Viet Thai"),
-  resto("Mizu Restaurant"),
-  resto("Hong Kong Seafood", "Hong Kong Seafood Rest"),
-  resto("Sang-Ji Fried Bao", "Ji Fried Bao"),
-  resto("Lucullus Bakery", "Lucullus"),
-  resto("A Perfect Meat Bowl"),
-  resto("Yifang Taiwan Fruit Tea"),
-  resto("Shuyi Tealicious"),
-  resto("Mr. Sun", "Mr.sun"),
-  resto("Shudaxia Hotpot"),
-  resto("Thai Express"),
-  resto("Umi Teriyaki & Sushi", "Umi Teriyaki"),
-  resto("The Alley"),
-  resto("Best Friend Chinese"),
-  resto("Sam's Chinese"),
-  resto("Tim Hortons"),
-  resto("Red Lobster"),
-  resto("Taste Of Taiwan", "Taste Of Taiwan"),
-  resto("Tandoori Zaika"),
-  resto("Daldongnae"),
-  resto("The Owl Of Minerva"),
-  resto("Gol's Lanzhou Noodle"),
-  resto("Subway"),
-  resto("Booster Juice"),
-  resto("Sushi Stars"),
-  resto("Akko Cake House"),
-  resto("Ian Cakery"),
-  resto("Langdon Hall"),
-  resto("Yummy Chongqing"),
-  resto("Sansotei Ramen"),
-  resto("Conestoga Bloom"),
-  resto("Famous Wok"),
-  resto("Yunnan Steam Fish Pot"),
-  resto("Tsujiri"),
-  resto("Derek & Laura", "Derek & Laura"),
-  resto("La La Bakeshop"),
-  resto("Kin Gyu Japanese Grill"),
-  resto("Mac's Sushi"),
-  resto("Cobs Bread"),
-  resto("Hongs Mymy Chicken"),
-  resto("The Green Isle"),
-  resto("Taro's Fish"),
-  resto("Hey Chefz"),
-  resto("Second Cup"),
-  resto("Manon Bakery"),
-  resto("Matcha Yuzu"),
-  resto("Rain & Sunny Chinese Noodle", "Rain & Sunny Chinese Noo"),
-  resto("Popeyes"),
-  resto("Loobapbap"),
-  resto("Yunshangricenoodle"),
-  { name: "Nian Yi Kuai Zi", rows: [n("Restaurant", "NIAN YI KUAI ZI", { channel: "in store" })] },
-  { name: "The Keg", rows: [n("Restaurant", "KEG", { channel: "in store" })] },
-  { name: "iShawarma", rows: [n("Restaurant", "ISHAWARMA", { channel: "in store" })] },
-
-  // -- Grocery --
-  grocery("Kitchener W.M.", "Kitchener Wm"),
-  grocery("T&T Supermarket", "T&t Supermarket"),
-  grocery("FreshCo", "Freshco"),
-  grocery("Sobeys"),
-  grocery("Food Basics"),
-  grocery("Fresh Palace Supermarket"),
-  grocery("Foody Mart"),
-  grocery("Costco"),
-  grocery("Foody World"),
-  grocery("Asia Food Mart"),
-  grocery("Waterloo Central Supermarket", "Waterloo Central Supermar"),
-  grocery("Factor Meals", "Factor"),
-  { name: "Sunrise Supermarket", rows: [m("Grocery", "Sunrise", { channel: "in store" })] },
-
-  // -- Games / digital --
-  { name: "Steam", icon: "steam", rows: [n("Game", "Steam Games")] },
-  { name: "Apple", icon: "apple", rows: [m("Game", "Apple")] },
-  plain("Game")("Tebex"),
-  plain("Game")("Mind Games"),
-  { name: "401 Games", rows: [n("Game", "401 GAMES")] },
-  { name: "PlayerAuctions", rows: [m("Game", "Playerauctions"), n("Game", "PLAYERAUCTIONS")] },
-  plain("Game")("Xsolla Netmarble", "Xsolla Netmarb"),
-  plain("Game")("Eneba"),
-
-  // -- Utility --
-  { name: "City of Kitchener", rows: [n("Utility", "City of Kitchener")] },
-  { name: "Kitchener-Wilmot Hydro", rows: [n("Utility", "KITCHENER-WILMOT HYDRO")] },
-
-  // -- Entertainment --
-  plain("Entertainment")("African Lion Safari", "African Lion"),
-  plain("Entertainment")("Mirvish Productions"),
-  plain("Entertainment")("Cirque du Soleil", "Cirquesoleil"),
-  plain("Entertainment")("KW Tickets", "Kw Tickets"),
-  plain("Entertainment")("Cambridge Butterfly Conservatory", "Cambridge Butterfly Conse"),
-  plain("Entertainment")("Ra-Compass The Aud", "Ra-compass-the Aud"),
-  plain("Entertainment")("Lyndon Fishing Pond"),
-
-  // -- Online shopping --
-  { name: "Walmart", rows: [m("Online Shopping", "Walmart", { channel: "online" }), m("In-Store Shopping", "Walmart", { channel: "in store" })] },
-  { name: "Shopperplus", rows: [m("Online Shopping", "Shopperplus", { channel: "online" })] },
-  { name: "Groupon", icon: "groupon", rows: [m("Online Shopping", "Groupon", { channel: "online" })] },
-  plain("Online Shopping")("Atlas Headrest", "Atlasheadre"),
-  { name: "Adidas", icon: "adidas", rows: [m("Online Shopping", "Adidascanad", { channel: "online" })] },
-  plain("Online Shopping")("Temu"),
-  plain("Online Shopping")("Zenni Optical", "Zenniopticl"),
-  plain("Online Shopping")("Best Buy", "Bestbuy"),
-  { name: "Uniqlo", icon: "uniqlo", rows: [m("Online Shopping", "Uniqlo", { channel: "online" })] },
-  plain("Online Shopping")("Lululemon"),
-  plain("Online Shopping")("Top Select", "Topselectca"),
-  { name: "Taobao", icon: "taobao", rows: [n("Online Shopping", "TAOBAO.COM")] },
-  { name: "Amazon", rows: [n("Online Shopping", "AMAZON")] },
-  { name: "Shein", rows: [n("Online Shopping", "SHEINDISTRI")] },
-  plain("Online Shopping")("Snaplii"),
-  plain("Online Shopping")("Herman Miller"),
-  plain("Online Shopping")("Giddy Yoyo", "Giddy Yoyo"),
-  plain("Online Shopping")("Jo Malone"),
-  { name: "Alipay", icon: "alipay", rows: [m("Online Shopping", "Alipay", { channel: "in store" })] },
-  { name: "Silver Gold Bull", rows: [m("Online Shopping", "Silver Gold")] },
-
-  // -- In-store shopping --
-  store("Sheridan Nurseries"),
-  store("The Home Depot"),
-  store("Dollarama"),
-  { name: "IKEA", icon: "ikea", rows: [m("In-Store Shopping", "IKEA", { channel: "in store" })] },
-  store("Linen Chest"),
-  store("Lids"),
-  store("Planet Health Pharmacy"),
-  store("Calvin Klein"),
-  store("Jysk", "Jysk"),
-  store("Bunny Munnie"),
-  store("Toys R Us", "Toys R"),
-  store("Old Navy"),
-  store("Yorkdale"),
-  store("Canada Computers"),
-  store("Quilts Etc", "Quilts"),
-  store("La Vie En Rose"),
-  store("Staples", "Staples"),
-  store("Your Dollar Store"),
-  store("Party City"),
-  store("QE Home", "Qe Home"),
-  store("La Senza"),
-  store("LCBO", "Lcbo"),
-  store("Shoppers Drug Mart", "Shoppers Drug"),
-  store("Zwilling"),
-  store("World Tea House"),
-  store("Marshalls"),
-  store("Talize"),
-  store("Value Hunt"),
-  store("Hudson's Bay", "Hudson's Bay"),
-  store("Vincenzo's"),
-  store("Sanya Zhong Mian Shop"),
-  store("Krazy Binz"),
-  store("L'Amour", "Lamour"),
-  store("Canadian Tire"),
-  store("The Brick"),
-  store("Crystal Clear Water"),
-  store("Canada Post", "Cpc Scp"),
-  store("Brown's"),
-  { name: "Winners", rows: [n("In-Store Shopping", "WINNERS")] },
-  { name: "Casper", rows: [n("In-Store Shopping", "SP CASPER", { channel: "in store" })] },
-  { name: "Polo Factory Store", rows: [n("In-Store Shopping", "POLO FACTORY STORE", { channel: "in store" })] },
-  { name: "Coach", rows: [n("In-Store Shopping", "COACH", { channel: "in store" })] },
-  { name: "CCS Toronto", rows: [m("In-Store Shopping", "Ccs Toronto", { channel: "online" })] },
-
-  // -- Pet --
-  pet("Global Pet Foods"),
-  pet("Pet Valu"),
-  pet("Big Al's Aquarium"),
-  pet("Chewy", "Chewycanada"),
-  pet("KW Humane Society", "Kitchener Waterloo Humane"),
-  pet("Ren's Pets"),
-
-  // -- Travel --
-  { name: "Air Canada", icon: "aircanada", rows: [m("Travel", "Air Canada"), n("Travel", "AIR CAN")] },
-  { name: "Air China", icon: "airchina", rows: [n("Travel", "AIR CHINA")] },
-  { name: "Ctrip", icon: "tripdotcom", rows: [n("Travel", "CTRIP")] },
-  { name: "Royal Caribbean", rows: [n("Travel", "Royal Caribbean")] },
-  { name: "Shanghai Disney", rows: [n("Travel", "Disney SHANGHAI")] },
-
-  // -- Baby --
-  plain("Baby")("Once Upon A Child"),
-  plain("Baby")("Westcoast Kids", "Westcoast"),
-  plain("Baby")("Guelph Foto Source", "Ls Guelph Foto Source"),
-  plain("Baby")("Birth Certificate (MPBSD)", "Mpbsd So Birth Other Ce"),
-
-  // -- Recurring --
-  plain("Recurring")("Gore Mutual Insurance", "Insurance Gore Mutual"),
-  plain("Recurring")("City of Toronto Taxes", "Taxes Toronto"),
-  plain("Recurring")("TSCC (Condo Fees)", "Tscc No"),
-  plain("Recurring")("Reliance Home Comfort"),
-  { name: "Rogers", rows: [n("Recurring", "ROGERS")] },
-  { name: "Bell Canada", rows: [n("Recurring", "Bell Canada")] },
-  { name: "Unica", rows: [n("Recurring", "UNICA")] },
-  // Fido / Virgin Plus: funnel splits by amount — a >= $100 charge is a Fee, else
-  // Recurring. Amount is in the displayed sign (spending negative), so a $100+
-  // charge is <= -100.
-  { name: "Fido", rows: [m("Fee", "Fido", { amountMax: -100 }), m("Recurring", "Fido")] },
-  { name: "Virgin Plus", rows: [m("Fee", "Virgin Plus", { amountMax: -100 }), m("Recurring", "Virgin Plus")] },
-
-  // -- Fee (services/government/medical) --
-  feeM("Toronto Services (TSD)", "Tsd So"),
-  feeM("Immigration Canada"),
-  feeM("CSRA"),
-  feeM("Lifeline Fire Protection", "Lifeline Fire Protect"),
-  feeM("Kitchener Finance"),
-  feeM("Belmont Medical Centre"),
-  feeM("Mercedes-Benz Kitchener", "Mercedes-benz Kitchner"),
-  feeM("CAA Insurance", "Caa Insurance"),
-  feeM("Avis"),
-  feeM("Plaid Inc.", "Plaid Inc."),
-  feeM("Grand River Hospital"),
-  feeM("China Bridge Group"),
-  feeM("Halton Hills"),
-  feeM("CRA", "CRA"),
-  feeM("CFIA Store Front", "Cfia Acia Store Front"),
-
-  // -- Other income (reimbursements) --
-  income("Massageworks"),
-  income("Clearly", "Clearly Ecomm"),
-  income("Westheights Chiropractic"),
-  income("Dr. Johal And Associates"),
-  { name: "Navan", rows: [n("Other Income", "NAVAN, INC. MSP")] },
-  { name: "League Inc.", rows: [n("Other Income", "LEAGUE, INC.")] },
-];
 
 // ---- Bucket entries (non-merchant funnel lines) -----------------------------
 
@@ -394,111 +130,6 @@ const BUCKETS: EntryDef[] = [
   },
 ];
 
-// ---- Confident vendor links -------------------------------------------------
-
-// Canonical website for the well-known chains in the catalog (🌐). Keyed by the
-// entry's `name`. Only brands with an unambiguous official site are here; local
-// one-off restaurants/merchants are left null on purpose. Canadian domain where
-// the brand runs a distinct .ca; global domain otherwise. A load-time guard below
-// asserts every key matches a real entry, so a typo fails loudly instead of no-op.
-const LINKS: Record<string, string> = {
-  // Food delivery / coffee / restaurant chains
-  "Uber Eats": "https://www.ubereats.com",
-  "Domino's": "https://www.dominos.ca",
-  "Fantuan": "https://www.fantuanorder.com",
-  "Starbucks": "https://www.starbucks.ca",
-  "McDonald's": "https://www.mcdonalds.ca",
-  "Subway": "https://www.subway.com/en-ca",
-  "Tim Hortons": "https://www.timhortons.ca",
-  "Red Lobster": "https://www.redlobster.ca",
-  "The Keg": "https://kegsteakhouse.com",
-  "Booster Juice": "https://www.boosterjuice.com",
-  "Second Cup": "https://secondcup.com",
-  "Thai Express": "https://www.thaiexpress.ca",
-  "Cobs Bread": "https://www.cobsbread.com",
-  // Grocery
-  "T&T Supermarket": "https://www.tntsupermarket.com",
-  "FreshCo": "https://www.freshco.com",
-  "Sobeys": "https://www.sobeys.com",
-  "Food Basics": "https://www.foodbasics.ca",
-  "Costco": "https://www.costco.ca",
-  // Games / digital
-  "Steam": "https://store.steampowered.com",
-  "Apple": "https://www.apple.com/ca/",
-  "401 Games": "https://store.401games.ca",
-  "Eneba": "https://www.eneba.com",
-  "Mind Games": "https://www.mindgames.ca",
-  // Utility
-  "City of Kitchener": "https://www.kitchener.ca",
-  "Kitchener-Wilmot Hydro": "https://www.kwhydro.ca",
-  // Entertainment
-  "African Lion Safari": "https://lionsafari.com",
-  "Mirvish Productions": "https://www.mirvish.com",
-  "Cirque du Soleil": "https://www.cirquedusoleil.com",
-  "Cambridge Butterfly Conservatory": "https://www.cambridgebutterfly.com",
-  // Online shopping
-  "Walmart": "https://www.walmart.ca",
-  "Groupon": "https://www.groupon.com",
-  "Adidas": "https://www.adidas.ca",
-  "Temu": "https://www.temu.com",
-  "Zenni Optical": "https://www.zennioptical.com",
-  "Best Buy": "https://www.bestbuy.ca",
-  "Uniqlo": "https://www.uniqlo.com/ca/en/",
-  "Lululemon": "https://shop.lululemon.com",
-  "Taobao": "https://www.taobao.com",
-  "Amazon": "https://www.amazon.ca",
-  "Shein": "https://www.shein.com",
-  "Herman Miller": "https://www.hermanmiller.com",
-  "Alipay": "https://www.alipay.com",
-  "Silver Gold Bull": "https://silvergoldbull.ca",
-  // In-store shopping
-  "Sheridan Nurseries": "https://www.sheridannurseries.com",
-  "The Home Depot": "https://www.homedepot.ca",
-  "Dollarama": "https://www.dollarama.com",
-  "IKEA": "https://www.ikea.com/ca/en/",
-  "Lids": "https://www.lids.ca",
-  "Toys R Us": "https://www.toysrus.ca",
-  "Old Navy": "https://oldnavy.gapcanada.ca",
-  "Canada Computers": "https://www.canadacomputers.com",
-  "La Vie En Rose": "https://www.lavieenrose.com",
-  "Staples": "https://www.staples.ca",
-  "La Senza": "https://www.lasenza.com",
-  "LCBO": "https://www.lcbo.com",
-  "Shoppers Drug Mart": "https://www.shoppersdrugmart.ca",
-  "Zwilling": "https://www.zwilling.com",
-  "Marshalls": "https://www.marshalls.ca",
-  "Hudson's Bay": "https://www.thebay.com",
-  "Canadian Tire": "https://www.canadiantire.ca",
-  "The Brick": "https://www.thebrick.com",
-  "Canada Post": "https://www.canadapost-postescanada.ca",
-  "Winners": "https://www.winners.ca",
-  "Casper": "https://casper.com",
-  "Coach": "https://www.coach.com",
-  "Jysk": "https://www.jysk.ca",
-  // Pet
-  "Global Pet Foods": "https://www.globalpetfoods.com",
-  "Pet Valu": "https://www.petvalu.ca",
-  "Ren's Pets": "https://www.renspets.com",
-  // Travel
-  "Air Canada": "https://www.aircanada.com",
-  "Air China": "https://www.airchina.com",
-  "Ctrip": "https://www.trip.com",
-  "Royal Caribbean": "https://www.royalcaribbean.com",
-  "Shanghai Disney": "https://www.shanghaidisneyresort.com",
-  // Recurring / services
-  "Rogers": "https://www.rogers.com",
-  "Bell Canada": "https://www.bell.ca",
-  "Fido": "https://www.fido.ca",
-  "Virgin Plus": "https://www.virginplus.ca",
-  "Reliance Home Comfort": "https://reliancehomecomfort.com",
-  "Gore Mutual Insurance": "https://www.goremutual.ca",
-  "Avis": "https://www.avis.ca",
-  "Plaid Inc.": "https://plaid.com",
-  "Clearly": "https://www.clearly.ca",
-  "Navan": "https://navan.com",
-  "League Inc.": "https://league.com",
-};
-
 // ---- Build the public catalog -----------------------------------------------
 
 function slugify(name: string): string {
@@ -519,18 +150,16 @@ function toCondition(r: Row, order: number, withCategory: boolean): CatalogCondi
   return c;
 }
 
-// Fold an authored entry into the two-stage shape. All rows share one category
-// (the common case: one merchant → one category) → the rows become IDENTITY match
-// conditions and that category is the default. Rows disagree on category (e.g.
-// Walmart online vs in-store, or the General Spending PFC bucket) → each row
-// becomes a CATEGORY rule; identity falls back to "any category rule matches".
+// Fold an authored bucket into the two-stage shape. All rows share one category →
+// identity match conditions + that default; rows disagree → category rules.
 function build(defs: EntryDef[]): CatalogEntry[] {
   return defs.map((d) => {
     const singleCategory = new Set(d.rows.map((r) => r.category)).size <= 1;
     return {
       slug: slugify(d.name),
       name: d.name,
-      link: LINKS[d.name] ?? null,
+      link: null,
+      icon: null,
       categoryName: d.category ?? d.rows[0]?.category ?? null,
       matchConditions: singleCategory ? d.rows.map((r, i) => toCondition(r, i, false)) : [],
       categoryRules: singleCategory ? [] : d.rows.map((r, i) => toCondition(r, i, true)),
@@ -538,28 +167,22 @@ function build(defs: EntryDef[]): CatalogEntry[] {
   });
 }
 
-export const CATALOG: CatalogEntry[] = build([...MERCHANTS, ...BUCKETS]);
+// Generated merchants (owner-curated, with icons) first, then the 3 catch-all buckets.
+export const CATALOG: CatalogEntry[] = [...(GENERATED as CatalogEntry[]), ...build(BUCKETS)];
 
-// Slugs of the 3 generic catch-all buckets (Self / General Bank / General
-// Spending) — new signups seed only these; the rest is opt-in per merchant.
+// Slugs of the 3 generic catch-all buckets — new signups seed only these; the rest
+// is opt-in per merchant.
 export const CATALOG_BUCKET_SLUGS: Set<string> = new Set(BUCKETS.map((b) => slugify(b.name)));
 
-// Slugs must be unique (they identify entries for instantiate). Fail loudly at
-// module load if an authoring collision ever slips in.
+// Slugs must be unique (they identify entries for instantiate); every entry must
+// carry a default category (instantiate copies it straight in, bypassing the guard).
+// Fail loudly at module load if either invariant ever breaks.
 {
   const seen = new Set<string>();
   for (const e of CATALOG) {
     if (seen.has(e.slug)) throw new Error(`Duplicate catalog slug: ${e.slug} (${e.name})`);
     seen.add(e.slug);
-    // Instantiate copies categoryName straight in, bypassing createVendor's guard —
-    // every entry must carry a default category (vendors require one, FR3).
     if (!e.categoryName) throw new Error(`Catalog entry has no default category: ${e.slug} (${e.name})`);
-  }
-  // A LINKS key that matches no entry name is a typo (would silently attach to
-  // nothing) — fail loudly, same as the slug guard.
-  const names = new Set(CATALOG.map((e) => e.name));
-  for (const name of Object.keys(LINKS)) {
-    if (!names.has(name)) throw new Error(`LINKS key matches no catalog entry: "${name}"`);
   }
 }
 
