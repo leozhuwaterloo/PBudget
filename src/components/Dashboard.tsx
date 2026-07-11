@@ -719,11 +719,11 @@ function CategoryDonut({
               return seg;
             })}
           </g>
-          <text x={60} y={57} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--fg)">
+          <text x={60} y={57} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--fg)">
             {money(total)}
           </text>
-          <text x={60} y={69} textAnchor="middle" fontSize={7} fill="var(--muted)">
-            {totalLabel}
+          <text x={60} y={68} textAnchor="middle" fontSize={6.5} fill="var(--muted)" letterSpacing="0.04em">
+            {totalLabel.toUpperCase()}
           </text>
         </svg>
         {active && pos && (

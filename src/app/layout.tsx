@@ -7,6 +7,18 @@ import { t } from "@/lib/i18n";
 import { I18nProvider } from "@/lib/i18n/context";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import LogoutButton from "@/components/LogoutButton";
+import NavLink from "@/components/NavLink";
+
+// Small ledger-green wordmark badge — three ascending bars (savings growing).
+function BrandMark() {
+  return (
+    <span className="brand-mark" aria-hidden>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+        <path d="M6 18V13M12 18V7M18 18v-8" />
+      </svg>
+    </span>
+  );
+}
 
 export const metadata: Metadata = {
   title: "PBudget",
@@ -21,14 +33,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <I18nProvider locale={locale}>
           <nav className={user ? "nav nav-side" : "nav"}>
-            <Link href="/" className="brand">PBudget</Link>
+            <Link href="/" className="brand"><BrandMark />PBudget</Link>
             {user ? (
               <>
-                <Link href="/dashboard">{t(locale, "nav.dashboard")}</Link>
-                <Link href="/review">{t(locale, "nav.review")}</Link>
-                <Link href="/accounts">{t(locale, "nav.accounts")}</Link>
-                <Link href="/vendors">{t(locale, "cust.nav.vendors")}</Link>
-                <Link href="/customizations">{t(locale, "nav.customizations")}</Link>
+                <NavLink href="/dashboard" label={t(locale, "nav.dashboard")} icon="dashboard" />
+                <NavLink href="/review" label={t(locale, "nav.review")} icon="review" />
+                <NavLink href="/accounts" label={t(locale, "nav.accounts")} icon="accounts" />
+                <NavLink href="/vendors" label={t(locale, "cust.nav.vendors")} icon="vendors" />
+                <NavLink href="/customizations" label={t(locale, "nav.customizations")} icon="customizations" />
                 <div className="spacer" />
                 <LogoutButton />
               </>
