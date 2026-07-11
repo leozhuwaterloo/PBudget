@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT, useLocale } from "@/lib/i18n/context";
 import { VendorIcon } from "./VendorIcon";
 import ReviewMergePicker from "./ReviewMergePicker";
@@ -873,6 +873,18 @@ function TrendChart({
   onPick: (month: string) => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  // Measure the container so the chart fills width at a FIXED height (viewBox unit
+  // == 1px) — otherwise the fixed aspect ratio makes it balloon on wide screens.
+  const wrap = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(760);
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((es) => { const cw = es[0]?.contentRect.width; if (cw) setW(cw); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const vals = data.map((d) => d.spend);
   if (vals.every((v) => v === 0)) return <p className="muted">{emptyText}</p>;
 
@@ -880,7 +892,7 @@ function TrendChart({
   const hi = Math.max(0, ...vals);
   const lo = Math.min(0, ...vals);
   const span = hi - lo || 1;
-  const W = 720, H = 240, padT = 26, padB = 30, padL = 14, padR = 16;
+  const H = 232, padT = 22, padB = 26, padL = 14, padR = 16;
   const chartH = H - padT - padB;
   const y = (v: number) => padT + ((hi - v) / span) * chartH;
   const zeroY = y(0);
@@ -897,7 +909,8 @@ function TrendChart({
   const showSel = selectedIndex >= 0 && selectedIndex < n;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel} style={{ display: "block", overflow: "visible" }}>
+    <div ref={wrap}>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={ariaLabel} style={{ display: "block", overflow: "visible" }}>
       <defs>
         <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.20} />
@@ -973,6 +986,7 @@ function TrendChart({
         );
       })}
     </svg>
+    </div>
   );
 }
 
