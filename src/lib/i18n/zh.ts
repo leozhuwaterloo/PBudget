@@ -324,8 +324,10 @@ const zh: Messages = {
   "verify.invalidBody": "请在下方申请新的验证链接。",
   "verify.alreadyTitle": "您已验证 ✓",
   "verify.title": "验证您的邮箱",
-  "verify.body": "我们已向 {email} 发送了验证链接。点击它以激活您的账户。（在本地开发环境中，链接会打印到服务器控制台。）",
+  "verify.body": "我们已向 {email} 发送了 6 位验证码。请在下方输入以激活您的账户——验证码将在 30 分钟后过期。（在本地开发环境中，验证码会打印到服务器控制台。）",
   "verify.yourInbox": "您的收件箱",
+  "verify.codeLabel": "6 位验证码",
+  "verify.submit": "验证",
 
   // resend
   "resend.button": "重新发送验证邮件",

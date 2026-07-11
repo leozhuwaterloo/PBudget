@@ -50,11 +50,16 @@ model Session {
   @@index([userId])
 }
 
+// Email verification is a 6-digit OTP (see lib/auth). One row per user (issuing a
+// new code deletes the prior). We store only the sha256 hex of the code, never the
+// plaintext; `attempts` counts wrong tries and the code dies at 5 (or at expiry).
 model EmailVerificationToken {
-  token     String   @id
+  id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
+  codeHash  String   // sha256 hex of the 6-digit code
+  attempts  Int      @default(0) // wrong-code tries; code is invalid once this hits 5
+  expiresAt DateTime // now + 30 min
   createdAt DateTime @default(now()) // for 1/min email throttle
 
   @@index([userId])

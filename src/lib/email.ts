@@ -15,19 +15,18 @@ function transport() {
   });
 }
 
-export async function sendVerificationEmail(to: string, token: string): Promise<void> {
-  const url = `${process.env.APP_URL || "http://localhost:5300"}/verify?token=${token}`;
+export async function sendVerificationEmail(to: string, code: string): Promise<void> {
   const t = transport();
   if (!t) {
-    console.log(`\n[email] Verify ${to}: ${url}\n`);
+    console.log(`\n[email] Verify ${to}: code ${code} (expires in 30 minutes)\n`);
     return;
   }
   await t.sendMail({
     from: process.env.EMAIL_FROM || "PBudget <no-reply@pbudget.local>",
     to,
-    subject: "Verify your PBudget email",
-    text: `Confirm your email by opening: ${url}`,
-    html: `<p>Confirm your email to start using PBudget.</p><p><a href="${url}">Verify my email</a></p>`,
+    subject: "Your PBudget verification code",
+    text: `Your PBudget verification code is ${code}. It expires in 30 minutes.`,
+    html: `<p>Your PBudget verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>It expires in 30 minutes. Enter it on the verification page to activate your account.</p>`,
   });
 }
 

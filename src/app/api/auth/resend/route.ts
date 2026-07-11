@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   if (await emailRateLimited(emailDims(user.email, clientIp(req)))) {
     return NextResponse.json({ error: "Please wait a minute before requesting another email" }, { status: 429 });
   }
-  const token = await createVerificationToken(user.id);
-  await sendVerificationEmail(user.email, token);
+  const code = await createVerificationToken(user.id);
+  await sendVerificationEmail(user.email, code);
   return NextResponse.json({ ok: true });
 }

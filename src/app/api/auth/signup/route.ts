@@ -22,11 +22,11 @@ export async function POST(req: Request) {
     data: { email, passwordHash: await hashPassword(password) },
   });
   await seedNewUserVendors(user.id); // seeds default categories + the 3 catch-all vendors
-  const token = await createVerificationToken(user.id);
+  const code = await createVerificationToken(user.id);
   // Cap verification sends per IP + recipient; if limited, skip the send (the user
   // can request it later via /resend, which is capped the same way).
   if (!(await emailRateLimited(emailDims(email, clientIp(req)))))
-    await sendVerificationEmail(email, token);
+    await sendVerificationEmail(email, code);
   await createSession(user.id);
   return NextResponse.json({ ok: true });
 }
