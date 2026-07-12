@@ -1,4 +1,4 @@
-// Generates PlaidBudget's app icon + splash source art from the brand palette
+// Generates PBudget's app icon + splash source art from the brand palette
 // (ledger green on cool paper — see src/app/globals.css). @capacitor/assets
 // expands resources/icon.png + these splashes into every Android/iOS density.
 // Run once; re-run only if the palette/icon changes. sharp ships transitively

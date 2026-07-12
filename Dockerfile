@@ -1,4 +1,4 @@
-# PlaidBudget — Next.js + Prisma. Single-stage for reliability (homelab scale):
+# PBudget — Next.js + Prisma. Single-stage for reliability (homelab scale):
 # keep node_modules so the prisma + next CLIs are available at container start.
 FROM node:22-slim
 

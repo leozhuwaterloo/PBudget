@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ios-release.sh — build PlaidBudget's iOS app and upload it to App Store Connect
+# ios-release.sh — build PBudget's iOS app and upload it to App Store Connect
 # from an EPHEMERAL clone, leaving nothing on this Mac.
 #
 # Keep only this one file (e.g. ~/bin/ios-release.sh) plus ~/.pbudget-ios.env
