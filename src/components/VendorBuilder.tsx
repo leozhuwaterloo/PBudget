@@ -156,7 +156,7 @@ export default function VendorBuilder() {
     <div>
       <p className="muted" style={{ marginTop: 0 }}>{t("cust.vendors.help")}</p>
 
-      <div className="row" style={{ gap: 8, marginBottom: 16, alignItems: "center" }}>
+      <div className="row wrap" style={{ gap: 8, marginBottom: 16, alignItems: "center" }}>
         <button className="btn btn-primary" disabled={editing === "new"} onClick={() => setEditing("new")}>{t("cust.vendors.add")}</button>
         <button className="btn" onClick={() => setShowCatalog((s) => !s)}>{t("cust.vendors.browseCatalog")}</button>
         <div className="spacer" style={{ flex: 1 }} />

@@ -239,18 +239,33 @@ input.budget { width: 92px; padding: 6px 8px; }
 @media (max-width: 640px) {
   .nav { padding: 12px 16px; gap: 12px; }
   .main { padding: 20px 14px 48px; }
+  /* Rail → compact top bar. Brand first, then the nav links wrap onto the next
+     row; logout + language sit inline after them. */
   .nav-side {
     position: static; width: auto; flex-direction: row; flex-wrap: wrap;
-    align-items: center; gap: 8px; padding: 12px 16px;
+    align-items: center; gap: 8px 6px; padding: 10px 14px;
     border-right: none; border-bottom: 1px solid var(--border); overflow: visible;
   }
-  .nav-side .brand { margin: 0 8px 0 0; }
+  .nav-side .brand { margin: 0 6px 0 0; font-size: 17px; }
   .nav-side .spacer { display: none; }
-  .nav-link { padding: 7px 10px; }
-  .main-side { margin-left: 0; padding: 20px 14px 48px; }
-  .card { overflow-x: auto; }
+  .nav-link { padding: 7px 10px; font-size: 13px; }
+  .nav-ic, .nav-ic svg { width: 18px; height: 18px; }
+  /* The id badge is a desktop power-feature (copy your sharing handle) — hide it
+     on mobile so the top bar stays tight. */
+  .userid-badge { display: none; }
+  .main-side { margin-left: 0; padding: 18px 12px 56px; }
+  /* Cards: tighter padding reclaims ~16px of width; wide content still scrolls. */
+  .card { padding: 16px; overflow-x: auto; }
+  .stat { padding: 15px 16px; }
+  .stat-value { font-size: 22px; }
+  h1 { font-size: 23px; margin-bottom: 16px; }
   .field-grid { grid-template-columns: 1fr; }
+  /* The vendor editor no longer breaks out of the content column on mobile —
+     its off-center width could otherwise push past the viewport edge. */
+  .editor-wide { width: 100%; left: 0; }
   th, td { padding: 8px 10px; white-space: nowrap; }
+  /* Comfortable tap targets for the small buttons that pack table/action rows. */
+  .btn-sm { padding: 8px 12px; font-size: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -766,7 +766,7 @@ function CategoryDonut({
         }}
         onMouseLeave={() => { setHi(null); setPos(null); }}
       >
-        <svg viewBox="0 0 120 120" width={260} height={260} role="img" aria-label={ariaLabel} style={{ display: "block", overflow: "visible" }}>
+        <svg viewBox="0 0 120 120" role="img" aria-label={ariaLabel} style={{ display: "block", width: "min(260px, 68vw)", height: "auto", overflow: "visible" }}>
           <g transform="rotate(-90 60 60)">
             {slices.map((s, i) => {
               const frac = s.value / total;
