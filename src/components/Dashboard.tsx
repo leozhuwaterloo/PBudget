@@ -94,7 +94,7 @@ export default function Dashboard({ initial }: { initial: DashboardData }) {
   const activeSpends = data.trend.map((d) => d.spend).filter((v) => v > 0);
   const avgSpend = activeSpends.length ? activeSpends.reduce((s, v) => s + v, 0) / activeSpends.length : 0;
   const budgetPct = totBudget > 0 ? (totActual / totBudget) * 100 : null;
-  const reviewCount = data.review.unmatched + data.review.conflicts + data.review.suspicion + data.review.pending;
+  const reviewCount = data.review;
 
   return (
     <div>

@@ -43,15 +43,18 @@ export async function browseCommunity(
   });
   const needle = (opts.q ?? "").trim().toLowerCase();
   const list = vendors
-    .filter((v) => v.userId !== requesterId) // never adopt your own, even under a userId filter
     .filter((v) => !needle || v.name.toLowerCase().includes(needle))
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, BROWSE_CAP);
+  // Own rows CAN appear (e.g. filter to your own id to confirm what you shared) but
+  // are flagged isOwn so the UI shows them without adopt actions — you can't adopt
+  // into the account that already owns them (adoptVendor enforces this server-side).
   const entries = list.map((v) => {
     const s = serializeVendor(v);
     return {
       id: v.id,
       ownerId: v.userId,
+      isOwn: v.userId === requesterId,
       name: s.name,
       link: s.link,
       icon: s.icon,
