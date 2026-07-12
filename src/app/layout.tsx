@@ -21,9 +21,56 @@ function BrandMark() {
   );
 }
 
+// Canonical/OG base is the deployed origin. APP_URL is set at runtime in prod,
+// but robots/sitemap/canonicals bake at BUILD time (APP_URL unset in the Docker
+// build) — so the fallback must be the prod origin, not localhost. Local dev
+// still gets localhost via APP_URL in .env.
+const SITE_URL = process.env.APP_URL || "https://pbudget.ppvnx.com";
+
 export const metadata: Metadata = {
-  title: "PBudget",
-  description: "Personal budgeting backed by Plaid",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "PBudget — the personal budget ledger that balances itself",
+    template: "%s · PBudget",
+  },
+  description:
+    "PBudget links your bank accounts through Plaid, then automatically categorizes, merges, and reconciles every transaction into a monthly budget ledger you can trust. Free for a month; $5/mo for 5 bank connections, $10/mo for 20. English & 简体中文.",
+  applicationName: "PBudget",
+  keywords: [
+    "personal budgeting app",
+    "Plaid budgeting",
+    "automatic transaction categorization",
+    "bank reconciliation app",
+    "monthly budget tracker",
+    "expense tracker",
+    "个人预算",
+    "自动记账",
+  ],
+  authors: [{ name: "PBudget" }],
+  creator: "PBudget",
+  publisher: "PBudget",
+  category: "finance",
+  openGraph: {
+    type: "website",
+    siteName: "PBudget",
+    title: "PBudget — the personal budget ledger that balances itself",
+    description:
+      "Link your banks through Plaid and PBudget sorts, merges, and reconciles every transaction into a monthly budget you can actually trust. Fully bilingual (English & 简体中文).",
+    url: "/",
+    locale: "en_US",
+    alternateLocale: ["zh_CN"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PBudget — the budget ledger that balances itself",
+    description:
+      "Automated personal bookkeeping: Plaid-linked accounts, auto-categorized and reconciled into a monthly budget ledger.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -43,7 +90,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <NavLink href="/vendors" label={t(locale, "cust.nav.vendors")} icon="vendors" />
                 <NavLink href="/customizations" label={t(locale, "nav.customizations")} icon="customizations" />
                 <div className="spacer" />
-                <UserIdBadge id={user.id} />
                 <LogoutButton />
               </>
             ) : (
@@ -54,6 +100,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </>
             )}
             <LanguageSwitcher />
+            {user && <UserIdBadge id={user.id} />}
           </nav>
           <main className={user ? "main main-side" : "main"}>{children}</main>
         </I18nProvider>

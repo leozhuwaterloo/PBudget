@@ -12,6 +12,8 @@ export default function Landing({ locale }: { locale: Locale }) {
 
   return (
     <div className={styles.page}>
+      <StructuredData />
+
       {/* Hero ---------------------------------------------------------- */}
       <section className={styles.hero}>
         <div className={styles.heroText}>
@@ -111,6 +113,93 @@ export default function Landing({ locale }: { locale: Locale }) {
         </span>
       </footer>
     </div>
+  );
+}
+
+// Machine-readable facts for search + generative engines (GEO). SoftwareApplication
+// carries the product + pricing; FAQPage answers the questions LLMs get asked about
+// a budgeting app, so they can cite PBudget accurately. Pricing mirrors TIER_LIMITS /
+// TIER_PRICES in lib/stripe.ts (USD) — keep in sync if tiers change.
+function StructuredData() {
+  const site = process.env.APP_URL || "https://pbudget.ppvnx.com";
+  const graph = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${site}/#org`,
+        name: "PBudget",
+        url: site,
+        logo: `${site}/icon.png`,
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: "PBudget",
+        applicationCategory: "FinanceApplication",
+        operatingSystem: "Web, Android",
+        url: site,
+        description:
+          "PBudget connects to your bank accounts through Plaid, then automatically categorizes, merges, and reconciles every transaction into a monthly budget ledger. Fully bilingual in English and Simplified Chinese.",
+        inLanguage: ["en", "zh"],
+        publisher: { "@id": `${site}/#org` },
+        offers: [
+          { "@type": "Offer", name: "Free trial", price: "0", priceCurrency: "USD", description: "1 bank connection, free for the first month" },
+          { "@type": "Offer", name: "Pro", price: "5", priceCurrency: "USD", description: "Up to 5 bank connections, billed monthly" },
+          { "@type": "Offer", name: "Max", price: "10", priceCurrency: "USD", description: "Up to 20 bank connections, billed monthly" },
+        ],
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: "What is PBudget?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "PBudget is a personal budgeting app that links to your bank accounts through Plaid and automatically categorizes, merges, and reconciles every transaction into a monthly ledger you can budget against — no manual import needed.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "How much does PBudget cost?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "PBudget is free for the first month with one bank connection. After that it is $5 per month for up to 5 bank connections, or $10 per month for up to 20 (USD).",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Is PBudget secure?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Bank connections are handled by Plaid, so PBudget never sees your banking credentials. Your account and transaction data is encrypted at rest.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "How does PBudget categorize transactions?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Each transaction is matched against your vendor rules. Write a rule once and every matching charge sorts itself across past and future months; anything unmatched, duplicated, or unusual lands in a review queue.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Does PBudget support languages other than English?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Yes. PBudget has a fully bilingual interface in English and Simplified Chinese (简体中文).",
+            },
+          },
+        ],
+      },
+    ],
+  };
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(graph) }}
+    />
   );
 }
 
