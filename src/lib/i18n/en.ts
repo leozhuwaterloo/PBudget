@@ -363,6 +363,9 @@ const en = {
   "auth.createAccount": "Create an account",
   "auth.agreePre": "I understand that PBudget is not liable for any of my data, and I accept the",
   "auth.termsLink": "Terms & Liability",
+  "auth.privacyLink": "Privacy Policy",
+  "auth.agreeAnd": "and",
+  "auth.socialConsent": "By continuing, you agree to our",
   // Terms page
   "terms.title": "Terms & Liability",
   "terms.p1": "PBudget is provided on an “as is” and “as available” basis, without warranties of any kind, express or implied.",

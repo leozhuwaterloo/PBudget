@@ -358,6 +358,9 @@ const zh: Messages = {
   "auth.createAccount": "创建账户",
   "auth.agreePre": "我理解 PBudget 对我的任何数据概不负责，并接受",
   "auth.termsLink": "条款与免责声明",
+  "auth.privacyLink": "隐私政策",
+  "auth.agreeAnd": "和",
+  "auth.socialConsent": "继续即表示您同意我们的",
   // Terms page
   "terms.title": "条款与免责声明",
   "terms.p1": "PBudget 按“现状”和“现有”基础提供，不作任何明示或默示的保证。",

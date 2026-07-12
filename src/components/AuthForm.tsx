@@ -136,7 +136,9 @@ export default function AuthForm({ mode, social }: { mode: "login" | "signup"; s
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} required />
           <span>
             {t("auth.agreePre")}{" "}
-            <Link href="/terms" target="_blank">{t("auth.termsLink")}</Link>.
+            <Link href="/terms" target="_blank">{t("auth.termsLink")}</Link>{" "}
+            {t("auth.agreeAnd")}{" "}
+            <Link href="/privacy" target="_blank">{t("auth.privacyLink")}</Link>.
           </span>
         </label>
       )}
@@ -187,6 +189,12 @@ export default function AuthForm({ mode, social }: { mode: "login" | "signup"; s
               {t("auth.continueWithApple")}
             </button>
           )}
+          <p className="muted" style={{ fontSize: 12, marginTop: 12, textAlign: "center", lineHeight: 1.5 }}>
+            {t("auth.socialConsent")}{" "}
+            <Link href="/terms" target="_blank">{t("auth.termsLink")}</Link>{" "}
+            {t("auth.agreeAnd")}{" "}
+            <Link href="/privacy" target="_blank">{t("auth.privacyLink")}</Link>.
+          </p>
         </>
       )}
 
