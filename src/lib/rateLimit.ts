@@ -11,9 +11,13 @@ const WINDOW_MS = 60 * 1000;
 // compared for equality, never read back). 160-bit → collisions are irrelevant.
 const hash = (v: string) => crypto.createHash("sha256").update(v).digest("hex");
 
-// Real client IP from the ingress-set forwarded header (first hop = the client).
-// null when absent (direct/dev); the caller then rate-limits on recipient only.
+// Real client IP. Cloudflare's CF-Connecting-IP is edge-set and NOT client-spoofable,
+// so trust it first; the leftmost X-Forwarded-For hop is client-supplied behind an
+// appending proxy and only used as a fallback (direct/dev). null when absent — the
+// caller then rate-limits on recipient/email only.
 export function clientIp(req: Request): string | null {
+  const cf = req.headers.get("cf-connecting-ip");
+  if (cf) return cf.trim() || null;
   const xff = req.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim() || null;
   return req.headers.get("x-real-ip");
