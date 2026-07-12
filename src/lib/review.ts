@@ -157,20 +157,43 @@ export async function reviewData(
   userId: string,
   opts: { page?: number; q?: string } = {}
 ): Promise<ReviewPayload> {
-  const [openFlags, allGroups, splits, posted, vendorRows] = await Promise.all([
+  const [openFlags, allGroups, splits, vendorRows] = await Promise.all([
     prisma.transactionFlag.findMany({ where: { userId, status: "open" } }),
     prisma.mergeGroup.findMany({ where: { userId }, include: { legs: true } }),
     prisma.transactionSplit.findMany({
       where: { userId },
       include: { parts: { orderBy: { id: "asc" } } },
     }),
-    prisma.plaidTransaction.findMany({ where: { pending: false, account: { item: { userId } } } }),
     prisma.vendor.findMany({
       where: { userId, priority: { not: null } },
       include: { conditions: true },
+      // Vendors are loaded here ONLY to match/resolve categories — never for
+      // display — so drop the icon data-URI column (avg 24 KB, up to ~1 MB each;
+      // ~6 MB total for a heavy user) that would otherwise be pulled every load.
+      omit: { icon: true },
       orderBy: { priority: "asc" },
     }),
   ]);
+
+  // reviewData only ever looks up txns that back an open flag, a merge-group leg, or
+  // a split parent — never the full history. Loading every posted txn and decrypting
+  // its PII was the dominant cost (thousands of rows for a heavy user), so scope the
+  // load to just the referenced ids. txnById and ignoredTxnIds below both operate
+  // only on these txns, so the result is identical. The ids come from the user's own
+  // userId-scoped flags/groups/splits; the account/item/userId scope is belt-and-
+  // suspenders against a cross-tenant id ever slipping in.
+  const neededTxnIds = [
+    ...new Set([
+      ...openFlags.map((f) => f.transactionId).filter((x): x is string => !!x),
+      ...allGroups.flatMap((g) => g.legs.map((l) => l.transactionId)),
+      ...splits.map((s) => s.parentTransactionId),
+    ]),
+  ];
+  const posted = neededTxnIds.length
+    ? await prisma.plaidTransaction.findMany({
+        where: { pending: false, transactionId: { in: neededTxnIds }, account: { item: { userId } } },
+      })
+    : [];
 
   const txnById = new Map(posted.map((t) => [t.transactionId, t]));
   const groupById = new Map(allGroups.map((gr) => [gr.id, gr]));

@@ -274,7 +274,10 @@ function serializeRow(c: VendorWithConditions["conditions"][number]) {
   };
 }
 
-export function serializeVendor(v: VendorWithConditions) {
+// Icon is optional here so callers that load the list icon-free (listVendors, to
+// avoid pulling ~6 MB of data-URIs) can serialize; they backfill icons for the
+// displayed page afterward. Create/update pass the full row, icon included.
+export function serializeVendor(v: Omit<VendorWithConditions, "icon"> & { icon?: string | null }) {
   const rows = [...v.conditions].sort((a, b) => a.order - b.order);
   const byRole = (role: string): SerializedRow[] =>
     rows.filter((c) => c.role === role).map(serializeRow);
@@ -283,7 +286,7 @@ export function serializeVendor(v: VendorWithConditions) {
     name: v.name,
     link: v.link,
     iconLink: v.iconLink,
-    icon: v.icon,
+    icon: v.icon ?? null,
     categoryName: v.categoryName,
     priority: v.priority,
     shared: v.shared, // this vendor is offered to the community catalog
@@ -308,9 +311,14 @@ export async function listVendors(
   userId: string,
   opts: { page?: number; q?: string; category?: string } = {}
 ) {
+  // Icon is a data-URI (avg ~24 KB, up to ~1 MB each). We never need every
+  // vendor's icon: the picker/full-list mode renders none, and the paginated UI
+  // shows only one page. So load the whole list icon-free (cheap ordering/search/
+  // count), then hydrate icons for just the page actually returned (below).
   const vendors = await prisma.vendor.findMany({
     where: { userId },
     include: { conditions: true },
+    omit: { icon: true },
   });
   vendors.sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity));
   const all = vendors.map(serializeVendor);
@@ -341,6 +349,18 @@ export async function listVendors(
     opts.page === undefined
       ? filtered
       : filtered.slice(page * VENDOR_PAGE_SIZE, page * VENDOR_PAGE_SIZE + VENDOR_PAGE_SIZE);
+
+  // Hydrate icons only for the returned page (the paginated vendors UI renders
+  // them). Full-list/picker mode (page undefined) renders no icons, so skip it
+  // entirely — that path never pays for icon data. ≤ VENDOR_PAGE_SIZE rows here.
+  if (opts.page !== undefined && view.length) {
+    const icons = await prisma.vendor.findMany({
+      where: { id: { in: view.map((v) => v.id) } },
+      select: { id: true, icon: true },
+    });
+    const iconById = new Map(icons.map((i) => [i.id, i.icon]));
+    for (const v of view) v.icon = iconById.get(v.id) ?? null;
+  }
   return { vendors: view, total, page, pageSize: VENDOR_PAGE_SIZE, orderedIds };
 }
 
