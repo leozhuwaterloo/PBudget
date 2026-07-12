@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     template: "%s · PBudget",
   },
   description:
-    "PBudget links your bank accounts through Plaid, then automatically categorizes, merges, and reconciles every transaction into a monthly budget ledger you can trust. Free for a month; $5/mo for 5 bank connections, $10/mo for 20. English & 简体中文.",
+    "PBudget links your bank accounts through Plaid, then automatically categorizes, merges, and reconciles every transaction into a monthly budget ledger you can trust. Free for a month; $5/mo for 6 bank connections, $10/mo for 20. English & 简体中文.",
   applicationName: "PBudget",
   keywords: [
     "personal budgeting app",

@@ -4,7 +4,7 @@ import { prisma } from "./db";
 import { removeConnection } from "./plaid";
 
 // Billing model: tiers priced per Plaid CONNECTION (a PlaidItem is one bank login,
-// NOT one account). Free = a 1-month TRIAL of 1 connection (no card). Pro ($5/mo) = 5,
+// NOT one account). Free = a 1-month TRIAL of 1 connection (no card). Pro ($5/mo) = 6,
 // Max ($10/mo) = 20. The two flat prices are created manually in Stripe and referenced
 // by env (STRIPE_PRICE_PRO / STRIPE_PRICE_MAX, seeded in Vault). The webhook maps a
 // subscription's price id -> User.plan. When entitlement drops (trial ended, or a paid
@@ -14,7 +14,7 @@ import { removeConnection } from "./plaid";
 export type Plan = "free" | "pro" | "max";
 export type Tier = "pro" | "max";
 
-export const TIER_LIMITS: Record<Plan, number> = { free: 1, pro: 5, max: 20 };
+export const TIER_LIMITS: Record<Plan, number> = { free: 1, pro: 6, max: 20 };
 
 // Display-only monthly USD price per tier (the actual charge is the Stripe price).
 export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 5, max: 10 };
@@ -39,7 +39,7 @@ export function limitFor(plan: string): number {
 
 // How many live Plaid connections this user is entitled to right now:
 //   admin            -> unlimited (no subscription needed)
-//   active paid sub  -> the tier limit (pro 5 / max 20)
+//   active paid sub  -> the tier limit (pro 6 / max 20)
 //   free, in trial   -> 1
 //   otherwise        -> 0 (trial ended / sub lapsed -> excess connections are removed)
 export function entitledConnections(user: Pick<User, "plan" | "isAdmin" | "subscriptionStatus" | "createdAt">): number {
