@@ -4,7 +4,7 @@ import { prisma } from "./db";
 import { removeConnection } from "./plaid";
 
 // Billing model: tiers priced per Plaid CONNECTION (a PlaidItem is one bank login,
-// NOT one account). Free = a 1-month TRIAL of 1 connection (no card). Pro ($5/mo) = 6,
+// NOT one account). Free = a 1-month TRIAL of 1 connection (no card). Pro ($3/mo) = 6,
 // Max ($10/mo) = 20. The two flat prices are created manually in Stripe and referenced
 // by env (STRIPE_PRICE_PRO / STRIPE_PRICE_MAX, seeded in Vault). The webhook maps a
 // subscription's price id -> User.plan. When entitlement drops (trial ended, or a paid
@@ -17,7 +17,7 @@ export type Tier = "pro" | "max";
 export const TIER_LIMITS: Record<Plan, number> = { free: 1, pro: 6, max: 20 };
 
 // Display-only monthly USD price per tier (the actual charge is the Stripe price).
-export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 5, max: 10 };
+export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 3, max: 10 };
 
 // The free tier is a time-boxed trial of 1 connection, measured from signup.
 export const TRIAL_DAYS = 30;

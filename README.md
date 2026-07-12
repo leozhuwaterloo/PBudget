@@ -52,7 +52,7 @@ Priced per Plaid **connection** (one bank login):
 | Plan | Price | Connections |
 |------|-------|-------------|
 | Free trial | $0 (first month) | 1 |
-| Pro | $5 / mo | 6 |
+| Pro | $3 / mo | 6 |
 | Max | $10 / mo | 20 |
 
 ## Stack
