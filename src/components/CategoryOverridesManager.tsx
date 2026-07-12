@@ -69,7 +69,7 @@ export default function CategoryOverridesManager() {
   if (!rows && !error) return <p className="muted">{t("common.loading")}</p>;
 
   return (
-    <div>
+    <div className="mobile-cards">
       <p className="muted" style={{ marginTop: 0 }}>{t("cust.overrides.help")}</p>
       {error && <div className="error">{error}</div>}
       {rows && rows.length === 0 ? (

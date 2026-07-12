@@ -56,7 +56,7 @@ export default function MergesManager() {
   if (!groups && !error) return <p className="muted">{t("common.loading")}</p>;
 
   return (
-    <div>
+    <div className="mobile-cards">
       <p className="muted" style={{ marginTop: 0 }}>{t("cust.merges.help")}</p>
       {error && <div className="error">{error}</div>}
       {groups && groups.length === 0 ? (

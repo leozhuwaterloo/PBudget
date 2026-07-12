@@ -123,7 +123,9 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   // via effectiveTransactions); extract a shared light counter if dashboard latency
   // ever matters.
   const [effective, categories, reviewPayload] = await Promise.all([
-    effectiveTransactions(userId),
+    // icons:false skips the multi-MB vendor-icon load; the ~30 icons actually shown
+    // (top vendors + top txns) are re-fetched by id below. Cuts post-login latency.
+    effectiveTransactions(userId, {}, { icons: false }),
     prisma.transactionCategory.findMany({ where: { userId } }),
     reviewData(userId),
   ]);
@@ -161,15 +163,15 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   // (d) top vendors for the selected month — same exclusion as (a) so bucket
   // vendors (Self / General Bank) don't dominate (assumption 7). Keyed by matched
   // vendorId, else the normalized-string vendor name.
-  const vAgg = new Map<string, { name: string; link: string | null; icon: string | null; spend: number }>();
+  const vAgg = new Map<string, { name: string; link: string | null; vendorId: string | null; spend: number }>();
   for (const e of effective) {
     if (!inSelMonth(e.date) || isExcluded(e.categoryName)) continue;
     const key = e.vendorId ?? e.vendorName;
-    const cur = vAgg.get(key) ?? { name: e.vendorName, link: e.vendorLink, icon: e.vendorIcon, spend: 0 };
+    const cur = vAgg.get(key) ?? { name: e.vendorName, link: e.vendorLink, vendorId: e.vendorId, spend: 0 };
     cur.spend += e.amount;
     vAgg.set(key, cur);
   }
-  const vendors = [...vAgg.entries()]
+  const topVendors = [...vAgg.entries()]
     .map(([key, v]) => ({ key, ...v }))
     .filter((v) => v.spend > 0 && v.name)
     .sort((a, b) => b.spend - a.spend)
@@ -178,22 +180,35 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   // (e) biggest transactions of the month — largest outflows first, same
   // excludeFromTotals exclusion as (a). Each carries the whole-txn id so a row can
   // be re-categorised / merged inline (null for a merge group or split part).
-  const topTransactions = effective
+  const topTxns = effective
     .filter((e) => inSelMonth(e.date) && !isExcluded(e.categoryName))
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, TOP_TXNS)
-    .map((e) => ({
-      id: e.id,
-      txnId: !e.isGroup && e.parentId == null ? e.id : null,
-      title: e.title,
-      categoryName: e.categoryName,
-      vendorName: e.vendorName,
-      vendorLink: e.vendorLink,
-      vendorIcon: e.vendorIcon,
-      date: e.date.toISOString(),
-      amount: e.amount,
-      currency: e.currency,
-    }));
+    .slice(0, TOP_TXNS);
+
+  // Icons were skipped in the bulk load — re-fetch them for just the vendors shown in
+  // (d) + (e) (a handful, keyed by id) instead of hauling every vendor's blob.
+  const iconVendorIds = [
+    ...new Set([...topVendors, ...topTxns].map((x) => x.vendorId).filter((id): id is string => !!id)),
+  ];
+  const iconRows = iconVendorIds.length
+    ? await prisma.vendor.findMany({ where: { userId, id: { in: iconVendorIds } }, select: { id: true, icon: true } })
+    : [];
+  const iconById = new Map(iconRows.map((r) => [r.id, r.icon]));
+  const iconFor = (vendorId: string | null) => (vendorId ? iconById.get(vendorId) ?? null : null);
+
+  const vendors = topVendors.map((v) => ({ key: v.key, name: v.name, link: v.link, icon: iconFor(v.vendorId), spend: v.spend }));
+  const topTransactions = topTxns.map((e) => ({
+    id: e.id,
+    txnId: !e.isGroup && e.parentId == null ? e.id : null,
+    title: e.title,
+    categoryName: e.categoryName,
+    vendorName: e.vendorName,
+    vendorLink: e.vendorLink,
+    vendorIcon: iconFor(e.vendorId),
+    date: e.date.toISOString(),
+    amount: e.amount,
+    currency: e.currency,
+  }));
 
   return {
     month: selMonth,

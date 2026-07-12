@@ -151,7 +151,7 @@ export default function Accounts({
   );
 
   return (
-    <div>
+    <div className="mobile-cards">
       <h1>{t("accounts.title")}</h1>
       <p className="muted">{t("accounts.subtitle")}</p>
 

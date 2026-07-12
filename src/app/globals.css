@@ -199,6 +199,51 @@ tr.clickable:hover > td { background: var(--bg-3); }
 .bg-success td { background: rgba(21, 122, 77, 0.09); }
 .bg-warning td { background: rgba(180, 83, 9, 0.10); }
 
+/* Statement-style transaction rows ------------------------------------- */
+/* Mirrors the landing hero's reconciled ledger: raw descriptor → resolved
+   vendor + category pill, amount on the right (income green). Used by the
+   account / vendor transaction browser; grid-based so it stays readable on
+   phones without a sideways-scrolling table. */
+.txn-list { display: flex; flex-direction: column; }
+.txn-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "icon raw side" "icon body side";
+  gap: 1px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.txn-row:last-child { border-bottom: none; }
+.txn-click { cursor: pointer; }
+.txn-click:hover { background: var(--bg-3); }
+.txn-icon { grid-area: icon; align-self: center; }
+.txn-raw {
+  grid-area: raw; min-width: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px; color: var(--muted); letter-spacing: -0.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.txn-body { grid-area: body; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.txn-payee { font-weight: 600; color: var(--fg); }
+.txn-pending .txn-payee { font-style: italic; color: var(--muted); }
+.txn-tag {
+  display: inline-block; font-size: 11px; color: var(--primary);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap;
+}
+.txn-badge {
+  display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 1px 7px; border-radius: 999px; color: var(--muted); border: 1px solid var(--border);
+}
+.txn-side { grid-area: side; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; text-align: right; }
+.txn-amt { font-weight: 600; }
+.txn-in { color: var(--success); }
+.txn-date { font-size: 11px; color: var(--muted); }
+
+/* Skeleton placeholder (route loading states) -------------------------- */
+.skeleton { background: var(--bg-3); border-radius: var(--radius); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
 /* Notices -------------------------------------------------------------- */
 .banner {
   background: var(--bg-2); border: 1px solid var(--border);
@@ -267,40 +312,19 @@ input.budget { width: 92px; padding: 6px 8px; }
   /* Comfortable tap targets for the small buttons that pack table/action rows. */
   .btn-sm { padding: 8px 12px; font-size: 13px; }
 
-  /* Phone: wide row-tables become one card per row instead of scrolling sideways.
-     Review queues self-label (money/date read for themselves); the categories
-     form labels each field via data-label. Scoped so detail/modal tables and
-     other tabs keep their normal layout. */
-  .review-page section table thead,
+  /* ---- Phone: wide row-tables become cards (no sideways scroll) ---- */
+
+  /* Categories editor is a FORM: each field stacks with its label (data-label). */
   .cat-editor table thead { display: none; }
-  .review-page section table, .review-page section table tbody,
-  .review-page section table tr, .review-page section table td,
-  .cat-editor table, .cat-editor table tbody,
-  .cat-editor table tr, .cat-editor table td { display: block; width: auto; }
-  /* Drop the wrapper card's frame so row-cards aren't double-bordered (progressive:
-     ignored where :has() is unsupported — rows still stack, just inside the frame). */
-  .review-page section .card:has(> table:only-child),
-  .cat-editor .card:has(> table:only-child) {
-    border: none; background: none; box-shadow: none; overflow: visible; padding: 0;
-  }
-  .review-page section table tr,
+  .cat-editor table, .cat-editor table tbody, .cat-editor table tr, .cat-editor table td { display: block; width: auto; }
+  .cat-editor .card:has(> table:only-child) { border: none; background: none; box-shadow: none; overflow: visible; padding: 0; }
   .cat-editor table tr {
-    border: 1px solid var(--border); border-radius: 10px;
-    background: var(--bg-2); box-shadow: var(--shadow-sm);
-    padding: 11px 13px; margin-bottom: 10px;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2);
+    box-shadow: var(--shadow-sm); padding: 11px 13px; margin-bottom: 10px;
   }
-  .review-page section table tr:last-child,
   .cat-editor table tr:last-child { margin-bottom: 0; }
-  .review-page section table td,
   .cat-editor table td { border: none; padding: 4px 0; white-space: normal !important; }
-  .review-page section table td:empty { display: none; }
-  /* Action button clusters wrap inside the card instead of overflowing. */
-  .review-page section table td .row { flex-wrap: wrap !important; }
-  .review-page section table td:last-child { margin-top: 6px; }
-  /* Categories form: label on the left, control on the right, per stacked field. */
-  .cat-editor table td[data-label] {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  }
+  .cat-editor table td[data-label] { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .cat-editor table td[data-label]::before {
     content: attr(data-label);
     font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
@@ -308,8 +332,42 @@ input.budget { width: 92px; padding: 6px 8px; }
   }
   .cat-editor table td[data-label] > div,
   .cat-editor table td[data-label] > select { flex: 1 1 auto; min-width: 0; }
+
+  /* Review queues + customization data tables (.mobile-cards): the item name,
+     amount and date sit on ONE line; action buttons wrap onto their own line below.
+     :has() strips the wrapper card frame so rows aren't double-bordered (progressive
+     — where unsupported, rows still stack inside the frame). */
+  .review-page section table thead,
+  .mobile-cards table thead { display: none; }
+  .review-page section table, .review-page section table tbody,
+  .mobile-cards table, .mobile-cards table tbody { display: block; }
+  .review-page section .card:has(> table:only-child),
+  .mobile-cards .card:has(> table:only-child) { border: none; background: none; box-shadow: none; overflow: visible; padding: 0; }
+  .review-page section table tr,
+  .mobile-cards table tr {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 12px;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2);
+    box-shadow: var(--shadow-sm); padding: 11px 13px; margin-bottom: 10px;
+  }
+  .review-page section table tr:last-child,
+  .mobile-cards table tr:last-child { margin-bottom: 0; }
+  .review-page section table td,
+  .mobile-cards table td { display: block; border: none; padding: 0; white-space: normal !important; }
+  .review-page section table td:empty,
+  .mobile-cards table td:empty { display: none; }
+  .review-page section table td:first-child,
+  .mobile-cards table td:first-child { flex: 1 1 45%; min-width: 0; }        /* name / item */
+  .review-page section table td:last-child,
+  .mobile-cards table td:last-child { flex: 1 1 100%; margin-top: 8px; }     /* actions → own line */
+  .review-page section table td .row,
+  .mobile-cards table td .row { flex-wrap: wrap !important; }
+
+  /* Vendor card header: let it wrap and drop the action buttons onto their own
+     full-width line so they never overlap the vendor name on narrow screens. */
+  .vendor-head { flex-wrap: wrap; }
+  .vendor-head > .vendor-actions { width: 100%; justify-content: flex-start; margin-top: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
 }
