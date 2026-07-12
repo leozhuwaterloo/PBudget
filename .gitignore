@@ -23,3 +23,6 @@ next-env.d.ts
 .claude/
 .stackboard-drops/
 ._*
+
+# Demo re-seed script hardcodes a plaintext demo credential — keep it local-only.
+scripts/seed-demo-real.ts
