@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { effectiveTransactions } from "./analysis/effective";
-import { RULES } from "./analysis/constants";
+import { reviewData } from "./review";
 
 // Dashboard aggregate (FR7). Everything reads through F2's effective read model
 // (merge-, split- and vendor-aware, category-resolved at read time) so config
@@ -40,7 +40,7 @@ export type DashboardData = {
   // (b) selected month; hierarchical — `parentName` set on a child row (indented
   // under its parent), `actual` is rolled-up for a parent, own for a leaf.
   budget: { id: string | null; name: string; parentName: string | null; budget: number; actual: number }[];
-  review: { unmatched: number; conflicts: number; suspicion: number; pending: number }; // (c)
+  review: number; // (c) open "needs review" items, windowed to match the Review page
   vendors: { key: string; name: string; link: string | null; icon: string | null; spend: number }[]; // (d) selected month
   // (e) biggest transactions of the selected month
   topTransactions: {
@@ -115,20 +115,19 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
   const now = new Date();
   const selMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : defaultMonth(now);
 
-  const [effective, categories, unmatched, conflicts, suspicion, pending] = await Promise.all([
+  // "Needs review" MUST match the Review page exactly, so reuse its assembly rather
+  // than re-counting flags here: raw flag counts include items the Review page hides
+  // (older than the analysis window, or on Ignore-category txns) → the tile said 383
+  // while the page showed 0. reviewData is the single source of truth (windowed +
+  // ignore-filtered). ponytail: it reloads txns/flags (the dashboard also loads txns
+  // via effectiveTransactions); extract a shared light counter if dashboard latency
+  // ever matters.
+  const [effective, categories, reviewPayload] = await Promise.all([
     effectiveTransactions(userId),
     prisma.transactionCategory.findMany({ where: { userId } }),
-    prisma.transactionFlag.count({ where: { userId, status: "open", rule: RULES.unmatchedVendor } }),
-    prisma.transactionFlag.count({ where: { userId, status: "open", rule: RULES.vendorConflict } }),
-    prisma.transactionFlag.count({
-      where: {
-        userId,
-        status: "open",
-        rule: { in: [RULES.unmatchedTransfer, RULES.unusualAmount, RULES.duplicateCharge] },
-      },
-    }),
-    prisma.mergeGroup.count({ where: { userId, status: "auto" } }),
+    reviewData(userId),
   ]);
+  const reviewOpen = reviewPayload.counters.totalOpen;
 
   const excluded = new Set(categories.filter((c) => c.excludeFromTotals).map((c) => c.name));
   const isExcluded = (cat: string | null) => cat != null && excluded.has(cat);
@@ -201,7 +200,7 @@ export async function dashboardData(userId: string, month?: string): Promise<Das
     currency,
     trend,
     budget,
-    review: { unmatched, conflicts, suspicion, pending },
+    review: reviewOpen,
     vendors,
     topTransactions,
   };

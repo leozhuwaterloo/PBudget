@@ -7,6 +7,7 @@ import { RowSummary, Chip, type AnyCondition } from "./vendorSummary";
 type CatalogEntry = {
   id: string; // source vendor id (what instantiate adopts)
   ownerId: string;
+  isOwn: boolean; // owned by the requester → shown for confirmation, not adoptable
   name: string;
   link: string | null;
   icon: string | null;
@@ -54,8 +55,12 @@ export default function CatalogBrowser({
     return () => clearTimeout(id);
   }, [q, userId]);
 
-  const owner = (id: string) =>
-    id === adminId ? t("cust.catalog.byAdmin") : t("cust.catalog.byUser", { id: shortId(id) });
+  const owner = (e: CatalogEntry) =>
+    e.isOwn
+      ? t("cust.catalog.byYou")
+      : e.ownerId === adminId
+        ? t("cust.catalog.byAdmin")
+        : t("cust.catalog.byUser", { id: shortId(e.ownerId) });
 
   async function adopt(entry: CatalogEntry, mode: "clone" | "link") {
     setBusy(`${entry.id}:${mode}`);
@@ -120,7 +125,7 @@ export default function CatalogBrowser({
             <VendorIcon name={e.name} icon={e.icon} size={30} clickable={false} />
             <span style={{ minWidth: 0 }}>
               <span style={{ fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{owner(e.ownerId)}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{owner(e)}</span>
             </span>
           </button>
         ))}
@@ -136,21 +141,30 @@ export default function CatalogBrowser({
             <strong style={{ fontSize: 16 }}>{selected.name}</strong>
             {selected.categoryName && <Chip tone="cat">{selected.categoryName}</Chip>}
           </div>
-          <p className="muted" style={{ fontSize: 12, margin: "4px 0 2px" }}>{owner(selected.ownerId)}</p>
+          <p className="muted" style={{ fontSize: 12, margin: "4px 0 2px" }}>{owner(selected)}</p>
           <p className="muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>{t("cust.catalog.previewRows")}</p>
           {[...selected.matchConditions, ...selected.categoryRules].map((c, i) => (
             <RowSummary key={i} condition={c} />
           ))}
-          <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <button className="btn btn-primary" disabled={!!busy} onClick={() => adopt(selected, "link")}>
-              {busy === `${selected.id}:link` ? t("cust.catalog.adopting") : t("cust.catalog.useLinked")}
-            </button>
-            <button className="btn" disabled={!!busy} onClick={() => adopt(selected, "clone")}>
-              {busy === `${selected.id}:clone` ? t("cust.catalog.adopting") : t("cust.catalog.clone")}
-            </button>
-            <button className="btn btn-ghost" onClick={() => setSelected(null)}>{t("common.cancel")}</button>
-          </div>
-          <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>{t("cust.catalog.modeHelp")}</p>
+          {selected.isOwn ? (
+            <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>{t("cust.catalog.ownRule")}</p>
+              <button className="btn btn-ghost" onClick={() => setSelected(null)}>{t("common.cancel")}</button>
+            </div>
+          ) : (
+            <>
+              <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button className="btn btn-primary" disabled={!!busy} onClick={() => adopt(selected, "link")}>
+                  {busy === `${selected.id}:link` ? t("cust.catalog.adopting") : t("cust.catalog.useLinked")}
+                </button>
+                <button className="btn" disabled={!!busy} onClick={() => adopt(selected, "clone")}>
+                  {busy === `${selected.id}:clone` ? t("cust.catalog.adopting") : t("cust.catalog.clone")}
+                </button>
+                <button className="btn btn-ghost" onClick={() => setSelected(null)}>{t("common.cancel")}</button>
+              </div>
+              <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>{t("cust.catalog.modeHelp")}</p>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -212,6 +212,8 @@ const en = {
   "cust.catalog.clearFilter": "Clear filter",
   "cust.catalog.byAdmin": "by Admin",
   "cust.catalog.byUser": "by {id}",
+  "cust.catalog.byYou": "shared by you",
+  "cust.catalog.ownRule": "This is your own rule — others can adopt it; you can’t adopt your own.",
   "cust.catalog.empty": "No shared rules match.",
   "cust.catalog.previewRows": "Condition rows",
   "cust.catalog.useLinked": "Use (linked)",

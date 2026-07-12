@@ -212,6 +212,8 @@ const zh: Messages = {
   "cust.catalog.clearFilter": "清除筛选",
   "cust.catalog.byAdmin": "来自 管理员",
   "cust.catalog.byUser": "来自 {id}",
+  "cust.catalog.byYou": "由你分享",
+  "cust.catalog.ownRule": "这是你自己的规则——其他人可以采用，但你无法采用自己的规则。",
   "cust.catalog.empty": "没有匹配的共享规则。",
   "cust.catalog.previewRows": "条件行",
   "cust.catalog.useLinked": "使用（链接）",
