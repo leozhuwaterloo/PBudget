@@ -24,6 +24,7 @@
     "check:dashboard": "tsx scripts/check-dashboard.ts",
     "check:review": "tsx scripts/check-review.ts",
     "check:native-auth": "tsx scripts/check-native-auth.ts",
+    "check:iap": "tsx scripts/check-iap.ts",
     "check:migration": "tsx scripts/check-migration.ts",
     "migrate:portfolio": "tsx scripts/migrate-portfolio.ts",
     "migrate:vendors": "tsx scripts/migrate-vendors-v2.ts"
@@ -40,6 +41,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "bcryptjs": "^3.0.3",
+    "cordova-plugin-purchase": "^13.17.2",
     "next": "^14.2.35",
     "nodemailer": "^9.0.1",
     "pg": "^8.13.1",

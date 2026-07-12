@@ -246,6 +246,11 @@ const zh: Messages = {
   "cust.billing.success": "订阅已更新——欢迎加入！",
   "cust.billing.cancelled": "结账已取消，未做任何更改。",
   "cust.billing.error": "出了点问题，请重试。",
+  // native store IAP (in-app subscriptions on iOS/Android)
+  "cust.billing.iap.help": "通过 App Store / Google Play 订阅。",
+  "cust.billing.iap.unavailable": "此版本暂不支持应用内订阅。",
+  "cust.billing.iap.webLink": "在网页端订阅，约可省 30%",
+  "cust.billing.iap.error": "购买未能完成，请重试。",
   // delete account (App Store / Play in-app account deletion requirement)
   "cust.delete.button": "删除账户",
   "cust.delete.confirm": "这将永久删除您的账户及所有数据。",
