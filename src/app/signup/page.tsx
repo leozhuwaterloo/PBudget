@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import AuthForm from "@/components/AuthForm";
 import { socialConfig } from "@/lib/social";
 
+// OAuth config is Vault-injected at runtime; never prerender the build-time (dormant) state.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Create your ledger",
   description:

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { SITE_URL } from "@/lib/site";
 
+// OAuth config is Vault-injected at runtime; never prerender the build-time (dormant) state.
+export const dynamic = "force-dynamic";
+
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 
 // Start Google OAuth. Dormant until GOOGLE_CLIENT_ID is set (the button is hidden

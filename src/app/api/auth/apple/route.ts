@@ -3,6 +3,9 @@ import { randomBytes } from "crypto";
 import { appleConfigured } from "@/lib/apple";
 import { SITE_URL } from "@/lib/site";
 
+// OAuth config is Vault-injected at runtime; never prerender the build-time (dormant) state.
+export const dynamic = "force-dynamic";
+
 const APPLE_AUTH = "https://appleid.apple.com/auth/authorize";
 
 // Start Sign in with Apple. Dormant until the APPLE_* env vars are set (the button
