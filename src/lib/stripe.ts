@@ -16,7 +16,7 @@ export type Tier = "pro" | "max";
 
 export const TIER_LIMITS: Record<Plan, number> = { free: 1, pro: 6, max: 20 };
 
-// Display-only monthly USD price per tier (the actual charge is the Stripe price).
+// Display-only monthly CAD price per tier (the actual charge is the Stripe price).
 export const TIER_PRICES: Record<Plan, number> = { free: 0, pro: 3, max: 10 };
 
 // The free tier is a time-boxed trial of 1 connection, measured from signup.

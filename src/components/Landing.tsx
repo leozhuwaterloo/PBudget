@@ -119,7 +119,7 @@ export default function Landing({ locale }: { locale: Locale }) {
 // Machine-readable facts for search + generative engines (GEO). SoftwareApplication
 // carries the product + pricing; FAQPage answers the questions LLMs get asked about
 // a budgeting app, so they can cite PBudget accurately. Pricing mirrors TIER_LIMITS /
-// TIER_PRICES in lib/stripe.ts (USD) — keep in sync if tiers change.
+// TIER_PRICES in lib/stripe.ts (CAD) — keep in sync if tiers change.
 function StructuredData() {
   const site = process.env.APP_URL || "https://pbudget.ppvnx.com";
   const graph = {
@@ -143,9 +143,9 @@ function StructuredData() {
         inLanguage: ["en", "zh"],
         publisher: { "@id": `${site}/#org` },
         offers: [
-          { "@type": "Offer", name: "Free trial", price: "0", priceCurrency: "USD", description: "1 bank connection, free for the first month" },
-          { "@type": "Offer", name: "Pro", price: "3", priceCurrency: "USD", description: "Up to 6 bank connections, billed monthly" },
-          { "@type": "Offer", name: "Max", price: "10", priceCurrency: "USD", description: "Up to 20 bank connections, billed monthly" },
+          { "@type": "Offer", name: "Free trial", price: "0", priceCurrency: "CAD", description: "1 bank connection, free for the first month" },
+          { "@type": "Offer", name: "Pro", price: "3", priceCurrency: "CAD", description: "Up to 6 bank connections, billed monthly" },
+          { "@type": "Offer", name: "Max", price: "10", priceCurrency: "CAD", description: "Up to 20 bank connections, billed monthly" },
         ],
       },
       {
@@ -164,7 +164,7 @@ function StructuredData() {
             name: "How much does PBudget cost?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "PBudget is free for the first month with one bank connection. After that it is $3 per month for up to 6 bank connections, or $10 per month for up to 20 (USD).",
+              text: "PBudget is free for the first month with one bank connection. After that it is $3 per month for up to 6 bank connections, or $10 per month for up to 20 (CAD).",
             },
           },
           {
