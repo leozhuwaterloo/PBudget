@@ -6,6 +6,7 @@ import {
   CountryCode,
   type Transaction,
 } from "plaid";
+import crypto from "node:crypto";
 import { prisma } from "./db";
 import { encrypt, decrypt } from "./crypto";
 import { plaidCategoryName, deletedCategoryNames } from "./categories";
@@ -36,6 +37,14 @@ function countryCodes(): CountryCode[] {
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
+// Public https endpoint Plaid POSTs transaction updates to. Only set on a
+// publicly-reachable https origin — Plaid can't call localhost, so local dev links
+// omit it (undefined = no webhook) and stay manual-sync only.
+function webhookUrl(): string | undefined {
+  const base = process.env.APP_URL;
+  return base && base.startsWith("https://") ? `${base}/api/plaid/webhook` : undefined;
+}
+
 // ---- Link / token --------------------------------------------------------
 
 export async function createLinkToken(userId: string): Promise<string> {
@@ -45,8 +54,17 @@ export async function createLinkToken(userId: string): Promise<string> {
     products: [Products.Transactions],
     country_codes: countryCodes(),
     language: "en",
+    webhook: webhookUrl(),
   });
   return resp.data.link_token;
+}
+
+// Register the webhook URL on an already-linked item (createLinkToken covers new
+// links; this backfills existing ones). No-op in local dev where webhookUrl() is unset.
+export async function updateItemWebhook(stored: string): Promise<void> {
+  const url = webhookUrl();
+  if (!url) return;
+  await client().itemWebhookUpdate({ access_token: decrypt(stored), webhook: url });
 }
 
 // Update mode (re-auth / account selection) for an existing item.
@@ -273,4 +291,88 @@ export async function removeConnection(itemId: string, stored: string): Promise<
     where: { itemId },
     data: { disconnectedAt: new Date(), accessToken: "" },
   });
+}
+
+// Permanently delete a connection (user-initiated on Accounts): revoke it at Plaid
+// (best-effort), then HARD-delete the item row. Cascade removes its accounts and
+// their transactions (and the categoryOverride/reason columns that ride on each txn).
+// `stored` is the encrypted accessToken — "" for an already-disconnected item, in
+// which case there's nothing to revoke.
+// ponytail: per-txn annotations (splits, flags, merge legs/groups) that pointed at
+// the deleted txns are left as inert orphans — every read path filters by
+// `account.item.userId`, so a now-missing txn drops them from view. No orphan sweep
+// until dead rows ever grow enough to matter.
+export async function deleteItem(itemId: string, stored: string): Promise<void> {
+  if (stored) {
+    try {
+      await client().itemRemove({ access_token: decrypt(stored) });
+    } catch {
+      // best-effort revoke; the local delete proceeds regardless (dead/expired token
+      // or network blip must not strand the row).
+    }
+  }
+  await prisma.plaidItem.delete({ where: { itemId } });
+}
+
+// ---- Webhook verification (Plaid signs each webhook with an ES256 JWT) -----
+
+// kids are immutable, so cache the derived key forever (few ever exist).
+// ponytail: unbounded Map; a handful of keys, never worth an LRU.
+const _keyCache = new Map<string, crypto.KeyObject>();
+
+async function verificationKey(kid: string): Promise<crypto.KeyObject | null> {
+  const cached = _keyCache.get(kid);
+  if (cached) return cached;
+  const jwk = (await client().webhookVerificationKeyGet({ key_id: kid })).data.key;
+  if (jwk.kty !== "EC" || jwk.crv !== "P-256") return null;
+  const key = crypto.createPublicKey({ key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, format: "jwk" });
+  _keyCache.set(kid, key);
+  return key;
+}
+
+const b64urlJson = (s: string) => JSON.parse(Buffer.from(s, "base64url").toString("utf8"));
+
+// Verify a Plaid webhook per https://plaid.com/docs/api/webhooks/webhook-verification:
+// ES256 signature over the raw JWT, then the body-hash + freshness claims. Any failure
+// → false (reject). rawBody MUST be the exact bytes received (hash is over them).
+export async function verifyWebhook(rawBody: string, signedJwt: string | null): Promise<boolean> {
+  if (!signedJwt) return false;
+  const parts = signedJwt.split(".");
+  if (parts.length !== 3) return false;
+
+  let header: { alg?: string; kid?: string };
+  try {
+    header = b64urlJson(parts[0]);
+  } catch {
+    return false;
+  }
+  // Pin ES256 — refuse "none"/RS256 to close alg-substitution attacks.
+  if (header.alg !== "ES256" || !header.kid) return false;
+
+  const key = await verificationKey(header.kid);
+  if (!key) return false;
+
+  // ES256 signatures are raw R||S (JOSE), not DER — hence dsaEncoding: ieee-p1363.
+  const sigOk = crypto.verify(
+    "sha256",
+    Buffer.from(`${parts[0]}.${parts[1]}`),
+    { key, dsaEncoding: "ieee-p1363" },
+    Buffer.from(parts[2], "base64url")
+  );
+  if (!sigOk) return false;
+
+  let payload: { iat?: number; request_body_sha256?: string };
+  try {
+    payload = b64urlJson(parts[1]);
+  } catch {
+    return false;
+  }
+  // Replay guard: reject tokens older than 5 minutes.
+  if (typeof payload.iat !== "number" || Date.now() / 1000 - payload.iat > 300) return false;
+
+  // Body integrity: the JWT commits to sha256(rawBody).
+  const expected = payload.request_body_sha256;
+  const actual = crypto.createHash("sha256").update(rawBody, "utf8").digest("hex");
+  if (typeof expected !== "string" || expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }

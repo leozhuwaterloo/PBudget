@@ -128,6 +128,18 @@ export default function Accounts({
       setSyncStatus({ phase: "done", count: d.result?.transactions ?? 0 });
     });
 
+  // Permanently delete a connection + its data (revokes the item at Plaid). Confirm
+  // outside run() so busy doesn't flash while the prompt is open.
+  const remove = (itemId: string, name: string) => {
+    if (!window.confirm(t("accounts.removeConfirm", { name }))) return;
+    run(async () => {
+      setNote("");
+      await postJson("/api/plaid/item/remove", { item_id: itemId });
+      router.refresh();
+      setNote(t("accounts.removeDone", { name }));
+    });
+  };
+
   // Full vendor re-match across every transaction. Vendor edits only touch the
   // edited vendor's + unmatched txns (fast); this re-resolves everything.
   const rematchAll = () =>
@@ -199,6 +211,14 @@ export default function Accounts({
                   {t("accounts.reauth")}
                 </button>
               )}
+              <button
+                className="btn btn-sm btn-ghost"
+                style={{ color: "var(--danger)" }}
+                disabled={busy}
+                onClick={() => remove(it.itemId, it.institutionName)}
+              >
+                {t("accounts.remove")}
+              </button>
             </div>
           </div>
 
