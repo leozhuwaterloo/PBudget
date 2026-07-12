@@ -1,0 +1,28 @@
+# PBudget
+
+> PBudget (Plaid Budget) is a personal budgeting web and mobile app that links your bank accounts through Plaid and automatically categorizes, merges, and reconciles every transaction into a monthly budget ledger you can trust. Fully bilingual: English and Simplified Chinese (简体中文).
+
+PBudget lives at https://pbudget.ppvnx.com. You connect real bank accounts via Plaid (read-only); PBudget imports transactions and automatically sorts, de-duplicates pending/posted pairs, and reconciles them into a monthly budget. It ships as a website and as native iOS and Android apps (a thin shell over the same site).
+
+## Pricing
+- Free for the first month.
+- $5/month for up to 6 bank connections.
+- $10/month for up to 20 bank connections.
+- Native iOS/Android in-app purchase prices are higher to offset app-store fees.
+
+## Key features
+- Automatic transaction categorization and monthly budget reconciliation.
+- Secure, read-only bank linking through Plaid.
+- Pending/posted transaction merging so each purchase is counted once.
+- Bilingual interface: English and Simplified Chinese.
+- Sign in with email, Google, or Apple.
+
+## Pages
+- [Home](https://pbudget.ppvnx.com/): product overview.
+- [Sign up](https://pbudget.ppvnx.com/signup)
+- [Log in](https://pbudget.ppvnx.com/login)
+- [Terms & Liability](https://pbudget.ppvnx.com/terms)
+- [Privacy Policy](https://pbudget.ppvnx.com/privacy)
+
+## Privacy
+PBudget accesses bank data through Plaid with read-only permissions and does not sell personal financial data. See the Privacy Policy for details.
