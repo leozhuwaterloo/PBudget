@@ -37,6 +37,18 @@ model User {
   stripeSubscriptionId String?   @unique
   subscriptionStatus   String? // active | trialing | past_due | canceled | ...
 
+  // Native store IAP (iOS StoreKit / Google Play Billing) — the same plan/status
+  // fields above are the SOLE entitlement source, set by either Stripe (web) OR a
+  // verified store purchase (native). These extra fields only carry the store
+  // linkage so a later renewal/cancel/refund notification maps back to this user:
+  // Apple by iapOriginalTxnId (stable across renewals), Google by iapPurchaseToken.
+  // All NULLABLE (non-destructive `prisma db push`) and NOT @unique (same reason as
+  // wechatUnionId above — app-level lookup via findFirst).
+  iapPlatform      String? // "ios" | "android"
+  iapProductId     String? // the store product id that granted the current tier
+  iapOriginalTxnId String? // Apple originalTransactionId
+  iapPurchaseToken String? // Google Play purchase token
+
   // Admin: exempt from the Plaid-connection limit (unlimited, no subscription).
   isAdmin              Boolean   @default(false)
 

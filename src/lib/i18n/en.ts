@@ -249,6 +249,11 @@ const en = {
   "cust.billing.success": "Subscription updated — welcome aboard!",
   "cust.billing.cancelled": "Checkout cancelled; no changes were made.",
   "cust.billing.error": "Something went wrong. Please try again.",
+  // native store IAP (in-app subscriptions on iOS/Android)
+  "cust.billing.iap.help": "Subscribe through the App Store / Google Play.",
+  "cust.billing.iap.unavailable": "In-app subscriptions aren't available in this build.",
+  "cust.billing.iap.webLink": "Subscribe on the web and save ~30%",
+  "cust.billing.iap.error": "Purchase couldn't be completed. Please try again.",
   // delete account (App Store / Play in-app account deletion requirement)
   "cust.delete.button": "Delete account",
   "cust.delete.confirm": "This permanently deletes your account and all your data.",

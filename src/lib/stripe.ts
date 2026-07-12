@@ -166,6 +166,28 @@ export async function enforceEntitlement(
   return excess.length;
 }
 
+// Shared entitlement writer used by EVERY billing source (the Stripe webhook AND
+// native store IAP). Sets the plan + subscription status — the only two fields that
+// grant connections — then reaps any connections now over the new entitlement.
+// `extra` carries the source-specific linkage ids (stripe sub id / IAP store token).
+export async function setUserTier(
+  userId: string,
+  plan: Plan,
+  subscriptionStatus: string,
+  extra: Partial<
+    Pick<
+      User,
+      "stripeSubscriptionId" | "iapPlatform" | "iapProductId" | "iapOriginalTxnId" | "iapPurchaseToken"
+    >
+  > = {}
+): Promise<void> {
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { plan, subscriptionStatus, ...extra },
+  });
+  await enforceEntitlement(updated);
+}
+
 // ---- Billing summary (F11) ------------------------------------------------
 
 // What the /customizations billing section renders: current tier, live
@@ -280,17 +302,8 @@ export async function applyWebhookEvent(event: Stripe.Event): Promise<void> {
       if (!user) break;
       const status = event.type === "customer.subscription.deleted" ? "canceled" : sub.status;
       const plan = planForSubscription(sub.items.data[0]?.price?.id, status);
-      const updated = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          stripeSubscriptionId: sub.id,
-          subscriptionStatus: status,
-          plan,
-        },
-      });
-      // Entitlement may have dropped (lapsed/canceled/downgraded) — remove any
-      // connections now over the limit. Idempotent no-op when still within it.
-      await enforceEntitlement(updated);
+      // setUserTier also reaps connections now over the limit (lapsed/canceled/downgraded).
+      await setUserTier(user.id, plan, status, { stripeSubscriptionId: sub.id });
       break;
     }
   }

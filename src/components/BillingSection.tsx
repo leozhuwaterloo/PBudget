@@ -1,11 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/context";
+import NativeBilling from "@/components/NativeBilling";
 
 // F11 billing section, fills the slot F9 left in /customizations. Shows the
 // current tier + live connection usage + the tier table. First subscription goes
 // through Stripe Checkout (only when there's no active subscription — Checkout
 // can't modify one); tier switches / cancel / payment go through the billing portal.
+//
+// Platform-split billing: web => Stripe (below). Inside the native app (iOS/Android)
+// Apple/Google mandate their own in-app billing, so we swap the Stripe purchase UI
+// for <NativeBilling> (store IAP + self-hosted receipt validation). The plan/usage
+// card + account deletion stay identical on both.
 
 type Plan = "free" | "pro" | "max";
 type Summary = {
@@ -19,6 +25,7 @@ type Summary = {
   trialEndsAt: string | null;
   trialDaysLeft: number | null;
   tiers: { id: Plan; price: number; limit: number }[];
+  iap: { enabled: boolean; products: { pro: string; max: string } | null; webUrl: string };
 };
 
 async function postJson(url: string, body?: unknown) {
@@ -41,16 +48,26 @@ export default function BillingSection() {
   const [flash, setFlash] = useState<"success" | "cancelled" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // "web" (browser) => Stripe; "ios"/"android" (Capacitor app) => store IAP.
+  const [platform, setPlatform] = useState<"web" | "ios" | "android" | null>(null);
 
-  useEffect(() => {
+  const load = () =>
     fetch("/api/billing")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setS)
       .catch(() => setLoadError(true));
+
+  useEffect(() => {
+    load();
+    import("@capacitor/core").then(({ Capacitor }) =>
+      setPlatform(Capacitor.getPlatform() as "web" | "ios" | "android")
+    );
     // post-Checkout round-trip lands here as ?billing=success|cancelled
     const b = new URLSearchParams(window.location.search).get("billing");
     if (b === "success" || b === "cancelled") setFlash(b);
   }, []);
+
+  const native = platform === "ios" || platform === "android";
 
   const go = (url: string, body?: unknown) => async () => {
     setBusy(true);
@@ -106,46 +123,61 @@ export default function BillingSection() {
         )}
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th style={{ textAlign: "left" }}>{t("cust.billing.colPlan")}</th>
-            <th style={{ textAlign: "left" }}>{t("cust.billing.colPrice")}</th>
-            <th style={{ textAlign: "left" }}>{t("cust.billing.colConnections")}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {s.tiers.map((tier) => (
-            <tr key={tier.id}>
-              <td>{planName(tier.id)}</td>
-              <td>{tier.price === 0 ? t("cust.billing.priceFree") : t("cust.billing.perMonth", { price: tier.price })}</td>
-              <td>{tier.limit}</td>
-              <td style={{ textAlign: "right" }}>
-                {tier.id === s.plan ? (
-                  <span className="muted">{t("cust.billing.current")}</span>
-                ) : tier.id !== "free" && !s.active && !s.admin ? (
-                  <button
-                    className="btn btn-sm btn-primary"
-                    disabled={busy}
-                    onClick={go("/api/stripe/checkout", { tier: tier.id })}
-                  >
-                    {t("cust.billing.subscribe")}
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {native ? (
+        // In-app: store IAP (Apple/Google mandate their own billing in-app).
+        !s.admin && (
+          <NativeBilling
+            platform={platform as "ios" | "android"}
+            iap={s.iap}
+            currentPlan={s.plan}
+            active={s.active}
+            onGranted={load}
+          />
+        )
+      ) : (
+        <>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>{t("cust.billing.colPlan")}</th>
+                <th style={{ textAlign: "left" }}>{t("cust.billing.colPrice")}</th>
+                <th style={{ textAlign: "left" }}>{t("cust.billing.colConnections")}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {s.tiers.map((tier) => (
+                <tr key={tier.id}>
+                  <td>{planName(tier.id)}</td>
+                  <td>{tier.price === 0 ? t("cust.billing.priceFree") : t("cust.billing.perMonth", { price: tier.price })}</td>
+                  <td>{tier.limit}</td>
+                  <td style={{ textAlign: "right" }}>
+                    {tier.id === s.plan ? (
+                      <span className="muted">{t("cust.billing.current")}</span>
+                    ) : tier.id !== "free" && !s.active && !s.admin ? (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        disabled={busy}
+                        onClick={go("/api/stripe/checkout", { tier: tier.id })}
+                      >
+                        {t("cust.billing.subscribe")}
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      {s.hasCustomer && (
-        <div style={{ marginTop: 16 }}>
-          <button className="btn" disabled={busy} onClick={go("/api/stripe/portal")}>
-            {t("cust.billing.manage")}
-          </button>
-          <p className="muted" style={{ marginTop: 6 }}>{t("cust.billing.manageHelp")}</p>
-        </div>
+          {s.hasCustomer && (
+            <div style={{ marginTop: 16 }}>
+              <button className="btn" disabled={busy} onClick={go("/api/stripe/portal")}>
+                {t("cust.billing.manage")}
+              </button>
+              <p className="muted" style={{ marginTop: 6 }}>{t("cust.billing.manageHelp")}</p>
+            </div>
+          )}
+        </>
       )}
 
       {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
