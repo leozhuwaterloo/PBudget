@@ -357,7 +357,7 @@ export default function Review() {
     !hasBrowse;
 
   return (
-    <div>
+    <div className="review-page">
       <h1>{t("review.title")}</h1>
 
       {data && (
