@@ -63,7 +63,7 @@ export default function MarkedValidManager() {
   if (!flags && !error) return <p className="muted">{t("common.loading")}</p>;
 
   return (
-    <div>
+    <div className="mobile-cards">
       <p className="muted" style={{ marginTop: 0 }}>{t("cust.markedValid.help")}</p>
       {error && <div className="error">{error}</div>}
       {flags && flags.length === 0 ? (

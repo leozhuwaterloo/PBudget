@@ -97,75 +97,50 @@ export default function TransactionBrowser({ accountId, vendorId }: { accountId?
       ) : data && data.transactions.length === 0 ? (
         <p className="muted" style={{ padding: 8 }}>{t("accounts.browser.empty")}</p>
       ) : (
-        // overflow-x so the wide 9-col table scrolls (not clips) inside a narrow
-        // container. This works when the parent is normal flow (the vendor card).
-        // Inside the Accounts list the parent is a <td>, which grows to the table's
-        // content unless the OUTER accounts table is table-layout:fixed — which it is,
-        // so this stays bounded and scrolls. (A min-width:0 flex wrapper does NOT
-        // constrain an auto-layout table cell — verified it still clips.)
-        <div style={{ overflowX: "auto" }}>
-        <table className="nested">
-          <thead>
-            <tr>
-              <th>{t("accounts.browser.colName")}</th>
-              <th>{t("accounts.browser.colMerchant")}</th>
-              <th>{t("accounts.browser.colAmount")}</th>
-              <th>{t("accounts.browser.colDate")}</th>
-              <th>{t("accounts.browser.colStatus")}</th>
-              <th>{t("accounts.browser.colPlaid")}</th>
-              <th>{t("accounts.browser.colVendor")}</th>
-              <th>{t("accounts.browser.colCategory")}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.transactions.map((r) => {
-              const actionable = canEdit(r) || canMerge(r);
-              return (
-              <tr
+        // Statement-style list (raw descriptor → resolved vendor + category +
+        // amount), mirroring the landing hero. Grid rows flow inside the account
+        // card's <td> and stay readable on phones — no sideways-scrolling table.
+        // Merchant + Plaid taxonomy move into the row-click dialog (AccountTxnDialog).
+        <div className="txn-list">
+          {data?.transactions.map((r) => {
+            const actionable = canEdit(r) || canMerge(r);
+            const shown = -r.amount; // user convention: negative = spend, positive = money in
+            const sign = shown > 0 ? "+" : shown < 0 ? "−" : "";
+            const amtText = `${r.currency ? r.currency + " " : ""}${sign}${Math.abs(shown).toFixed(2)}`;
+            return (
+              <div
                 key={r.transactionId}
-                className={r.pending ? "pending" : undefined}
-                style={actionable ? { cursor: "pointer" } : undefined}
+                className={`txn-row${r.pending ? " txn-pending" : ""}${actionable ? " txn-click" : ""}`}
                 onClick={actionable ? () => setEditTarget(r) : undefined}
               >
-                <td>{r.name}</td>
-                <td>{r.merchantName ?? ""}</td>
-                <td>{money(-r.amount, r.currency)}</td>
-                <td>{new Date(r.date).toLocaleDateString("en-ZA", { timeZone: "UTC" })}</td>
-                <td>{r.pending ? t("accounts.browser.pending") : t("accounts.browser.posted")}</td>
-                <td>
-                  {r.plaidPrimary ?? "—"}
-                  {r.plaidDetailed && <span className="muted" style={{ display: "block", fontSize: 11 }}>{r.plaidDetailed}</span>}
-                  {r.plaidConfidence && <span className="muted" style={{ display: "block", fontSize: 11 }}>{t("cust.vendors.plaidConfidence")}: {r.plaidConfidence}</span>}
-                </td>
-                <td>
-                  <span className="row" style={{ gap: 6 }}>
-                    <VendorIcon name={r.vendorName} link={r.vendorLink} icon={r.vendorIcon} size={20} />
-                    {r.vendorName}
-                  </span>
-                </td>
-                <td>{r.category ?? "—"}</td>
-                <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                <span className="txn-icon">
+                  <VendorIcon name={r.vendorName} link={r.vendorLink} icon={r.vendorIcon} size={22} />
+                </span>
+                <div className="txn-raw">{r.name}</div>
+                <div className="txn-body">
+                  <span className="txn-payee">{r.vendorName}</span>
+                  {r.category && <span className="txn-tag">{r.category}</span>}
+                  {r.pending && <span className="txn-badge">{t("accounts.browser.pending")}</span>}
                   {r.split ? (
-                    <span className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                      <span className="muted" style={{ fontSize: 11 }}>
-                        {t("accounts.browser.splitBadge", { n: r.split.parts.length })}
-                      </span>
+                    <>
+                      <span className="txn-badge">{t("accounts.browser.splitBadge", { n: r.split.parts.length })}</span>
                       <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); unsplit(r.transactionId); }}>
                         {t("accounts.browser.unsplit")}
                       </button>
-                    </span>
+                    </>
                   ) : r.eligibleForSplit ? (
-                    <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setSplitTarget(r); }}>
+                    <button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); setSplitTarget(r); }}>
                       {t("accounts.browser.split")}
                     </button>
                   ) : null}
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                </div>
+                <div className="txn-side">
+                  <span className={`txn-amt${shown > 0 ? " txn-in" : ""}`}>{amtText}</span>
+                  <span className="txn-date">{new Date(r.date).toLocaleDateString("en-ZA", { timeZone: "UTC" })}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -291,6 +266,18 @@ function AccountTxnDialog({
             </div>
             <button className="btn btn-sm btn-ghost" onClick={onClose}>{t("common.close")}</button>
           </div>
+
+          {/* Raw pre-funnel fields (merchant + Plaid taxonomy) — moved off the list row
+              into this detail view so the ledger stays clean but nothing is lost. */}
+          {(txn.merchantName || txn.category || txn.plaidPrimary) && (
+            <div className="row wrap" style={{ gap: "5px 6px", marginBottom: 14 }}>
+              {txn.merchantName && <span className="txn-tag">{t("cust.vendors.merchantName")}: {txn.merchantName}</span>}
+              {txn.category && <span className="txn-tag">{txn.category}</span>}
+              {txn.plaidPrimary && <span className="txn-tag">{txn.plaidPrimary}</span>}
+              {txn.plaidDetailed && <span className="txn-tag">{txn.plaidDetailed}</span>}
+              {txn.plaidConfidence && <span className="txn-tag">{t("cust.vendors.plaidConfidence")}: {txn.plaidConfidence}</span>}
+            </div>
+          )}
 
           {canEdit && (
             <div className="row wrap" style={{ gap: 8, alignItems: "flex-end", marginBottom: 12 }}>

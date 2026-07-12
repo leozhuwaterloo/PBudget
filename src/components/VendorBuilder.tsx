@@ -223,7 +223,7 @@ export default function VendorBuilder() {
         return (
           <React.Fragment key={v.id}>
             <div className="card">
-              <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
+              <div className="row vendor-head" style={{ gap: 12, alignItems: "flex-start" }}>
                 {/* reorder controls */}
                 {canReorder && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -254,7 +254,7 @@ export default function VendorBuilder() {
                     ))}
                   </div>
                 </div>
-                <div className="row wrap" style={{ gap: 6, justifyContent: "flex-end" }}>
+                <div className="row wrap vendor-actions" style={{ gap: 6, justifyContent: "flex-end" }}>
                   <button className="btn btn-sm" onClick={() => setOpenTxns((id) => (id === v.id ? null : v.id))}>
                     {openTxns === v.id ? t("cust.vendors.hideTxns") : t("cust.vendors.viewTxns")}
                   </button>

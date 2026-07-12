@@ -31,7 +31,8 @@ export type EffectiveTransaction = {
   legs: EffectiveLeg[]; // [] for ungrouped txns and split parts; members for groups
 };
 
-type LoadedVendor = Vendor & { conditions: VendorCondition[] };
+// icon is optional: effectiveTransactions can omit it from the load (opts.icons:false).
+type LoadedVendor = Omit<Vendor, "icon"> & { icon?: string | null; conditions: VendorCondition[] };
 
 // Merge-, split- and vendor-aware read model (FR3/FR5/FR6/FR7). A merge group
 // collapses to ONE line at its net; a split PARENT is replaced by its parts (one
@@ -42,14 +43,23 @@ type LoadedVendor = Vendor & { conditions: VendorCondition[] };
 // rule / mapping / split-override change retroactively moves spend.
 export async function effectiveTransactions(
   userId: string,
-  range: { from?: Date; to?: Date } = {}
+  range: { from?: Date; to?: Date } = {},
+  // icons:false drops the vendor icon data-URIs (avg 24 KB, up to ~1 MB each;
+  // several MB total for a heavy user) from the vendor load — every returned
+  // vendorIcon is then null. Callers that only display icons for a small top-N
+  // (the dashboard) pass false and re-fetch those few icons by id instead.
+  opts: { icons?: boolean } = {}
 ): Promise<EffectiveTransaction[]> {
   const [posted, groups, vendors, splits, cats] = await Promise.all([
     prisma.plaidTransaction.findMany({
       where: { pending: false, account: { item: { userId } } },
     }),
     prisma.mergeGroup.findMany({ where: { userId }, include: { legs: true } }),
-    prisma.vendor.findMany({ where: { userId }, include: { conditions: true } }),
+    prisma.vendor.findMany({
+      where: { userId },
+      include: { conditions: true },
+      ...(opts.icons === false ? { omit: { icon: true } } : {}),
+    }),
     prisma.transactionSplit.findMany({
       where: { userId },
       include: { parts: { orderBy: { id: "asc" } } },
