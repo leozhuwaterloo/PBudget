@@ -370,6 +370,11 @@ const en = {
   "privacy.contactBody": "Questions about this policy or your data? Email support@ppvnx.com.",
   "privacy.back": "← Back to home",
   "auth.forgotPassword": "Forgot your password?",
+  // social sign-in (Google / Apple)
+  "auth.or": "or",
+  "auth.continueWithGoogle": "Continue with Google",
+  "auth.continueWithApple": "Continue with Apple",
+  "auth.socialError": "Sign-in failed. Please try again.",
 
   // forgot / reset password
   "forgot.title": "Reset your password",
