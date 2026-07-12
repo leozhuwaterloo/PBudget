@@ -14,6 +14,17 @@ const config: CapacitorConfig = {
     // Cleartext stays off — the site is HTTPS-only, so the webview must be too.
     cleartext: false,
   },
+  // The launch imageset only shows during the ~300ms native cold-start; because
+  // server.url is remote, Capacitor then shows a white webview for the whole page
+  // load. Hold the branded splash over that gap (auto-hide on a timer — the remote
+  // web app can't signal readiness). See ppvnx-loading-splash memo.
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      backgroundColor: "#eef1f5",
+    },
+  },
 };
 
 export default config;

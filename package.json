@@ -34,6 +34,7 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
+    "@capacitor/splash-screen": "^8.0.1",
     "@capgo/capacitor-social-login": "^8.3.36",
     "@prisma/client": "^6.19.3",
     "@types/bcryptjs": "^2.4.6",
