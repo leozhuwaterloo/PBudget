@@ -1,4 +1,4 @@
-# PlaidBudget — native apps (Capacitor)
+# PBudget — native apps (Capacitor)
 
 The iOS/Android apps are a **thin Capacitor shell** whose webview loads the live
 site (`https://pbudget.ppvnx.com`, set in `capacitor.config.ts` → `server.url`).
@@ -8,7 +8,7 @@ instantly.** You only rebuild/resubmit the native binary when the icon, splash,
 Capacitor version, native plugins, or store metadata change — not for app logic.
 
 - **Bundle ID (permanent, both stores):** `com.ppvnx.pbudget`
-- **Display name:** PlaidBudget
+- **Display name:** PBudget
 - Native projects (`android/`, `ios/`) plus `capacitor-www/`, `resources/`, and
   `capacitor.config.ts` are excluded from the Docker build via `.dockerignore`,
   so they never enter the k3s image — the web deploy is unaffected.
@@ -99,7 +99,7 @@ App *logic* changes need no sync — they go live via the normal server deploy.
 ## Store review notes
 
 - **Apple Guideline 4.2 (minimum functionality)** rejects apps that are just a
-  website in a shell. PlaidBudget clears this on substance — Plaid bank-account
+  website in a shell. PBudget clears this on substance — Plaid bank-account
   linking, automatic transaction import + categorization, budgets, and per-user
   accounts are real app functionality, not a brochure. If review still pushes
   back, the strongest hedge is adding **push notifications**

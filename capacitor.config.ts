@@ -7,7 +7,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // capacitor-www/ is the required-but-unused local webDir (offline fallback only).
 const config: CapacitorConfig = {
   appId: "com.ppvnx.pbudget",
-  appName: "PlaidBudget",
+  appName: "PBudget",
   webDir: "capacitor-www",
   server: {
     url: "https://pbudget.ppvnx.com",
