@@ -229,6 +229,14 @@ model Vendor {
   icon         String?
   categoryName String? // optional DEFAULT category (FR3 fallback)
   priority     Int? // ascending = match order; NULL = legacy row, never matches
+  // Community sharing (additive, nullable/defaulted → non-destructive db push).
+  // `shared` = other users may adopt this rule (Admin's rows are shared implicitly
+  // via the query, no flag needed). `linkedFromId` = the SOURCE vendor id when this
+  // row was adopted as a snapshot-link (re-syncable, read-only until detached); NULL
+  // for authored/cloned rows. Cross-user pointer kept as a bare scalar (no relation)
+  // so a deleted source doesn't cascade — the snapshot survives, re-sync just fails.
+  shared       Boolean           @default(false)
+  linkedFromId String?
   // DEPRECATED (legacy approval model): read ONLY by F14's data migration. Do not
   // use in new code. Columns are dropped after the prod data migration is confirmed.
   status       String?

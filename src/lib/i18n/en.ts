@@ -11,6 +11,9 @@ const en = {
   "nav.signup": "Sign up",
   "nav.logout": "Log out",
   "nav.language": "Language",
+  "nav.yourId": "Your ID",
+  "nav.copyId": "Copy your ID — share it so others can find your rules",
+  "nav.copied": "Copied!",
 
   // ==================================================================
   // V2 PAGES — parallel-safe i18n regions (F0). Each page card edits ONLY
@@ -139,6 +142,19 @@ const en = {
   "cust.vendors.moveUp": "Higher priority",
   "cust.vendors.moveDown": "Lower priority",
   "cust.vendors.defaultChip": "default: {name}",
+  // sharing + snapshot-links (FR2)
+  "cust.vendors.share": "Share",
+  "cust.vendors.unshare": "Shared ✓",
+  "cust.vendors.shareHelp": "Let other users adopt this rule from the shared catalog.",
+  "cust.vendors.sharedChip": "shared",
+  "cust.vendors.nowShared": "“{name}” is now shared — others can adopt it.",
+  "cust.vendors.linkedChip": "linked · {id}",
+  "cust.vendors.linkedRemoved": "linked · source removed",
+  "cust.vendors.updateFromSource": "Update from source",
+  "cust.vendors.updateHelp": "Re-pull the latest version of the shared rule.",
+  "cust.vendors.customize": "Customize",
+  "cust.vendors.customizeHelp": "Detach from the source so you can edit it freely.",
+  "cust.vendors.resynced": "Updated “{name}” from source — now claims {count} transaction(s).",
   // editor
   "cust.vendors.createTitle": "New vendor",
   "cust.vendors.editTitle": "Edit vendor",
@@ -187,14 +203,21 @@ const en = {
   "cust.vendors.op.equals": "equals",
   "cust.vendors.op.starts_with": "starts with",
   "cust.vendors.op.regex": "regex",
-  // catalog browser (F10, FR2)
-  "cust.catalog.title": "Vendor catalog",
-  "cust.catalog.help": "Ready-made vendors from the classic funnel. Instantiate one to get an editable copy at the lowest priority.",
-  "cust.catalog.search": "Search the catalog…",
-  "cust.catalog.empty": "No catalog entries match.",
+  // catalog browser (FR2) — community-shared vendor rules
+  "cust.catalog.title": "Shared vendor rules",
+  "cust.catalog.help": "Browse vendor rules shared by other users and by Admin. Adopt one as a linked snapshot (stays re-syncable from the source) or an independent clone.",
+  "cust.catalog.search": "Search by name…",
+  "cust.catalog.filterUser": "Filter by user ID…",
+  "cust.catalog.adminRules": "Admin's rules",
+  "cust.catalog.clearFilter": "Clear filter",
+  "cust.catalog.byAdmin": "by Admin",
+  "cust.catalog.byUser": "by {id}",
+  "cust.catalog.empty": "No shared rules match.",
   "cust.catalog.previewRows": "Condition rows",
-  "cust.catalog.instantiate": "Instantiate",
-  "cust.catalog.instantiating": "Instantiating…",
+  "cust.catalog.useLinked": "Use (linked)",
+  "cust.catalog.clone": "Clone",
+  "cust.catalog.adopting": "Adding…",
+  "cust.catalog.modeHelp": "Linked: a snapshot you can re-pull from the source anytime. Clone: an independent copy, yours to edit.",
   // billing section (F11)
   "cust.billing.help":
     "Free starts with a 1-month trial of 1 bank connection. Paid plans add more; if a plan lapses, connections over your limit are removed but their data is kept.",

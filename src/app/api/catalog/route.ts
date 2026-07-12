@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
 import { gate } from "@/lib/guard";
-import { searchCatalog } from "@/lib/catalog/vendors";
+import { browseCommunity } from "@/lib/catalog/share";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/catalog?q= — the vendor catalog (FR2), optionally filtered by a
-// case-insensitive substring of the display name. Static authored data, so the
-// full entry (match conditions + category rules + default category) is returned
-// for preview.
+// GET /api/catalog?q=&userId= — browse community-shared vendor rules (everything a
+// user shared + all of Admin's), filtered by a name substring and/or an owner user
+// id. Returns { entries, adminUserId } — the full rows are included for preview.
 export async function GET(req: Request) {
   const g = await gate({ verified: true });
   if (g.error) return g.error;
-
-  const q = new URL(req.url).searchParams.get("q") ?? "";
-  const entries = searchCatalog(q).map((e) => ({
-    slug: e.slug,
-    name: e.name,
-    link: e.link,
-    icon: e.icon ?? null,
-    categoryName: e.categoryName,
-    matchConditions: e.matchConditions,
-    categoryRules: e.categoryRules,
-  }));
-  return NextResponse.json({ entries });
+  const url = new URL(req.url);
+  const q = url.searchParams.get("q") ?? "";
+  const userId = url.searchParams.get("userId") || undefined;
+  return NextResponse.json(await browseCommunity(g.user!.id, { q, userId }));
 }

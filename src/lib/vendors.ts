@@ -286,6 +286,8 @@ export function serializeVendor(v: VendorWithConditions) {
     icon: v.icon,
     categoryName: v.categoryName,
     priority: v.priority,
+    shared: v.shared, // this vendor is offered to the community catalog
+    linkedFromId: v.linkedFromId, // adopted snapshot-link source (null = authored/cloned)
     matchConditions: byRole("match"),
     categoryRules: byRole("category"),
   };
@@ -313,9 +315,21 @@ export async function listVendors(
   vendors.sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity));
   const all = vendors.map(serializeVendor);
   const orderedIds = all.filter((v) => v.priority != null).map((v) => v.id);
+
+  // Attribution for snapshot-linked rows: resolve each source id → its owner + name
+  // in ONE batched query (the source may live under another user, or be gone).
+  const linkIds = [...new Set(all.map((v) => v.linkedFromId).filter((x): x is string => !!x))];
+  const sources = linkIds.length
+    ? await prisma.vendor.findMany({ where: { id: { in: linkIds } }, select: { id: true, userId: true, name: true } })
+    : [];
+  const srcById = new Map(sources.map((s) => [s.id, { userId: s.userId, name: s.name }]));
+  const withLink = all.map((v) => ({
+    ...v,
+    linkedFrom: v.linkedFromId ? srcById.get(v.linkedFromId) ?? null : null, // null + set id = source removed
+  }));
   const q = (opts.q ?? "").toLowerCase().trim();
   const category = (opts.category ?? "").trim(); // exact default-category filter
-  const filtered = all.filter(
+  const filtered = withLink.filter(
     (v) =>
       (!q || v.name.toLowerCase().includes(q)) &&
       (!category || v.categoryName === category)
@@ -402,7 +416,9 @@ export async function updateVendor(userId: string, id: string, input: VendorInpu
       await tx.vendorCondition.deleteMany({ where: { vendorId: id } });
       return tx.vendor.update({
         where: { id },
-        data: { name, link, iconLink, icon, categoryName, conditions: { create: rows } },
+        // Editing detaches any snapshot-link: it's now the user's own rule, not a
+        // faithful copy of the source (so no stale "linked" badge / re-sync clobber).
+        data: { name, link, iconLink, icon, categoryName, linkedFromId: null, conditions: { create: rows } },
         include: { conditions: true },
       });
     });

@@ -13,6 +13,9 @@ const zh: Messages = {
   "nav.signup": "注册",
   "nav.logout": "退出登录",
   "nav.language": "语言",
+  "nav.yourId": "你的 ID",
+  "nav.copyId": "复制你的 ID —— 分享后他人可找到你的规则",
+  "nav.copied": "已复制！",
 
   // ==================================================================
   // V2 PAGES — parallel-safe i18n regions (F0). Each page card edits ONLY
@@ -139,6 +142,19 @@ const zh: Messages = {
   "cust.vendors.moveUp": "提高优先级",
   "cust.vendors.moveDown": "降低优先级",
   "cust.vendors.defaultChip": "默认：{name}",
+  // 共享与快照链接 (FR2)
+  "cust.vendors.share": "共享",
+  "cust.vendors.unshare": "已共享 ✓",
+  "cust.vendors.shareHelp": "允许其他用户从共享目录中采用此规则。",
+  "cust.vendors.sharedChip": "已共享",
+  "cust.vendors.nowShared": "“{name}” 已共享 —— 其他人可以采用它。",
+  "cust.vendors.linkedChip": "已链接 · {id}",
+  "cust.vendors.linkedRemoved": "已链接 · 来源已删除",
+  "cust.vendors.updateFromSource": "从来源更新",
+  "cust.vendors.updateHelp": "重新拉取共享规则的最新版本。",
+  "cust.vendors.customize": "自定义",
+  "cust.vendors.customizeHelp": "与来源断开链接，以便自由编辑。",
+  "cust.vendors.resynced": "已从来源更新 “{name}” —— 现匹配 {count} 笔交易。",
   // editor
   "cust.vendors.createTitle": "新建商户",
   "cust.vendors.editTitle": "编辑商户",
@@ -187,14 +203,21 @@ const zh: Messages = {
   "cust.vendors.op.equals": "等于",
   "cust.vendors.op.starts_with": "开头为",
   "cust.vendors.op.regex": "正则",
-  // catalog browser (F10, FR2)
-  "cust.catalog.title": "商户目录",
-  "cust.catalog.help": "来自经典漏斗的现成商户。实例化后会在最低优先级得到一份可编辑的副本。",
-  "cust.catalog.search": "搜索目录…",
-  "cust.catalog.empty": "没有匹配的目录条目。",
+  // catalog browser (FR2) —— 社区共享的商户规则
+  "cust.catalog.title": "共享商户规则",
+  "cust.catalog.help": "浏览其他用户和管理员共享的商户规则。可采用为链接快照（可随时从来源重新同步）或独立克隆。",
+  "cust.catalog.search": "按名称搜索…",
+  "cust.catalog.filterUser": "按用户 ID 筛选…",
+  "cust.catalog.adminRules": "管理员的规则",
+  "cust.catalog.clearFilter": "清除筛选",
+  "cust.catalog.byAdmin": "来自 管理员",
+  "cust.catalog.byUser": "来自 {id}",
+  "cust.catalog.empty": "没有匹配的共享规则。",
   "cust.catalog.previewRows": "条件行",
-  "cust.catalog.instantiate": "实例化",
-  "cust.catalog.instantiating": "实例化中…",
+  "cust.catalog.useLinked": "使用（链接）",
+  "cust.catalog.clone": "克隆",
+  "cust.catalog.adopting": "添加中…",
+  "cust.catalog.modeHelp": "链接：一份可随时从来源重新拉取的快照。克隆：一份独立副本，可自由编辑。",
   // billing section (F11)
   "cust.billing.help": "免费版含 1 个银行连接、试用 1 个月。付费套餐可连接更多；套餐到期后，超出上限的连接将被移除，但其数据会保留。",
   "cust.billing.trial": "免费试用 — 剩余 {days} 天 · 1 个连接。",

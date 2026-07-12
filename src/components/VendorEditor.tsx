@@ -30,6 +30,9 @@ export type Vendor = {
   icon: string | null;
   categoryName: string | null;
   priority: number | null;
+  shared?: boolean; // offered to the community catalog
+  linkedFromId?: string | null; // adopted snapshot-link source (null = authored/cloned)
+  linkedFrom?: { userId: string; name: string } | null; // source owner+name; null when set id but source removed
   matchConditions: Condition[];
   categoryRules: Condition[];
 };

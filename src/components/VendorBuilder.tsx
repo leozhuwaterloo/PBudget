@@ -7,6 +7,9 @@ import CatalogBrowser from "./CatalogBrowser";
 import TransactionBrowser from "./TransactionBrowser";
 import { RowSummary, Chip } from "./vendorSummary";
 
+// A cuid is long; show a short handle (first6…last4) so ids stay readable.
+const shortId = (id: string): string => (id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id);
+
 // F10 vendor builder + catalog browser. Fills the Vendors slot F9 left in
 // /customizations. Priority-ordered list (reorder → F3 endpoint), a full condition
 // builder (create/edit → F3 CRUD), and the catalog browser (instantiate → F4).
@@ -115,6 +118,22 @@ export default function VendorBuilder() {
     setNotice(t("cust.vendors.deleted", { name: v.name }));
   }
 
+  // Sharing / snapshot-link lifecycle: share|unshare a rule, or resync|detach a
+  // linked snapshot. One endpoint; the list is refreshed after every action.
+  async function sharing(v: Vendor, action: "share" | "unshare" | "resync" | "detach") {
+    setRowError(null);
+    const res = await fetch("/api/vendors/sharing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: v.id, action }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return setRowError(data.error ?? t("common.genericError"));
+    await refresh();
+    if (action === "share") setNotice(t("cust.vendors.nowShared", { name: v.name }));
+    if (action === "resync") setNotice(t("cust.vendors.resynced", { name: v.name, count: data.claimed ?? 0 }));
+  }
+
   if (!vendors) return <p className="muted">{loadError ?? t("common.loading")}</p>;
 
   // The editor renders in place: a new vendor at the top (by the Add button), an
@@ -217,6 +236,14 @@ export default function VendorBuilder() {
                   <div className="row wrap" style={{ gap: 10 }}>
                     <strong style={{ fontSize: 15 }}>{v.name}</strong>
                     {v.categoryName && <Chip tone="cat">{t("cust.vendors.defaultChip", { name: v.categoryName })}</Chip>}
+                    {v.shared && <Chip tone="cat">{t("cust.vendors.sharedChip")}</Chip>}
+                    {v.linkedFromId && (
+                      <Chip>
+                        {v.linkedFrom
+                          ? t("cust.vendors.linkedChip", { id: shortId(v.linkedFrom.userId) })
+                          : t("cust.vendors.linkedRemoved")}
+                      </Chip>
+                    )}
                   </div>
                   <div style={{ marginTop: 8 }}>
                     {v.matchConditions.map((c) => (
@@ -227,11 +254,24 @@ export default function VendorBuilder() {
                     ))}
                   </div>
                 </div>
-                <div className="row" style={{ gap: 6 }}>
+                <div className="row wrap" style={{ gap: 6, justifyContent: "flex-end" }}>
                   <button className="btn btn-sm" onClick={() => setOpenTxns((id) => (id === v.id ? null : v.id))}>
                     {openTxns === v.id ? t("cust.vendors.hideTxns") : t("cust.vendors.viewTxns")}
                   </button>
-                  <button className="btn btn-sm" onClick={() => setEditing((e) => (e !== "new" && e?.id === v.id ? null : v))}>{t("cust.vendors.edit")}</button>
+                  {v.linkedFromId ? (
+                    // Adopted snapshot-link: read-only. Re-pull the source, or detach to edit.
+                    <>
+                      <button className="btn btn-sm" onClick={() => sharing(v, "resync")} title={t("cust.vendors.updateHelp")}>{t("cust.vendors.updateFromSource")}</button>
+                      <button className="btn btn-sm" onClick={() => sharing(v, "detach")} title={t("cust.vendors.customizeHelp")}>{t("cust.vendors.customize")}</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn btn-sm" onClick={() => sharing(v, v.shared ? "unshare" : "share")} title={t("cust.vendors.shareHelp")}>
+                        {v.shared ? t("cust.vendors.unshare") : t("cust.vendors.share")}
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setEditing((e) => (e !== "new" && e?.id === v.id ? null : v))}>{t("cust.vendors.edit")}</button>
+                    </>
+                  )}
                   <button className="btn btn-sm btn-ghost" onClick={() => del(v)}>{t("cust.vendors.delete")}</button>
                 </div>
               </div>

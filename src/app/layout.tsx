@@ -8,6 +8,7 @@ import { I18nProvider } from "@/lib/i18n/context";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import LogoutButton from "@/components/LogoutButton";
 import NavLink from "@/components/NavLink";
+import UserIdBadge from "@/components/UserIdBadge";
 
 // Small ledger-green wordmark badge — three ascending bars (savings growing).
 function BrandMark() {
@@ -42,6 +43,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <NavLink href="/vendors" label={t(locale, "cust.nav.vendors")} icon="vendors" />
                 <NavLink href="/customizations" label={t(locale, "nav.customizations")} icon="customizations" />
                 <div className="spacer" />
+                <UserIdBadge id={user.id} />
                 <LogoutButton />
               </>
             ) : (

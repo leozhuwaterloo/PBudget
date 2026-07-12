@@ -82,6 +82,16 @@ a:hover { text-decoration: underline; }
 /* Log out sits under the nav items — left-align it to match them. */
 .nav-side .btn-ghost { justify-content: flex-start; padding: 9px 11px; font-size: 14px; }
 .nav-side > form, .nav-side > button, .nav-side > select { margin-top: 2px; }
+/* User-id badge (sharing handle) — sits at the bottom of the rail, click to copy. */
+.userid-badge {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  width: 100%; margin: 6px 0 2px; padding: 7px 11px;
+  background: var(--bg-3); border: 1px solid var(--border); border-radius: 9px;
+  cursor: pointer; text-align: left; line-height: 1.3;
+}
+.userid-badge:hover { border-color: var(--primary); }
+.userid-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.userid-value { font-size: 12px; font-family: var(--mono, ui-monospace, monospace); color: var(--fg); }
 .main-side { margin-left: 232px; max-width: none; padding: 34px 44px 72px; }
 
 h1 {
