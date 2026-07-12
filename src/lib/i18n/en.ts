@@ -246,6 +246,13 @@ const en = {
   "cust.billing.success": "Subscription updated — welcome aboard!",
   "cust.billing.cancelled": "Checkout cancelled; no changes were made.",
   "cust.billing.error": "Something went wrong. Please try again.",
+  // delete account (App Store / Play in-app account deletion requirement)
+  "cust.delete.button": "Delete account",
+  "cust.delete.confirm": "This permanently deletes your account and all your data.",
+  "cust.delete.confirmBtn": "Confirm delete",
+  "cust.delete.deleting": "Deleting…",
+  "cust.delete.help":
+    "Cancels your subscription, disconnects your banks from Plaid, and erases all your data. This can't be undone.",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
   "review.countToday": "Today",

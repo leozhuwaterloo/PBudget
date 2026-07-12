@@ -39,6 +39,8 @@ export default function BillingSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState<"success" | "cancelled" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetch("/api/billing")
@@ -59,6 +61,18 @@ export default function BillingSection() {
     } catch (e: any) {
       setError(e?.message || t("cust.billing.error"));
       setBusy(false);
+    }
+  };
+
+  const onDelete = async () => {
+    setDeleting(true);
+    setError("");
+    try {
+      await postJson("/api/auth/delete");
+      window.location.href = "/"; // full reload — clears all authed client state
+    } catch (e: any) {
+      setError(e?.message || t("cust.billing.error"));
+      setDeleting(false);
     }
   };
 
@@ -135,6 +149,30 @@ export default function BillingSection() {
       )}
 
       {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
+
+      <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+        {!confirmDelete ? (
+          <button className="btn btn-sm" style={{ color: "var(--danger)" }} onClick={() => setConfirmDelete(true)}>
+            {t("cust.delete.button")}
+          </button>
+        ) : (
+          <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span className="error" style={{ margin: 0 }}>{t("cust.delete.confirm")}</span>
+            <button
+              className="btn btn-sm"
+              style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+              disabled={deleting}
+              onClick={onDelete}
+            >
+              {deleting ? t("cust.delete.deleting") : t("cust.delete.confirmBtn")}
+            </button>
+            <button className="btn btn-sm btn-ghost" disabled={deleting} onClick={() => setConfirmDelete(false)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        )}
+        <p className="muted" style={{ marginTop: 6 }}>{t("cust.delete.help")}</p>
+      </div>
     </div>
   );
 }

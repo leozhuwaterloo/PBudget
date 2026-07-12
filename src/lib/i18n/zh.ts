@@ -243,6 +243,12 @@ const zh: Messages = {
   "cust.billing.success": "订阅已更新——欢迎加入！",
   "cust.billing.cancelled": "结账已取消，未做任何更改。",
   "cust.billing.error": "出了点问题，请重试。",
+  // delete account (App Store / Play in-app account deletion requirement)
+  "cust.delete.button": "删除账户",
+  "cust.delete.confirm": "这将永久删除您的账户及所有数据。",
+  "cust.delete.confirmBtn": "确认删除",
+  "cust.delete.deleting": "正在删除…",
+  "cust.delete.help": "取消您的订阅，断开与 Plaid 的银行连接，并清除您的所有数据。此操作无法撤销。",
 
   // --- review v2 (F12) — add review-v2 strings within this region ---
   "review.countToday": "今日",
