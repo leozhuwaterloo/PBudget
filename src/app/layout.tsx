@@ -6,7 +6,6 @@ import { getLocale } from "@/lib/i18n/server";
 import { t } from "@/lib/i18n";
 import { I18nProvider } from "@/lib/i18n/context";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import LogoutButton from "@/components/LogoutButton";
 import NavLink from "@/components/NavLink";
 import UserIdBadge from "@/components/UserIdBadge";
 
@@ -100,17 +99,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <NavLink href="/vendors" label={t(locale, "cust.nav.vendors")} icon="vendors" />
                 <NavLink href="/customizations" label={t(locale, "nav.customizations")} icon="customizations" />
                 <div className="spacer" />
-                <LogoutButton />
+                <UserIdBadge id={user.id} />
               </>
             ) : (
               <>
                 <div className="spacer" />
                 <Link href="/login">{t(locale, "nav.login")}</Link>
                 <Link href="/signup">{t(locale, "nav.signup")}</Link>
+                <LanguageSwitcher />
               </>
             )}
-            <LanguageSwitcher />
-            {user && <UserIdBadge id={user.id} />}
           </nav>
           <main className={user ? "main main-side" : "main"}>{children}</main>
         </I18nProvider>

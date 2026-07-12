@@ -6,6 +6,8 @@ import BillingSection from "./BillingSection";
 import MergesManager from "./MergesManager";
 import MarkedValidManager from "./MarkedValidManager";
 import CategoryOverridesManager from "./CategoryOverridesManager";
+import LanguageSwitcher from "./LanguageSwitcher";
+import LogoutButton from "./LogoutButton";
 
 // Customizations shell: subtab nav (categories / merges / billing). Vendors moved
 // to /vendors; the old Category Mappings tab was removed — vendors now solely
@@ -27,7 +29,14 @@ export default function Customizations() {
 
   return (
     <div>
-      <h1>{t("customizations.title")}</h1>
+      {/* Language + logout relocated here from the nav so the mobile bottom bar stays exactly 5 tabs. */}
+      <div className="row wrap" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 22 }}>
+        <h1 style={{ margin: 0 }}>{t("customizations.title")}</h1>
+        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          <LanguageSwitcher />
+          <LogoutButton />
+        </div>
+      </div>
 
       <div className="row wrap" style={{ gap: 8, marginBottom: 28 }} role="tablist">
         {TABS.map((id) => (

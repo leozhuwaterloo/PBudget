@@ -79,9 +79,6 @@ a:hover { text-decoration: underline; }
 .nav-ic { flex: 0 0 auto; display: inline-flex; width: 20px; height: 20px; }
 .nav-ic svg { width: 20px; height: 20px; }
 .nav-side .spacer { flex: 1; min-height: 12px; }
-/* Log out sits under the nav items — left-align it to match them. */
-.nav-side .btn-ghost { justify-content: flex-start; padding: 9px 11px; font-size: 14px; }
-.nav-side > form, .nav-side > button, .nav-side > select { margin-top: 2px; }
 /* User-id badge (sharing handle) — sits at the bottom of the rail, click to copy. */
 .userid-badge {
   display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
@@ -284,19 +281,27 @@ input.budget { width: 92px; padding: 6px 8px; }
 @media (max-width: 640px) {
   .nav { padding: calc(12px + env(safe-area-inset-top)) 16px 12px; gap: 12px; }
   .main { padding: 20px 14px 48px; }
-  /* Rail → fixed bottom bar (clears the Dynamic Island / notch at the top).
-     Links sit in one horizontally-scrollable row; logout + language inline. */
+  /* Rail → fixed bottom tab bar (clears the Dynamic Island / notch at the top).
+     Exactly 5 equal tabs, icon over label, no horizontal scroll. */
   .nav-side {
     position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto;
-    flex-direction: row; flex-wrap: nowrap; align-items: center;
-    gap: 8px 6px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    flex-direction: row; flex-wrap: nowrap; align-items: stretch;
+    gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     border-right: none; border-top: 1px solid var(--border); border-bottom: none;
-    overflow-x: auto; overflow-y: hidden; z-index: 20;
+    overflow: hidden; z-index: 20;
   }
-  .nav-side .brand { margin: 0 6px 0 0; font-size: 17px; }
+  .nav-side .brand { display: none; }
   .nav-side .spacer { display: none; }
-  .nav-link { padding: 7px 10px; font-size: 13px; }
-  .nav-ic, .nav-ic svg { width: 18px; height: 18px; }
+  .nav-link {
+    flex: 1 1 0; min-width: 0;
+    flex-direction: column; gap: 3px;
+    padding: 6px 2px; border-radius: 8px;
+    font-size: 10px; font-weight: 500; text-align: center; justify-content: center;
+  }
+  .nav-link > span:last-child {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .nav-ic, .nav-ic svg { width: 20px; height: 20px; }
   /* The id badge is a desktop power-feature (copy your sharing handle) — hide it
      on mobile so the top bar stays tight. */
   .userid-badge { display: none; }
