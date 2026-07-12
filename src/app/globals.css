@@ -266,6 +266,48 @@ input.budget { width: 92px; padding: 6px 8px; }
   th, td { padding: 8px 10px; white-space: nowrap; }
   /* Comfortable tap targets for the small buttons that pack table/action rows. */
   .btn-sm { padding: 8px 12px; font-size: 13px; }
+
+  /* Phone: wide row-tables become one card per row instead of scrolling sideways.
+     Review queues self-label (money/date read for themselves); the categories
+     form labels each field via data-label. Scoped so detail/modal tables and
+     other tabs keep their normal layout. */
+  .review-page section table thead,
+  .cat-editor table thead { display: none; }
+  .review-page section table, .review-page section table tbody,
+  .review-page section table tr, .review-page section table td,
+  .cat-editor table, .cat-editor table tbody,
+  .cat-editor table tr, .cat-editor table td { display: block; width: auto; }
+  /* Drop the wrapper card's frame so row-cards aren't double-bordered (progressive:
+     ignored where :has() is unsupported — rows still stack, just inside the frame). */
+  .review-page section .card:has(> table:only-child),
+  .cat-editor .card:has(> table:only-child) {
+    border: none; background: none; box-shadow: none; overflow: visible; padding: 0;
+  }
+  .review-page section table tr,
+  .cat-editor table tr {
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg-2); box-shadow: var(--shadow-sm);
+    padding: 11px 13px; margin-bottom: 10px;
+  }
+  .review-page section table tr:last-child,
+  .cat-editor table tr:last-child { margin-bottom: 0; }
+  .review-page section table td,
+  .cat-editor table td { border: none; padding: 4px 0; white-space: normal !important; }
+  .review-page section table td:empty { display: none; }
+  /* Action button clusters wrap inside the card instead of overflowing. */
+  .review-page section table td .row { flex-wrap: wrap !important; }
+  .review-page section table td:last-child { margin-top: 6px; }
+  /* Categories form: label on the left, control on the right, per stacked field. */
+  .cat-editor table td[data-label] {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .cat-editor table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); flex: 0 0 auto;
+  }
+  .cat-editor table td[data-label] > div,
+  .cat-editor table td[data-label] > select { flex: 1 1 auto; min-width: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

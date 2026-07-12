@@ -152,7 +152,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
   for (const o of cats.filter((c) => !placed.has(c.id)).sort(byName)) ordered.push({ c: o, depth: 0 });
 
   return (
-    <div>
+    <div className="cat-editor">
       <p className="muted" style={{ marginBottom: 16 }}>
         {t("cust.cat.help")}
       </p>
@@ -183,7 +183,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
               return (
               <React.Fragment key={c.id}>
                 <tr>
-                  <td>
+                  <td data-label={t("cust.cat.colName")}>
                     <div style={{ display: "flex", alignItems: "center", paddingLeft: depth * 20 }}>
                       {depth > 0 && <span className="muted" style={{ marginRight: 4 }}>↳</span>}
                       <input
@@ -196,7 +196,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                       />
                     </div>
                   </td>
-                  <td>
+                  <td data-label={t("cust.cat.colParent")}>
                     {/* A category with its own children can't also be nested (2-level cap). */}
                     <select
                       value={c.parentName ?? ""}
@@ -213,7 +213,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                         ))}
                     </select>
                   </td>
-                  <td>
+                  <td data-label={t("cust.cat.colBudget")}>
                     {/* budget editor interaction ported from Budget.tsx */}
                     <input
                       className="budget"
@@ -227,7 +227,7 @@ export default function CategoriesEditor({ onChanged }: { onChanged?: () => void
                       }}
                     />
                   </td>
-                  <td>
+                  <td data-label={t("cust.cat.colExclude")}>
                     <input
                       type="checkbox"
                       style={{ width: "auto" }}
