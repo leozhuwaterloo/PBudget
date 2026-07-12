@@ -282,14 +282,16 @@ input.budget { width: 92px; padding: 6px 8px; }
 
 /* Mobile: rail collapses to a top bar; wide ledgers scroll instead of overflowing. */
 @media (max-width: 640px) {
-  .nav { padding: 12px 16px; gap: 12px; }
+  .nav { padding: calc(12px + env(safe-area-inset-top)) 16px 12px; gap: 12px; }
   .main { padding: 20px 14px 48px; }
-  /* Rail → compact top bar. Brand first, then the nav links wrap onto the next
-     row; logout + language sit inline after them. */
+  /* Rail → fixed bottom bar (clears the Dynamic Island / notch at the top).
+     Links sit in one horizontally-scrollable row; logout + language inline. */
   .nav-side {
-    position: static; width: auto; flex-direction: row; flex-wrap: wrap;
-    align-items: center; gap: 8px 6px; padding: 10px 14px;
-    border-right: none; border-bottom: 1px solid var(--border); overflow: visible;
+    position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto;
+    flex-direction: row; flex-wrap: nowrap; align-items: center;
+    gap: 8px 6px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    border-right: none; border-top: 1px solid var(--border); border-bottom: none;
+    overflow-x: auto; overflow-y: hidden; z-index: 20;
   }
   .nav-side .brand { margin: 0 6px 0 0; font-size: 17px; }
   .nav-side .spacer { display: none; }
@@ -298,7 +300,7 @@ input.budget { width: 92px; padding: 6px 8px; }
   /* The id badge is a desktop power-feature (copy your sharing handle) — hide it
      on mobile so the top bar stays tight. */
   .userid-badge { display: none; }
-  .main-side { margin-left: 0; padding: 18px 12px 56px; }
+  .main-side { margin-left: 0; padding: calc(18px + env(safe-area-inset-top)) 12px calc(72px + env(safe-area-inset-bottom)); }
   /* Cards: tighter padding reclaims ~16px of width; wide content still scrolls. */
   .card { padding: 16px; overflow-x: auto; }
   .stat { padding: 15px 16px; }

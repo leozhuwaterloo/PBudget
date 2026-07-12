@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale } from "@/lib/i18n/server";
@@ -26,6 +26,16 @@ function BrandMark() {
 // build) — so the fallback must be the prod origin, not localhost. Local dev
 // still gets localhost via APP_URL in .env.
 const SITE_URL = process.env.APP_URL || "https://pbudget.ppvnx.com";
+
+// Native shell = fullscreen webview on notched phones. viewport-fit=cover exposes
+// env(safe-area-inset-*) to the CSS; maximumScale/userScalable lock out pinch-zoom.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
