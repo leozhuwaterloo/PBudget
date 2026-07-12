@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AuthForm from "@/components/AuthForm";
+import { socialConfig } from "@/lib/social";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <AuthForm mode="login" />;
+  return <AuthForm mode="login" social={socialConfig()} />;
 }

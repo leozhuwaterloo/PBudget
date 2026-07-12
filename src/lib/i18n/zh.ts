@@ -375,6 +375,11 @@ const zh: Messages = {
   "privacy.contactBody": "对本政策或您的数据有疑问？请发送邮件至 support@ppvnx.com。",
   "privacy.back": "← 返回首页",
   "auth.forgotPassword": "忘记密码？",
+  // social sign-in (Google / Apple)
+  "auth.or": "或",
+  "auth.continueWithGoogle": "使用 Google 继续",
+  "auth.continueWithApple": "使用 Apple 继续",
+  "auth.socialError": "登录失败，请重试。",
 
   // forgot / reset password
   "forgot.title": "重置您的密码",

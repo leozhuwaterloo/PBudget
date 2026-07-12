@@ -23,6 +23,7 @@
     "check:splits": "tsx scripts/check-splits.ts",
     "check:dashboard": "tsx scripts/check-dashboard.ts",
     "check:review": "tsx scripts/check-review.ts",
+    "check:native-auth": "tsx scripts/check-native-auth.ts",
     "check:migration": "tsx scripts/check-migration.ts",
     "migrate:portfolio": "tsx scripts/migrate-portfolio.ts",
     "migrate:vendors": "tsx scripts/migrate-vendors-v2.ts"
@@ -31,6 +32,7 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
+    "@capgo/capacitor-social-login": "^8.3.36",
     "@prisma/client": "^6.19.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.20.0",
