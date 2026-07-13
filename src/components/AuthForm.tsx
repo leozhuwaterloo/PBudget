@@ -86,7 +86,7 @@ export default function AuthForm({ mode, social }: { mode: "login" | "signup"; s
       }
       const r = await SocialLogin.login(
         provider === "google"
-          ? { provider: "google", options: {} }
+          ? { provider: "google", options: { forcePrompt: true } } // forcePrompt = force account chooser on iOS (Android standard UI + web select_account already force it)
           : { provider: "apple", options: { scopes: ["email"] } },
       );
       const idToken = (r.result as { idToken?: string })?.idToken;
