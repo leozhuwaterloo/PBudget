@@ -378,3 +378,20 @@ input.budget { width: 92px; padding: 6px 8px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Floating GitHub link — bottom-right corner, on every page. --------------- */
+.gh-fab {
+  position: fixed; right: 16px; bottom: 16px; z-index: 30;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: 999px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  color: var(--fg); font-size: 13px; font-weight: 600;
+}
+.gh-fab:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
+.gh-fab svg { width: 17px; height: 17px; }
+@media (max-width: 640px) {
+  .gh-fab { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); }
+  /* signed-in users get a fixed bottom nav bar — lift the button above it */
+  .gh-fab-side { bottom: calc(78px + env(safe-area-inset-bottom)); }
+}
