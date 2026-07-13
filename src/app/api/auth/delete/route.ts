@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, destroySession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isDemo, demoBlocked } from "@/lib/guard";
 import { stripe } from "@/lib/stripe";
 import { removeConnection } from "@/lib/plaid";
 
@@ -10,6 +11,7 @@ import { removeConnection } from "@/lib/plaid";
 export async function POST() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemo(user)) return demoBlocked();
 
   // Cancel the Stripe subscription immediately (they're leaving — not at period end).
   // Logged, not silently swallowed; deletion still proceeds so a Stripe outage can't
