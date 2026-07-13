@@ -65,7 +65,15 @@ export async function findOrCreateOAuthUser(email: string): Promise<User> {
   const existing = await prisma.user.findUnique({ where: { email: e } });
   if (existing) {
     if (existing.emailVerified) return existing;
-    return prisma.user.update({ where: { id: existing.id }, data: { emailVerified: new Date() } });
+    // The account existed but was never email-verified, so its password was chosen by
+    // whoever registered the address first -- NOT proven to be this provider-verified
+    // owner. Discard that password (unusable random hash) as we mark it verified, so a
+    // pre-registration attacker cannot retain access. The real owner can set a new
+    // password via reset (they now control the verified inbox).
+    return prisma.user.update({
+      where: { id: existing.id },
+      data: { emailVerified: new Date(), passwordHash: crypto.randomBytes(32).toString("hex") },
+    });
   }
   return prisma.user.create({
     data: { email: e, passwordHash: crypto.randomBytes(32).toString("hex"), emailVerified: new Date() },
