@@ -1,6 +1,6 @@
-# PlaidBudget
+# PBudget
 
-PlaidBudget is a **Next.js + React full-stack application**.
+PBudget is a **Next.js + React full-stack application**.
 
 ## Stack
 - **Framework:** Next.js (App Router) + React, full-stack — UI, API routes, and
