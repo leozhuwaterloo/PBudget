@@ -24,5 +24,16 @@ export async function gate(
   return { user };
 }
 
+// The public demo/review account is READ-ONLY. Its credentials ship in the repo and
+// go to app-store reviewers, so a stranger who logs in must not be able to link a real
+// bank (Plaid is in production) or delete the account. Enforced at the damaging write
+// routes only — cosmetic edits self-heal on the next demo re-seed.
+export const DEMO_EMAIL = process.env.DEMO_EMAIL ?? "demo@ppvnx.com";
+export function isDemo(user: Pick<User, "email">): boolean {
+  return user.email.toLowerCase() === DEMO_EMAIL.toLowerCase();
+}
+export const demoBlocked = () =>
+  NextResponse.json({ error: "The demo account is read-only." }, { status: 403 });
+
 // Prisma Decimal -> number | null for JSON responses.
 export const num = (d: unknown): number | null => (d == null ? null : Number(d));

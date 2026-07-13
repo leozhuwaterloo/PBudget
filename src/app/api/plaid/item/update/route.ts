@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { gate } from "@/lib/guard";
+import { gate, isDemo, demoBlocked } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { exchangePublicToken, syncItem } from "@/lib/plaid";
 import { entitledConnections, countConnections, upgradeCTA } from "@/lib/stripe";
@@ -8,6 +8,7 @@ import { entitledConnections, countConnections, upgradeCTA } from "@/lib/stripe"
 export async function POST(req: Request) {
   const g = await gate({ verified: true });
   if (g.error) return g.error;
+  if (isDemo(g.user!)) return demoBlocked();
   const { public_token } = await req.json().catch(() => ({}));
   if (!public_token) return NextResponse.json({ error: "Missing public_token" }, { status: 400 });
 

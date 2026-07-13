@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { gate } from "@/lib/guard";
+import { gate, isDemo, demoBlocked } from "@/lib/guard";
 import { createLinkToken } from "@/lib/plaid";
 import { canAddConnection, upgradeCTA } from "@/lib/stripe";
 
 export async function POST() {
   const g = await gate({ verified: true });
   if (g.error) return g.error;
+  if (isDemo(g.user!)) return demoBlocked();
   const add = await canAddConnection(g.user!);
   if (!add.ok) {
     return NextResponse.json(upgradeCTA(g.user!.plan, add.used), { status: 402 });
