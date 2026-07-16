@@ -59,7 +59,7 @@ create the app with package name `com.ppvnx.pbudget`.
 
 ## iOS (Mac + Xcode, but no persistent checkout)
 
-`scripts/ios-release.sh` builds and uploads to App Store Connect from an
+`~/bin/ios-release-pbudget.sh` (kept on your Mac, not in this repo) builds and uploads to App Store Connect from an
 **ephemeral clone** — the repo is cloned to a temp dir and deleted on exit, so
 nothing (no `ios/` folder, no checkout) stays on your Mac. Keep just that one
 script (e.g. `~/bin/`) plus a `~/.pbudget-ios.env` secrets file.
@@ -72,12 +72,11 @@ script (e.g. `~/bin/`) plus a `~/.pbudget-ios.env` secrets file.
 3. Create the app record once: App Store Connect → Apps → **+** → New App, bundle
    id `com.ppvnx.pbudget`. (Automatic signing registers the bundle id itself;
    this step is only the store listing.)
-4. `cp scripts/ios-release.env.example ~/.pbudget-ios.env`, fill in the key
-   IDs / Team ID, `chmod 600` it. **Never commit it.**
+4. Create `~/.pbudget-ios.env` with your App Store Connect API key vars (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`, `ASC_TEAM_ID`) and the repo git URL; `chmod 600` it. **Never commit it.**
 
 **Every release:**
 ```bash
-~/bin/ios-release.sh    # clone → build → sign → upload → self-clean
+~/bin/ios-release-pbudget.sh    # clone → build → sign → upload → self-clean
 ```
 The build appears in App Store Connect → TestFlight in a few minutes; submit for
 review from there. Build number is an epoch timestamp (auto-unique per upload);
