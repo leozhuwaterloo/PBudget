@@ -22,7 +22,11 @@
 }
 
 * { box-sizing: border-box; }
-html, body { padding: 0; margin: 0; }
+html, body {
+  padding: 0; margin: 0;
+  -webkit-touch-callout: none; /* native shell: no long-press Save-to-Photos/Copy on images (inherits app-wide) */
+}
+img { -webkit-user-drag: none; } /* native shell: long-press-drag must not lift a ghost image (callout:none does not stop drag) */
 body {
   background: var(--bg);
   color: var(--fg);
